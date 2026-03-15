@@ -585,6 +585,9 @@
   </div>
 </div>
 
+<!-- Hidden provider toggle – JS setzt currentProvider, UI nicht nötig -->
+<div id="provider-toggle" class="hidden"></div>
+
 <!-- Main content grid -->
 <div class="p-6 bg-slate-50 flex-1">
   <div class="grid grid-cols-1 xl:grid-cols-5 gap-6">
@@ -592,48 +595,41 @@
     <!-- Left: Form (3/5) -->
     <div class="xl:col-span-3 flex flex-col gap-5">
 
-      <!-- Provider + Recipient card -->
+      <!-- Empfänger card -->
       <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200">
-          <div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">Provider</div>
-          <div class="flex gap-2" id="provider-toggle"></div>
+        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+          <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Empfänger</span>
         </div>
         <div class="px-6 py-5 space-y-4">
 
-          <!-- Kontakt-Suche -->
-          <div class="form-field">
-            <label>Kontakt</label>
-            <div class="contact-search-wrap">
-              <input type="text" id="contact-search"
-                     placeholder="Kontakt suchen oder neu eingeben…"
-                     autocomplete="off"
-                     oninput="onContactSearch()"
-                     onfocus="onContactSearch()">
-              <div class="contact-dropdown" id="contact-dropdown" style="display:none;"></div>
-            </div>
-            <a href="/contacts" class="contact-link">Adressbuch verwalten →</a>
+          <!-- Kontakt-Suche (wird ausgeblendet wenn Kontakt ausgewählt) -->
+          <div id="contact-search-outer" class="contact-search-wrap">
+            <input type="text" id="contact-search"
+                   placeholder="Kontakt aus Adressbuch suchen…"
+                   autocomplete="off"
+                   oninput="onContactSearch()"
+                   onfocus="onContactSearch()">
+            <div class="contact-dropdown" id="contact-dropdown" style="display:none;"></div>
           </div>
 
-          <!-- Unterordner -->
-          <div class="form-field">
-            <label>Unterordner <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></label>
-            <input type="text" id="subfolder" placeholder="z.B. MusterGmbH/Mueller">
+          <!-- Kontakt-Chip (wird angezeigt wenn Kontakt aus Adressbuch gewählt) -->
+          <div id="contact-chip" class="hidden items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+            <div class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-base flex-shrink-0 select-none" id="chip-avatar">?</div>
+            <div class="flex-1 min-w-0">
+              <div class="font-semibold text-slate-800 text-sm leading-snug" id="chip-name">-</div>
+              <div class="text-xs text-slate-500 font-mono mt-0.5 truncate" id="chip-details">-</div>
+            </div>
+            <button onclick="clearContact()"
+                    class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:bg-blue-100 rounded-lg transition-colors whitespace-nowrap flex-shrink-0">
+              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z"/>
+              </svg>
+              Ändern
+            </button>
           </div>
 
-          <!-- Grid fields -->
-          <div class="grid grid-cols-2 gap-3">
-            <div class="form-field">
-              <label>Dateiname</label>
-              <input type="text" id="filename" placeholder="z.B. angebot-mueller" value="nachricht">
-            </div>
-            <div class="form-field">
-              <label>Gültigkeit (Tage)</label>
-              <select id="expiry">
-                <option value="7">7 Tage</option>
-                <option value="14" selected>14 Tage</option>
-                <option value="30">30 Tage</option>
-              </select>
-            </div>
+          <!-- Manuelle Felder E-Mail + Telefon (nur wenn kein Kontakt ausgewählt) -->
+          <div id="manual-fields" class="grid grid-cols-2 gap-3">
             <div class="form-field">
               <label>E-Mail Kunde</label>
               <input type="email" id="email" placeholder="kunde@firma.de">
@@ -642,9 +638,43 @@
               <label>Mobilnummer (SMS)</label>
               <input type="tel" id="phone" placeholder="0176 12345678">
             </div>
-            <div class="form-field" style="grid-column:1/-1;">
-              <label>Empfänger Name <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional, für History)</span></label>
-              <input type="text" id="recipient-name" placeholder="Vorname Nachname">
+          </div>
+
+          <!-- Dateiname (immer sichtbar) -->
+          <div class="form-field">
+            <label>Dateiname</label>
+            <input type="text" id="filename" placeholder="z.B. angebot-mueller" value="nachricht">
+          </div>
+
+          <!-- Erweiterte Einstellungen (aufklappbar) -->
+          <div>
+            <button onclick="toggleAdvanced()" id="adv-toggle"
+                    class="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-blue-600 transition-colors py-0.5">
+              <svg id="adv-chevron" class="w-3.5 h-3.5 transition-transform duration-200 flex-shrink-0"
+                   fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+              </svg>
+              Erweiterte Einstellungen
+            </button>
+            <div id="adv-section" class="hidden mt-3 space-y-3 pt-3 border-t border-slate-100">
+              <div class="grid grid-cols-2 gap-3">
+                <div class="form-field">
+                  <label>Unterordner <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;">(optional)</span></label>
+                  <input type="text" id="subfolder" placeholder="z.B. MusterGmbH/Mueller">
+                </div>
+                <div class="form-field">
+                  <label>Gültigkeit</label>
+                  <select id="expiry">
+                    <option value="7">7 Tage</option>
+                    <option value="14" selected>14 Tage</option>
+                    <option value="30">30 Tage</option>
+                  </select>
+                </div>
+                <div class="form-field" style="grid-column:1/-1;">
+                  <label>Empfänger Name <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;">(für History)</span></label>
+                  <input type="text" id="recipient-name" placeholder="Vorname Nachname">
+                </div>
+              </div>
             </div>
           </div>
 
@@ -976,12 +1006,14 @@
     const c = allContacts.find(x => x.id === id);
     if (!c) return;
     selectedContact = c;
-    document.getElementById('contact-search').value =
-      `${c.first_name} ${c.last_name}${c.company ? ' – ' + c.company : ''}`;
     document.getElementById('contact-dropdown').style.display = 'none';
+
+    // Felder befüllen
     if (c.email)  document.getElementById('email').value  = c.email;
     if (c.mobile) document.getElementById('phone').value  = c.mobile;
     document.getElementById('recipient-name').value = `${c.first_name} ${c.last_name}`;
+
+    // Unterordner automatisch vorschlagen
     const cleanPart = s =>
       (s || '').replace(/[^\w\s\-äöüÄÖÜß]/g, '').replace(/\s+/g, '_').replace(/_+/g, '_').trim();
     const company  = cleanPart(c.company);
@@ -991,6 +1023,44 @@
     else if (company)        subfolder = company;
     else if (lastName)       subfolder = lastName;
     document.getElementById('subfolder').value = subfolder.slice(0, 80);
+
+    // Chip anzeigen, Such-Input + manuelle Felder ausblenden
+    const initials = ((c.first_name||'')[0] + (c.last_name||'')[0]).toUpperCase() || '?';
+    document.getElementById('chip-avatar').textContent  = initials;
+    document.getElementById('chip-name').textContent    =
+      `${c.first_name} ${c.last_name}${c.company ? ' · ' + c.company : ''}`;
+    document.getElementById('chip-details').textContent = `${c.email}  ·  ${c.mobile}`;
+
+    document.getElementById('contact-search-outer').classList.add('hidden');
+    document.getElementById('manual-fields').classList.add('hidden');
+    const chip = document.getElementById('contact-chip');
+    chip.classList.remove('hidden');
+    chip.classList.add('flex');
+  }
+
+  function clearContact() {
+    selectedContact = null;
+    document.getElementById('contact-search').value = '';
+    document.getElementById('email').value          = '';
+    document.getElementById('phone').value          = '';
+    document.getElementById('recipient-name').value = '';
+    document.getElementById('subfolder').value      = '';
+
+    // Chip ausblenden, Such-Input + manuelle Felder wieder anzeigen
+    const chip = document.getElementById('contact-chip');
+    chip.classList.add('hidden');
+    chip.classList.remove('flex');
+    document.getElementById('contact-search-outer').classList.remove('hidden');
+    document.getElementById('manual-fields').classList.remove('hidden');
+    document.getElementById('contact-search').focus();
+  }
+
+  function toggleAdvanced() {
+    const section = document.getElementById('adv-section');
+    const chevron = document.getElementById('adv-chevron');
+    const opening = section.classList.contains('hidden');
+    section.classList.toggle('hidden', !opening);
+    chevron.style.transform = opening ? 'rotate(90deg)' : '';
   }
 
   function esc(s) {
