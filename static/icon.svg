@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+
+    <!-- Background gradient -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#1e3a8a"/>
+    </linearGradient>
+
+    <!-- Lock body gradient (top = bright white, bottom = slightly cooler) -->
+    <linearGradient id="lockBody" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="1"/>
+      <stop offset="100%" stop-color="#dbeafe" stop-opacity="0.97"/>
+    </linearGradient>
+
+    <!-- Shackle gradient (subtle warm top) -->
+    <linearGradient id="shackleGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#e0eaff"/>
+    </linearGradient>
+
+    <!-- Soft drop shadow -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000" flood-opacity="0.22"/>
+    </filter>
+
+    <!-- Inner shadow for lock body -->
+    <filter id="inset">
+      <feComponentTransfer>
+        <feFuncA type="linear" slope="1"/>
+      </feComponentTransfer>
+    </filter>
+
+  </defs>
+
+  <!-- ── Background ── -->
+  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
+
+  <!-- Subtle radial highlight top-left -->
+  <ellipse cx="170" cy="130" rx="240" ry="180" fill="rgba(255,255,255,0.07)"/>
+
+  <!-- Fine border glow -->
+  <rect width="512" height="512" rx="110" fill="none"
+        stroke="rgba(255,255,255,0.12)" stroke-width="3"/>
+
+  <!-- ── Shackle (padlock arch) ── -->
+  <!--
+    Points: (180, 290) and (332, 290) are where shackle enters lock body.
+    Straight parts rise to y=200.
+    Arc: from (180,200) to (332,200) — a semicircle r=76 bowing upward (sweep=0).
+    Center of arc: (256,200), apex at (256,124).
+  -->
+  <path d="M 180 290
+           L 180 200
+           A 76 76 0 0 0 332 200
+           L 332 290"
+        fill="none"
+        stroke="url(#shackleGrad)"
+        stroke-width="40"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        filter="url(#shadow)"/>
+
+  <!-- ── Lock Body ── -->
+  <rect x="120" y="272" width="272" height="212" rx="34"
+        fill="url(#lockBody)"
+        filter="url(#shadow)"/>
+
+  <!-- Lock body subtle top sheen -->
+  <rect x="120" y="272" width="272" height="60" rx="34"
+        fill="rgba(255,255,255,0.35)"/>
+  <!-- Cover lower half of sheen rect (only top corners rounded) -->
+  <rect x="120" y="312" width="272" height="20"
+        fill="rgba(255,255,255,0.35)"/>
+
+  <!-- ── Keyhole ── -->
+  <!-- Circle (top of keyhole) -->
+  <circle cx="256" cy="356" r="34"
+          fill="#1d4ed8" opacity="0.88"/>
+
+  <!-- Stem (bottom of keyhole) -->
+  <rect x="241" y="373" width="30" height="52" rx="10"
+        fill="#1d4ed8" opacity="0.88"/>
+
+  <!-- Subtle keyhole highlight -->
+  <circle cx="248" cy="349" r="9"
+          fill="rgba(255,255,255,0.22)"/>
+
+  <!-- ── "Send" badge (top-right corner) ── -->
+  <!-- Small circle badge indicating transmission -->
+  <circle cx="394" cy="104" r="44"
+          fill="rgba(255,255,255,0.13)"
+          stroke="rgba(255,255,255,0.30)"
+          stroke-width="2"/>
+
+  <!-- Arrow pointing upper-right (send) -->
+  <g transform="translate(394,104)" stroke="white" stroke-linecap="round"
+     stroke-linejoin="round" fill="none" stroke-width="5" opacity="0.92">
+    <!-- Arrow shaft diagonal -->
+    <line x1="-14" y1="14" x2="14" y2="-14"/>
+    <!-- Arrowhead -->
+    <polyline points="2,-14 14,-14 14,-2"/>
+  </g>
+
+</svg>
