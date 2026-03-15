@@ -1,51 +1,43 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 52" width="320" height="52">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 52">
   <defs>
-    <linearGradient id="badge2" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%"   stop-color="rgba(255,255,255,0.25)"/>
-      <stop offset="100%" stop-color="rgba(255,255,255,0.10)"/>
-    </linearGradient>
-    <linearGradient id="lockMini2" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%"   stop-color="#ffffff"/>
+    <linearGradient id="lockMiniDark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
       <stop offset="100%" stop-color="#bfdbfe"/>
     </linearGradient>
   </defs>
 
-  <!-- ── Icon Badge (44×44) ── -->
-  <g transform="translate(0, 4)">
-    <rect width="44" height="44" rx="9" fill="url(#badge2)"
-          stroke="rgba(255,255,255,0.22)" stroke-width="1"/>
-    <!-- Mini shackle (r=10, points x=13 and x=31) -->
-    <path d="M 13 24 L 13 18 A 9 9 0 0 0 31 18 L 31 24"
-          fill="none" stroke="url(#lockMini2)"
-          stroke-width="4" stroke-linecap="round"/>
-    <!-- Mini lock body -->
-    <rect x="8" y="22" width="28" height="18" rx="4" fill="url(#lockMini2)"/>
-    <!-- Keyhole -->
-    <circle cx="22" cy="29" r="3.5" fill="rgba(30,58,138,0.7)"/>
-    <rect x="20" y="32" width="4" height="5" rx="1.5" fill="rgba(30,58,138,0.7)"/>
-  </g>
+  <!-- Icon badge 44x44 -->
+  <rect x="0" y="4" width="44" height="44" rx="9"
+        fill="#ffffff" fill-opacity="0.15"
+        stroke="#ffffff" stroke-opacity="0.22" stroke-width="1"/>
 
-  <!-- ── Text (white on dark) ── -->
+  <!-- Mini shackle -->
+  <path d="M 13 26 L 13 19 A 9 9 0 0 1 31 19 L 31 26"
+        fill="none" stroke="url(#lockMiniDark)" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- Mini lock body -->
+  <rect x="8" y="23" width="28" height="18" rx="4" fill="url(#lockMiniDark)"/>
+
+  <!-- Mini keyhole -->
+  <circle cx="22" cy="30" r="3.5" fill="#1e3a8a" fill-opacity="0.70"/>
+  <rect x="20" y="32" width="4" height="5" rx="1.5" fill="#1e3a8a" fill-opacity="0.70"/>
+
   <!-- "Beseco" normal -->
   <text x="56" y="30"
-        font-family="'Segoe UI','IBM Plex Sans',Arial,sans-serif"
+        font-family="'IBM Plex Sans','Segoe UI',Arial,sans-serif"
         font-size="20" font-weight="400"
-        fill="rgba(255,255,255,0.90)"
-        letter-spacing="-0.2">Beseco</text>
+        fill="#ffffff" fill-opacity="0.90">Beseco</text>
 
   <!-- "SecureSend" bold -->
   <text x="56" y="30"
-        font-family="'Segoe UI','IBM Plex Sans',Arial,sans-serif"
+        font-family="'IBM Plex Sans','Segoe UI',Arial,sans-serif"
         font-size="20" font-weight="700"
-        fill="#ffffff"
-        letter-spacing="-0.3"
-        dx="62">SecureSend</text>
+        fill="#ffffff" dx="62">SecureSend</text>
 
   <!-- Tagline -->
   <text x="57" y="44"
-        font-family="'Segoe UI','IBM Plex Sans',Arial,sans-serif"
+        font-family="'IBM Plex Sans','Segoe UI',Arial,sans-serif"
         font-size="9" font-weight="500"
-        fill="rgba(255,255,255,0.45)"
-        letter-spacing="1.1">SICHERE DATEIÜBERMITTLUNG</text>
-
+        fill="#ffffff" fill-opacity="0.45"
+        letter-spacing="1.1">SICHERE DATEIUEBERMITTLUNG</text>
 </svg>

@@ -1,82 +1,47 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 90" width="460" height="90">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 460 80">
   <defs>
-
-    <linearGradient id="badge" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%"   stop-color="#2563eb"/>
+    <linearGradient id="badgeBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2563eb"/>
       <stop offset="100%" stop-color="#1e3a8a"/>
     </linearGradient>
-
-    <linearGradient id="lockMini" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%"   stop-color="#ffffff"/>
+    <linearGradient id="lockGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
       <stop offset="100%" stop-color="#dbeafe"/>
     </linearGradient>
-
   </defs>
 
-  <!-- ══════════════════════════════════════════════════ -->
-  <!-- Icon Badge (72 × 72, left-aligned, vertically centered) -->
-  <!-- ══════════════════════════════════════════════════ -->
-  <g transform="translate(0, 9)">
+  <!-- Icon badge 72x72 -->
+  <rect x="0" y="4" width="72" height="72" rx="14" fill="url(#badgeBg)"/>
+  <rect x="0" y="4" width="72" height="72" rx="14" fill="none" stroke="#ffffff" stroke-opacity="0.15" stroke-width="1.5"/>
 
-    <!-- Badge background -->
-    <rect width="72" height="72" rx="15" fill="url(#badge)"/>
-    <!-- Top-left sheen -->
-    <ellipse cx="22" cy="17" rx="30" ry="22" fill="rgba(255,255,255,0.10)"/>
-    <!-- Border glow -->
-    <rect width="72" height="72" rx="15" fill="none"
-          stroke="rgba(255,255,255,0.14)" stroke-width="1.2"/>
+  <!-- Mini shackle -->
+  <path d="M 20 42 L 20 31 A 16 16 0 0 1 52 31 L 52 42"
+        fill="none" stroke="url(#lockGrad)" stroke-width="7" stroke-linecap="round"/>
 
-    <!-- Mini shackle
-         Points at x=20 and x=52 (width=32, r=16)
-         Straight parts: y=38 → y=27
-         Arc: (20,27) to (52,27), r=16, sweep=0 (upward)
-         Center (36,27), apex (36,11)
-    -->
-    <path d="M 20 38 L 20 27 A 16 16 0 0 0 52 27 L 52 38"
-          fill="none" stroke="url(#lockMini)"
-          stroke-width="6" stroke-linecap="round"/>
+  <!-- Mini lock body -->
+  <rect x="12" y="38" width="48" height="32" rx="7" fill="url(#lockGrad)"/>
 
-    <!-- Mini lock body -->
-    <rect x="13" y="35" width="46" height="30" rx="6" fill="url(#lockMini)"/>
+  <!-- Mini keyhole -->
+  <circle cx="36" cy="52" r="6" fill="#1d4ed8" fill-opacity="0.80"/>
+  <rect x="33" y="56" width="6" height="9" rx="2" fill="#1d4ed8" fill-opacity="0.80"/>
 
-    <!-- Mini keyhole circle -->
-    <circle cx="36" cy="47" r="5.5" fill="#1d4ed8" opacity="0.85"/>
-    <!-- Mini keyhole stem -->
-    <rect x="33" y="51" width="6" height="9" rx="2" fill="#1d4ed8" opacity="0.85"/>
+  <!-- Text: "Beseco" light -->
+  <text x="88" y="46"
+        font-family="'IBM Plex Sans','Segoe UI',Arial,sans-serif"
+        font-size="28" font-weight="400"
+        fill="#111827">Beseco</text>
 
-  </g>
-
-  <!-- ══════════════════════════════════════════════════ -->
-  <!-- Brand Text                                         -->
-  <!-- ══════════════════════════════════════════════════ -->
-
-  <!-- "Beseco" — regular weight, dark -->
-  <text x="90" y="50"
-        font-family="'Segoe UI', 'IBM Plex Sans', Arial, sans-serif"
-        font-size="30"
-        font-weight="400"
-        fill="#111827"
-        letter-spacing="-0.3">Beseco</text>
-
-  <!-- "SecureSend" — bold, Beseco blue -->
-  <text x="90" y="50"
-        font-family="'Segoe UI', 'IBM Plex Sans', Arial, sans-serif"
-        font-size="30"
-        font-weight="700"
+  <!-- Text: "SecureSend" bold blue -->
+  <text x="88" y="46"
+        font-family="'IBM Plex Sans','Segoe UI',Arial,sans-serif"
+        font-size="28" font-weight="700"
         fill="#1a56db"
-        letter-spacing="-0.5"
-        dx="97">SecureSend</text>
+        dx="116">SecureSend</text>
 
   <!-- Tagline -->
-  <text x="91" y="68"
-        font-family="'Segoe UI', 'IBM Plex Sans', Arial, sans-serif"
-        font-size="11"
-        font-weight="500"
+  <text x="89" y="64"
+        font-family="'IBM Plex Sans','Segoe UI',Arial,sans-serif"
+        font-size="10" font-weight="500"
         fill="#6b7280"
-        letter-spacing="1.4">SICHERE DATEIÜBERMITTLUNG · BESECO IT SYSTEMS</text>
-
-  <!-- Thin separator line between tagline and brand name (decorative) -->
-  <line x1="91" y1="55" x2="450" y2="55"
-        stroke="#e5e7eb" stroke-width="0.8"/>
-
+        letter-spacing="1.1">SICHERE DATEIUEBERMITTLUNG · BESECO IT SYSTEMS</text>
 </svg>
