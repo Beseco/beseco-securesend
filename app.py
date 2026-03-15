@@ -5,9 +5,11 @@ Unterstützte Storage-Provider: OneDrive (Microsoft Graph) | Nextcloud (WebDAV +
 """
 
 import os
+import io
 import json
 import uuid
 import re
+import socket
 import mimetypes
 import secrets
 import string
@@ -27,6 +29,14 @@ from flask import Flask, render_template, request, jsonify, session, redirect, u
 from werkzeug.security import generate_password_hash, check_password_hash
 from dotenv import load_dotenv
 from urllib.parse import quote
+
+# PDF-Bibliotheken (optional – nur geladen wenn SEND_AS_PDF aktiv)
+try:
+    from fpdf import FPDF as _FPDF
+    from pypdf import PdfWriter as _PdfWriter, PdfReader as _PdfReader
+    _PDF_LIBS_AVAILABLE = True
+except ImportError:
+    _PDF_LIBS_AVAILABLE = False
 
 load_dotenv()
 
@@ -98,6 +108,7 @@ def _apply_config():
     global SMTP_HOST, SMTP_PORT, SMTP_MODE, SMTP_USER, SMTP_PASSWORD, MAIL_FROM, MAIL_FROM_NAME
     global SETTINGS_PASSWORD
     global MAIL_NOTIFY, MAIL_NOTIFY_ENABLED
+    global SEND_AS_PDF
 
     # OneDrive / Microsoft Graph
     AZURE_CLIENT_ID     = _get("AZURE_CLIENT_ID")
@@ -132,6 +143,10 @@ def _apply_config():
     # Benachrichtigungen
     MAIL_NOTIFY         = _get("MAIL_NOTIFY", "")
     MAIL_NOTIFY_ENABLED = _get("MAIL_NOTIFY_ENABLED", "false").lower() in ("true", "1")
+
+    # Sicherheit: Nachrichten als verschlüsselte PDF senden
+    global SEND_AS_PDF
+    SEND_AS_PDF = _get("SEND_AS_PDF", "false").lower() in ("true", "1")
 
 _apply_config()
 
@@ -382,6 +397,163 @@ def generate_password(length: int = 12) -> str:
     alphabet = string.ascii_letters + string.digits + "!@#$%"
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
+# ── PDF-Erstellung & Verschlüsselung ────────────────────────────────────────
+
+def _md_plain(text: str) -> str:
+    """Entfernt Markdown-Inline-Syntax für Plain-Text-Ausgabe (z.B. im PDF)."""
+    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)   # **bold**
+    text = re.sub(r'__(.*?)__',     r'\1', text)    # __bold__
+    text = re.sub(r'\*(.*?)\*',     r'\1', text)    # *italic*
+    text = re.sub(r'_(.*?)_',       r'\1', text)    # _italic_
+    text = re.sub(r'`(.*?)`',       r'\1', text)    # `code`
+    text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)  # [link](url)
+    return text
+
+
+def md_to_pdf_bytes(md_text: str, title: str = "Sichere Nachricht") -> bytes:
+    """
+    Konvertiert Markdown-Text zu einem professionell gestalteten PDF (fpdf2).
+    Unterstützte Elemente: H1/H2/H3, Bullet-/Nummerierte Listen,
+    Blockquotes, Trennlinien, Codeblöcke, normaler Fließtext.
+    """
+    if not _PDF_LIBS_AVAILABLE:
+        raise RuntimeError("fpdf2 ist nicht installiert. Bitte 'pip install fpdf2' ausführen.")
+
+    sender_name  = MAIL_FROM_NAME
+    sender_email = MAIL_FROM
+
+    class PDF(_FPDF):
+        def header(self):
+            self.set_fill_color(26, 86, 219)          # #1a56db
+            self.rect(0, 0, 210, 24, 'F')
+            self.set_y(5)
+            self.set_font('Helvetica', 'B', 13)
+            self.set_text_color(255, 255, 255)
+            self.cell(0, 7, 'Beseco IT Systems  Sichere Nachricht', align='L',
+                      new_x='LMARGIN', new_y='NEXT')
+            self.set_font('Helvetica', '', 9)
+            self.set_text_color(180, 210, 255)
+            self.cell(0, 5, title, align='L')
+            self.ln(10)
+
+        def footer(self):
+            self.set_y(-14)
+            self.set_font('Helvetica', 'I', 8)
+            self.set_text_color(156, 163, 175)
+            txt = f'{sender_name}  {sender_email}  Seite {self.page_no()}'
+            self.cell(0, 8, txt, align='C')
+
+    pdf = PDF()
+    pdf.set_margins(20, 35, 20)
+    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.add_page()
+
+    in_code_block = False
+
+    for raw_line in md_text.split('\n'):
+        line = raw_line.rstrip()
+
+        # ── Code-Block (``` ... ```) ──
+        if line.strip().startswith('```'):
+            in_code_block = not in_code_block
+            if in_code_block:
+                pdf.set_fill_color(30, 41, 59)
+                pdf.set_font('Courier', '', 10)
+                pdf.set_text_color(226, 232, 240)
+            else:
+                pdf.ln(2)
+                pdf.set_text_color(55, 65, 81)
+            continue
+        if in_code_block:
+            pdf.set_x(22)
+            pdf.multi_cell(166, 5, line, fill=True, new_x='LMARGIN', new_y='NEXT')
+            continue
+
+        # ── Überschriften ──
+        if line.startswith('# '):
+            pdf.set_font('Helvetica', 'B', 17)
+            pdf.set_text_color(17, 24, 39)
+            pdf.multi_cell(0, 8, _md_plain(line[2:]))
+            pdf.ln(2)
+        elif line.startswith('## '):
+            pdf.set_font('Helvetica', 'B', 13)
+            pdf.set_text_color(26, 86, 219)
+            pdf.multi_cell(0, 7, _md_plain(line[3:]))
+            pdf.set_draw_color(229, 231, 235)
+            pdf.line(20, pdf.get_y(), 190, pdf.get_y())
+            pdf.ln(3)
+        elif line.startswith('### '):
+            pdf.set_font('Helvetica', 'B', 11)
+            pdf.set_text_color(55, 65, 81)
+            pdf.multi_cell(0, 6, _md_plain(line[4:]))
+            pdf.ln(1)
+
+        # ── Blockquote ──
+        elif line.startswith('> '):
+            y = pdf.get_y()
+            pdf.set_fill_color(26, 86, 219)
+            pdf.rect(20, y, 2.5, 6.5, 'F')
+            pdf.set_x(25)
+            pdf.set_font('Helvetica', 'I', 10)
+            pdf.set_text_color(55, 65, 81)
+            pdf.set_fill_color(239, 246, 255)
+            pdf.multi_cell(165, 6, _md_plain(line[2:]))
+            pdf.ln(1)
+
+        # ── Bullet-Liste ──
+        elif re.match(r'^[-*+] ', line):
+            pdf.set_font('Helvetica', '', 10.5)
+            pdf.set_text_color(55, 65, 81)
+            pdf.set_x(25)
+            pdf.cell(5, 5.5, chr(149))    # •
+            pdf.set_x(30)
+            pdf.multi_cell(160, 5.5, _md_plain(line[2:]), new_x='LMARGIN', new_y='NEXT')
+
+        # ── Nummerierte Liste ──
+        elif re.match(r'^\d+\. ', line):
+            m = re.match(r'^(\d+)\. (.*)', line)
+            if m:
+                pdf.set_font('Helvetica', '', 10.5)
+                pdf.set_text_color(55, 65, 81)
+                pdf.set_x(25)
+                pdf.cell(6, 5.5, f'{m.group(1)}.')
+                pdf.set_x(31)
+                pdf.multi_cell(159, 5.5, _md_plain(m.group(2)), new_x='LMARGIN', new_y='NEXT')
+
+        # ── Trennlinie ──
+        elif re.match(r'^[-*_]{3,}$', line.strip()):
+            pdf.set_draw_color(229, 231, 235)
+            pdf.line(20, pdf.get_y() + 2, 190, pdf.get_y() + 2)
+            pdf.ln(5)
+
+        # ── Leerzeile ──
+        elif line.strip() == '':
+            pdf.ln(3)
+
+        # ── Normaler Text ──
+        else:
+            pdf.set_font('Helvetica', '', 10.5)
+            pdf.set_text_color(55, 65, 81)
+            pdf.multi_cell(0, 5.5, _md_plain(line))
+            pdf.ln(0.5)
+
+    return bytes(pdf.output())
+
+
+def encrypt_pdf_bytes(pdf_bytes: bytes, password: str) -> bytes:
+    """Verschlüsselt PDF-Bytes mit AES-256 (pypdf)."""
+    if not _PDF_LIBS_AVAILABLE:
+        raise RuntimeError("pypdf ist nicht installiert. Bitte 'pip install pypdf' ausführen.")
+    reader = _PdfReader(io.BytesIO(pdf_bytes))
+    writer = _PdfWriter()
+    for page in reader.pages:
+        writer.add_page(page)
+    writer.encrypt(password)
+    out = io.BytesIO()
+    writer.write(out)
+    return out.getvalue()
+
+
 # ── Flask Routes ─────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -405,6 +577,60 @@ def api_providers():
             and not _is_placeholder(AZURE_TENANT_ID)):
         providers.append({"id": "onedrive", "name": "OneDrive", "icon": "☁️"})
     return jsonify(providers)
+
+
+@app.route("/api/status")
+def api_status():
+    """Schnell-Check aller konfigurierten Dienste (für Status-Bar in der UI)."""
+    result = {}
+
+    # ── Nextcloud ──
+    if NC_URL and NC_USER and NC_PASSWORD:
+        try:
+            r = requests.get(
+                f"{NC_URL.rstrip('/')}/status.php",
+                timeout=4,
+            )
+            result["nextcloud"] = {"configured": True, "ok": r.status_code < 400,
+                                   "label": "Nextcloud"}
+        except Exception as exc:
+            result["nextcloud"] = {"configured": True, "ok": False,
+                                   "label": "Nextcloud", "error": str(exc)[:80]}
+    else:
+        result["nextcloud"] = {"configured": False, "ok": None, "label": "Nextcloud"}
+
+    # ── OneDrive (nur konfiguriert prüfen, kein Token-Request) ──
+    def _is_placeholder(v):
+        return (not v) or v.upper().startswith("DEIN")
+    od_ok = (AZURE_CLIENT_ID and AZURE_CLIENT_SECRET and AZURE_TENANT_ID
+             and not _is_placeholder(AZURE_CLIENT_ID))
+    result["onedrive"] = {"configured": bool(od_ok), "ok": None, "label": "OneDrive"}
+
+    # ── SMTP (Socket-Connect-Test) ──
+    if SMTP_HOST:
+        try:
+            s = socket.create_connection((SMTP_HOST, SMTP_PORT), timeout=4)
+            s.close()
+            result["smtp"] = {"configured": True, "ok": True,
+                              "label": f"SMTP ({SMTP_HOST})"}
+        except Exception as exc:
+            result["smtp"] = {"configured": True, "ok": False,
+                              "label": f"SMTP ({SMTP_HOST})", "error": str(exc)[:80]}
+    else:
+        result["smtp"] = {"configured": False, "ok": None, "label": "SMTP"}
+
+    # ── sipgate (nur konfiguriert prüfen) ──
+    sg_ok = bool(SIPGATE_TOKEN_ID and SIPGATE_TOKEN)
+    result["sipgate"] = {"configured": sg_ok, "ok": None, "label": "sipgate"}
+
+    # ── PDF-Verschlüsselung ──
+    result["pdf"] = {
+        "configured": SEND_AS_PDF,
+        "ok": _PDF_LIBS_AVAILABLE if SEND_AS_PDF else None,
+        "label": "PDF verschlüsselt",
+    }
+
+    return jsonify(result)
 
 
 # ── Adressbuch Routes ────────────────────────────────────────────────────────
@@ -589,16 +815,25 @@ def send():
             )
 
         else:
-            # ── Nur Text → als Markdown-Datei hochladen ──
+            # ── Nur Text → verschlüsselte PDF oder Markdown hochladen ──
             safe_name = "".join(c for c in filename_hint if c.isalnum() or c in "-_")
             if not safe_name:
                 safe_name = "nachricht"
-            ts            = datetime.now().strftime("%Y%m%d_%H%M%S")
-            full_filename = f"{ts}_{safe_name}.md"
+            ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+            if SEND_AS_PDF and _PDF_LIBS_AVAILABLE:
+                full_filename = f"{ts}_{safe_name}.pdf"
+                raw_pdf       = md_to_pdf_bytes(md_content, title=safe_name)
+                upload_bytes  = encrypt_pdf_bytes(raw_pdf, password)
+                ct            = "application/pdf"
+            else:
+                full_filename = f"{ts}_{safe_name}.md"
+                upload_bytes  = md_content.encode("utf-8")
+                ct            = "text/markdown; charset=utf-8"
 
             share_url = upload_and_share(
-                provider, full_filename, md_content.encode("utf-8"), password, expiry_days,
-                content_type="text/markdown; charset=utf-8", subfolder=subfolder
+                provider, full_filename, upload_bytes, password, expiry_days,
+                content_type=ct, subfolder=subfolder
             )
 
             email_body = build_email_html(
@@ -843,6 +1078,8 @@ def settings():
         "SETTINGS_PASSWORD_SET": bool(SETTINGS_PASSWORD),
         "MAIL_NOTIFY":          v("MAIL_NOTIFY"),
         "MAIL_NOTIFY_ENABLED":  v("MAIL_NOTIFY_ENABLED", "false"),
+        "SEND_AS_PDF":          v("SEND_AS_PDF", "false"),
+        "PDF_LIBS_AVAILABLE":   _PDF_LIBS_AVAILABLE,
     })
 
 

@@ -404,6 +404,41 @@
     </div>
   </div>
 
+  <!-- Sicherheit: Verschlüsselte PDF -->
+  <div class="card">
+    <div class="card-header">
+      <span class="icon">🔐</span>
+      <span>Erhöhte Sicherheit – Verschlüsselte PDF</span>
+    </div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="field full">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--gray-700);">
+            <input type="checkbox" id="SEND_AS_PDF" style="width:auto;"
+              {% if cfg.SEND_AS_PDF == 'true' %}checked{% endif %}>
+            Nachrichten als passwortgeschützte PDF versenden
+          </label>
+        </div>
+        <div class="field full">
+          <div class="info-box" style="margin-bottom:0;">
+            Wenn aktiv, wird der Markdown-Text in eine professionell gestaltete PDF-Datei umgewandelt
+            und anschließend mit dem Empfänger-Passwort verschlüsselt. Der Empfänger benötigt den
+            per SMS gesendeten PIN zum Öffnen der PDF.<br><br>
+            {% if cfg.PDF_LIBS_AVAILABLE %}
+              <span style="color:var(--green);font-weight:600;">✅ Bibliotheken verfügbar (fpdf2 + pypdf)</span>
+            {% else %}
+              <span style="color:#dc2626;font-weight:600;">
+                ❌ Bibliotheken fehlen –
+                <code style="background:#fee2e2;padding:2px 6px;border-radius:4px;font-size:11px;">pip install fpdf2 pypdf</code>
+                ausführen.
+              </span>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- App -->
   <div class="card">
     <div class="card-header">
@@ -484,8 +519,9 @@
       payload[id] = document.getElementById(id).value.trim();
     });
 
-    // Checkbox: MAIL_NOTIFY_ENABLED separat behandeln
+    // Checkboxen separat behandeln
     payload['MAIL_NOTIFY_ENABLED'] = document.getElementById('MAIL_NOTIFY_ENABLED').checked ? 'true' : 'false';
+    payload['SEND_AS_PDF']         = document.getElementById('SEND_AS_PDF').checked         ? 'true' : 'false';
 
     // Einstellungspasswort separat behandeln (nicht in fields-Liste)
     payload['SETTINGS_PASSWORD_NEW']     = document.getElementById('SETTINGS_PASSWORD_NEW').value;

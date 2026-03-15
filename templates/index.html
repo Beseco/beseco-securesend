@@ -574,6 +574,216 @@
       text-align: right;
       margin-top: 4px;
     }
+
+    /* ── Status Bar ── */
+    .status-bar {
+      background: #0c1629;
+      border-bottom: 1px solid rgba(255,255,255,.07);
+      padding: 5px 32px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .status-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      color: rgba(255,255,255,.45);
+      font-weight: 500;
+      cursor: default;
+    }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #4b5563;
+      flex-shrink: 0;
+      transition: background .3s;
+    }
+    .status-dot.ok      { background: #16a34a; box-shadow: 0 0 4px rgba(22,163,74,.5); }
+    .status-dot.err     { background: #dc2626; box-shadow: 0 0 4px rgba(220,38,38,.5); }
+    .status-dot.uncfg   { background: #4b5563; }
+    .status-refresh {
+      margin-left: auto;
+      font-size: 11px;
+      color: rgba(255,255,255,.3);
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color .15s;
+      background: none;
+      border: none;
+    }
+    .status-refresh:hover { color: rgba(255,255,255,.6); }
+
+    /* ── Templates Dropdown ── */
+    .templates-wrap {
+      position: relative;
+    }
+    .templates-dropdown {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      background: #fff;
+      border: 1.5px solid var(--blue);
+      border-radius: var(--radius);
+      box-shadow: 0 8px 28px rgba(0,0,0,.14);
+      z-index: 200;
+      min-width: 230px;
+      display: none;
+    }
+    .templates-dropdown.open { display: block; }
+    .tpl-item {
+      padding: 9px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--gray-700);
+      border-bottom: 1px solid var(--gray-200);
+      transition: background .1s;
+    }
+    .tpl-item:last-child { border-bottom: none; }
+    .tpl-item:hover { background: var(--blue-pale); color: var(--blue); }
+    .tpl-item .tpl-meta {
+      font-size: 11px;
+      color: var(--gray-500);
+      margin-top: 1px;
+    }
+    .tpl-sep {
+      padding: 5px 14px 3px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--gray-500);
+      background: var(--gray-50);
+    }
+
+    /* ── Progress Modal ── */
+    .prog-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,.75);
+      z-index: 900;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(3px);
+    }
+    .prog-overlay.show { display: flex; }
+    .prog-box {
+      background: #fff;
+      border-radius: 16px;
+      padding: 36px 40px;
+      width: 460px;
+      max-width: 92vw;
+      box-shadow: 0 24px 64px rgba(0,0,0,.3);
+    }
+    .prog-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 8px;
+    }
+    .prog-sub {
+      font-size: 13px;
+      color: var(--gray-500);
+      margin-bottom: 26px;
+    }
+    .prog-steps { display: flex; flex-direction: column; gap: 10px; }
+    .prog-step {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: var(--gray-50);
+      border: 1.5px solid var(--gray-200);
+      font-size: 13.5px;
+      color: var(--gray-500);
+      transition: all .3s;
+    }
+    .prog-step.active {
+      background: var(--blue-pale);
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+    .prog-step.done {
+      background: #f0fdf4;
+      border-color: #16a34a;
+      color: #15803d;
+    }
+    .prog-step.err {
+      background: #fef2f2;
+      border-color: var(--red);
+      color: var(--red);
+    }
+    .prog-icon { font-size: 18px; flex-shrink: 0; }
+    .prog-label { flex: 1; font-weight: 500; }
+    .prog-spinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(26,86,219,.25);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin .65s linear infinite;
+      flex-shrink: 0;
+    }
+    .prog-step.done .prog-spinner,
+    .prog-step.err  .prog-spinner { display: none; }
+    .prog-step-check { display: none; font-size: 15px; flex-shrink: 0; }
+    .prog-step.done .prog-step-check { display: block; }
+    .prog-result {
+      margin-top: 22px;
+      padding: 14px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      display: none;
+    }
+    .prog-result.ok  { background: #f0fdf4; border: 1.5px solid #16a34a; color: #15803d; }
+    .prog-result.err { background: #fef2f2; border: 1.5px solid var(--red);  color: var(--red); }
+    .prog-result.show { display: block; }
+    .prog-close {
+      margin-top: 18px;
+      width: 100%;
+      padding: 10px;
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: none;
+      transition: opacity .2s;
+    }
+    .prog-close:hover { opacity: .88; }
+    .prog-close.show { display: block; }
+
+    /* ── Draft-Banner ── */
+    .draft-banner {
+      display: none;
+      background: #fffbeb;
+      border-bottom: 1px solid #ca8a04;
+      padding: 6px 24px;
+      font-size: 12px;
+      color: #92400e;
+      align-items: center;
+      gap: 10px;
+    }
+    .draft-banner.show { display: flex; }
+    .draft-banner button {
+      padding: 2px 10px;
+      border: 1px solid #ca8a04;
+      border-radius: 5px;
+      background: none;
+      font-size: 11px;
+      font-weight: 600;
+      color: #92400e;
+      cursor: pointer;
+    }
+    .draft-banner button:hover { background: #fef3c7; }
   </style>
 </head>
 <body>
@@ -590,6 +800,41 @@
     <a href="/settings">⚙️ Einstellungen</a>
   </nav>
 </header>
+
+<!-- ── Status Bar ── -->
+<div class="status-bar" id="status-bar">
+  <span class="status-item" id="st-nextcloud">
+    <span class="status-dot uncfg" id="dot-nextcloud"></span>Nextcloud
+  </span>
+  <span class="status-item" id="st-smtp">
+    <span class="status-dot uncfg" id="dot-smtp"></span>SMTP
+  </span>
+  <span class="status-item" id="st-sipgate">
+    <span class="status-dot uncfg" id="dot-sipgate"></span>sipgate
+  </span>
+  <span class="status-item" id="st-pdf" style="display:none;">
+    <span class="status-dot uncfg" id="dot-pdf"></span>PDF 🔐
+  </span>
+  <button class="status-refresh" onclick="loadStatus()" title="Status aktualisieren">↻ Status</button>
+</div>
+
+<!-- ── Draft Banner ── -->
+<div class="draft-banner" id="draft-banner">
+  📝 Ungespeicherter Entwurf vorhanden.
+  <button onclick="restoreDraft()">Wiederherstellen</button>
+  <button onclick="discardDraft()">Verwerfen</button>
+</div>
+
+<!-- ── Progress Modal ── -->
+<div class="prog-overlay" id="prog-overlay">
+  <div class="prog-box">
+    <div class="prog-title">🔒 Nachricht wird sicher übermittelt</div>
+    <div class="prog-sub" id="prog-sub">Bitte warten…</div>
+    <div class="prog-steps" id="prog-steps"></div>
+    <div class="prog-result" id="prog-result"></div>
+    <button class="prog-close" id="prog-close" onclick="closeProgress()">Schließen</button>
+  </div>
+</div>
 
 <main>
 
@@ -661,14 +906,48 @@
     <!-- ── Markdown Editor ── -->
     <div style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
       <div class="editor-toolbar">
-        <button class="tb-btn" onclick="insert('**', '**')"><b>B</b></button>
-        <button class="tb-btn" onclick="insert('*', '*')"><i>I</i></button>
-        <button class="tb-btn" onclick="insert('`', '`')">Code</button>
+        <button class="tb-btn" onclick="insert('**', '**')" title="Fett (Ctrl+B)"><b>B</b></button>
+        <button class="tb-btn" onclick="insert('*', '*')" title="Kursiv (Ctrl+I)"><i>I</i></button>
+        <button class="tb-btn" onclick="insertLink()" title="Link einfügen (Ctrl+K)">🔗</button>
+        <button class="tb-btn" onclick="insert('`', '`')" title="Code">‹›</button>
         <button class="tb-btn" onclick="insertLine('## ')">H2</button>
         <button class="tb-btn" onclick="insertLine('### ')">H3</button>
         <button class="tb-btn" onclick="insertLine('- ')">Liste</button>
         <button class="tb-btn" onclick="insertLine('> ')">Zitat</button>
         <button class="tb-btn" onclick="insertLine('---')">HR</button>
+        <div class="templates-wrap" style="margin-left:auto;">
+          <button class="tb-btn" id="tpl-btn"
+                  onclick="toggleTemplates(event)" title="Vorlage laden">
+            📄 Vorlage ▾
+          </button>
+          <div class="templates-dropdown" id="tpl-dropdown">
+            <div class="tpl-sep">Vorlagen</div>
+            <div class="tpl-item" onclick="loadTemplate('angebot')">
+              Angebot
+              <div class="tpl-meta">Angebotsbegleitung für Kunden</div>
+            </div>
+            <div class="tpl-item" onclick="loadTemplate('rechnung')">
+              Rechnungsbegleitung
+              <div class="tpl-meta">Begleittext zu Rechnung / Gutschrift</div>
+            </div>
+            <div class="tpl-item" onclick="loadTemplate('passwort')">
+              Passwort-Übermittlung
+              <div class="tpl-meta">Zugangsdaten sicher weitergeben</div>
+            </div>
+            <div class="tpl-item" onclick="loadTemplate('dokument')">
+              Dokument / Vertrag
+              <div class="tpl-meta">Unterlagen und Verträge übermitteln</div>
+            </div>
+            <div class="tpl-item" onclick="loadTemplate('allgemein')">
+              Allgemeine Nachricht
+              <div class="tpl-meta">Freie vertrauliche Mitteilung</div>
+            </div>
+            <div class="tpl-sep" style="border-top:1px solid var(--gray-200);">Aktionen</div>
+            <div class="tpl-item" onclick="clearEditor()" style="color:#dc2626;">
+              🗑 Editor leeren
+            </div>
+          </div>
+        </div>
       </div>
       <div class="editor-wrap">
         <textarea id="md-editor"
@@ -705,7 +984,11 @@
       <div class="field">
         <label>Persönliche Nachricht in der E-Mail (optional)</label>
         <textarea id="custom-message" placeholder="Kurzer Hinweis der direkt in der E-Mail erscheint..."></textarea>
-        <div class="char-count"><span id="char-cnt">0</span> Zeichen</div>
+        <div class="char-count">
+          <span id="word-cnt">0</span> Wörter ·
+          <span id="char-cnt">0</span> Zeichen
+          <span id="draft-saved" style="margin-left:8px;display:none;color:#16a34a;">✓ Entwurf gespeichert</span>
+        </div>
       </div>
     </div>
 
@@ -756,12 +1039,13 @@
 <!-- Marked.js für Markdown-Preview -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
 <script>
-  const editor     = document.getElementById('md-editor');
-  const preview    = document.getElementById('md-preview');
-  const customMsg  = document.getElementById('custom-message');
-  const charCnt    = document.getElementById('char-cnt');
+  const editor    = document.getElementById('md-editor');
+  const preview   = document.getElementById('md-preview');
+  const customMsg = document.getElementById('custom-message');
 
+  // ═══════════════════════════════════════════════════════════════════
   // ── Provider ──
+  // ═══════════════════════════════════════════════════════════════════
   let currentProvider = '';
 
   function setProvider(p) {
@@ -775,13 +1059,10 @@
     const container = document.getElementById('provider-toggle');
     const sendBtn   = document.getElementById('send-btn');
     let providers   = [];
-
     try {
       const resp = await fetch('/api/providers');
       providers  = await resp.json();
-    } catch (e) {
-      providers  = [];
-    }
+    } catch (e) { providers = []; }
 
     if (providers.length === 0) {
       container.innerHTML = `
@@ -810,12 +1091,43 @@
     }
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    initProviders();
-    initContacts();
-  });
+  // ═══════════════════════════════════════════════════════════════════
+  // ── Status Bar ──
+  // ═══════════════════════════════════════════════════════════════════
+  async function loadStatus() {
+    try {
+      const resp   = await fetch('/api/status');
+      const status = await resp.json();
 
+      const map = {
+        nextcloud: 'dot-nextcloud',
+        smtp:      'dot-smtp',
+        sipgate:   'dot-sipgate',
+        pdf:       'dot-pdf',
+      };
+
+      for (const [key, dotId] of Object.entries(map)) {
+        const dot = document.getElementById(dotId);
+        if (!dot) continue;
+        const s = status[key];
+        if (!s) continue;
+        dot.className = 'status-dot ' + (
+          !s.configured     ? 'uncfg' :
+          s.ok === true     ? 'ok'    :
+          s.ok === false    ? 'err'   : 'uncfg'
+        );
+      }
+
+      // PDF-Status-Item nur zeigen wenn konfiguriert
+      if (status.pdf && status.pdf.configured) {
+        document.getElementById('st-pdf').style.display = 'flex';
+      }
+    } catch (e) { /* Status nicht verfügbar */ }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // ── Datei-Anhang ──
+  // ═══════════════════════════════════════════════════════════════════
   let selectedFile = null;
 
   function onDragOver(e) {
@@ -844,12 +1156,9 @@
       : `${(file.size / 1024).toFixed(1)} KB`;
     const typeStr = file.type || 'unbekannter Typ';
 
-    // Kompakter Chip in der Attach-Bar
     document.getElementById('attach-chip').classList.add('visible');
     document.getElementById('attach-chip-name').textContent = file.name;
     document.getElementById('attach-chip-meta').textContent = `${sizeStr} · ${typeStr}`;
-
-    // Badge in der Vorschau
     document.getElementById('preview-file-badge').classList.add('visible');
     document.getElementById('preview-file-name').textContent = file.name;
     document.getElementById('preview-file-meta').textContent = `${sizeStr} · ${typeStr}`;
@@ -863,17 +1172,17 @@
     document.getElementById('file-input').value = '';
   }
 
+  // ═══════════════════════════════════════════════════════════════════
   // ── Kontakte ──
-  let allContacts      = [];
-  let selectedContact  = null;
+  // ═══════════════════════════════════════════════════════════════════
+  let allContacts     = [];
+  let selectedContact = null;
 
   async function initContacts() {
     try {
       const resp  = await fetch('/api/contacts');
       allContacts = await resp.json();
-    } catch (e) {
-      allContacts = [];
-    }
+    } catch (e) { allContacts = []; }
   }
 
   function filterContacts(query) {
@@ -888,12 +1197,7 @@
     const q        = document.getElementById('contact-search').value;
     const dropdown = document.getElementById('contact-dropdown');
     const results  = filterContacts(q);
-
-    if (!q || results.length === 0) {
-      dropdown.style.display = 'none';
-      return;
-    }
-
+    if (!q || results.length === 0) { dropdown.style.display = 'none'; return; }
     dropdown.innerHTML = results.map(c => {
       const label   = `${c.first_name} ${c.last_name}`;
       const company = c.company ? `<span class="company-tag">· ${esc(c.company)}</span>` : '';
@@ -906,16 +1210,12 @@
     const c = allContacts.find(x => x.id === id);
     if (!c) return;
     selectedContact = c;
-
-    document.getElementById('contact-search').value = `${c.first_name} ${c.last_name}${c.company ? ' – ' + c.company : ''}`;
+    document.getElementById('contact-search').value =
+      `${c.first_name} ${c.last_name}${c.company ? ' – ' + c.company : ''}`;
     document.getElementById('contact-dropdown').style.display = 'none';
-
-    // Felder befüllen
     if (c.email)  document.getElementById('email').value  = c.email;
     if (c.mobile) document.getElementById('phone').value  = c.mobile;
     document.getElementById('recipient-name').value = `${c.first_name} ${c.last_name}`;
-
-    // Unterordner: Firma/Nachname (zwei Ebenen)
     const cleanPart = s =>
       (s || '').replace(/[^\w\s\-äöüÄÖÜß]/g, '').replace(/\s+/g, '_').replace(/_+/g, '_').trim();
     const company  = cleanPart(c.company);
@@ -928,52 +1228,357 @@
   }
 
   function esc(s) {
-    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  // Dropdown schließen beim Klick irgendwo anders
   document.addEventListener('click', e => {
-    if (!e.target.closest('.contact-search-wrap')) {
+    if (!e.target.closest('.contact-search-wrap'))
       document.getElementById('contact-dropdown').style.display = 'none';
-    }
+    if (!e.target.closest('.templates-wrap'))
+      document.getElementById('tpl-dropdown').classList.remove('open');
   });
 
-  // ── Live-Preview ──
+  // ═══════════════════════════════════════════════════════════════════
+  // ── Live-Preview & Zähler ──
+  // ═══════════════════════════════════════════════════════════════════
   marked.setOptions({ breaks: true, gfm: true });
 
-  editor.addEventListener('input', () => {
+  function updatePreview() {
     const val = editor.value;
     preview.innerHTML = val.trim()
       ? marked.parse(val)
       : `<div class="preview-empty"><div class="icon">📄</div>
          <p>Markdown hier links eingeben –<br>die Vorschau erscheint in Echtzeit.</p></div>`;
+  }
+
+  function updateCounts() {
+    const val = editor.value;
+    document.getElementById('char-cnt').textContent = val.length;
+    const words = val.trim() ? val.trim().split(/\s+/).length : 0;
+    document.getElementById('word-cnt').textContent = words;
+  }
+
+  editor.addEventListener('input', () => {
+    updatePreview();
+    updateCounts();
+    scheduleDraftSave();
   });
 
   customMsg.addEventListener('input', () => {
-    charCnt.textContent = customMsg.value.length;
+    document.getElementById('char-cnt').textContent = customMsg.value.length;
   });
 
+  // ═══════════════════════════════════════════════════════════════════
+  // ── Keyboard Shortcuts ──
+  // ═══════════════════════════════════════════════════════════════════
+  editor.addEventListener('keydown', e => {
+    const ctrl = e.ctrlKey || e.metaKey;
+
+    if (ctrl && e.key === 'b') { e.preventDefault(); insert('**', '**'); return; }
+    if (ctrl && e.key === 'i') { e.preventDefault(); insert('*',  '*');  return; }
+    if (ctrl && e.key === 'k') { e.preventDefault(); insertLink();        return; }
+
+    // Tab → 2 Leerzeichen einrücken
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = editor.selectionStart, en = editor.selectionEnd;
+      editor.value = editor.value.slice(0, s) + '  ' + editor.value.slice(en);
+      editor.selectionStart = editor.selectionEnd = s + 2;
+      editor.dispatchEvent(new Event('input'));
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
   // ── Toolbar Helfer ──
+  // ═══════════════════════════════════════════════════════════════════
   function insert(before, after) {
     const s = editor.selectionStart, e = editor.selectionEnd;
     const sel = editor.value.substring(s, e) || 'Text';
     editor.value = editor.value.slice(0, s) + before + sel + after + editor.value.slice(e);
+    editor.selectionStart = s + before.length;
+    editor.selectionEnd   = s + before.length + sel.length;
     editor.dispatchEvent(new Event('input'));
     editor.focus();
   }
+
   function insertLine(prefix) {
-    const pos = editor.selectionStart;
+    const pos       = editor.selectionStart;
     const lineStart = editor.value.lastIndexOf('\n', pos - 1) + 1;
     editor.value = editor.value.slice(0, lineStart) + prefix + editor.value.slice(lineStart);
     editor.dispatchEvent(new Event('input'));
     editor.focus();
   }
 
+  function insertLink() {
+    const s   = editor.selectionStart, e = editor.selectionEnd;
+    const sel = editor.value.substring(s, e) || 'Linktext';
+    const repl = `[${sel}](https://)`;
+    editor.value = editor.value.slice(0, s) + repl + editor.value.slice(e);
+    // Cursor in die URL setzen
+    const urlStart = s + sel.length + 3;
+    editor.selectionStart = urlStart;
+    editor.selectionEnd   = urlStart + 8;
+    editor.dispatchEvent(new Event('input'));
+    editor.focus();
+  }
+
+  function clearEditor() {
+    if (editor.value.trim() && !confirm('Editor leeren?')) return;
+    editor.value = '';
+    editor.dispatchEvent(new Event('input'));
+    editor.focus();
+    document.getElementById('tpl-dropdown').classList.remove('open');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ── Vorlagen (Templates) ──
+  // ═══════════════════════════════════════════════════════════════════
+  const TEMPLATES = {
+    angebot: `# Angebot – [Betreff]
+
+Sehr geehrte Damen und Herren,
+
+vielen Dank für Ihr Interesse. Gerne unterbreite ich Ihnen folgendes Angebot:
+
+## Leistungsumfang
+
+- Position 1: [Beschreibung]
+- Position 2: [Beschreibung]
+
+## Preise
+
+| Leistung | Preis (netto) |
+|---|---|
+| Position 1 | 0,00 € |
+| Position 2 | 0,00 € |
+| **Gesamt** | **0,00 €** |
+
+> Das Angebot ist freibleibend und gilt für 30 Tage.
+
+Mit freundlichen Grüßen
+Florian Beubl · Beseco IT Systems`,
+
+    rechnung: `# Rechnungsbegleitung
+
+Sehr geehrte Damen und Herren,
+
+anbei übersende ich Ihnen die Rechnung Nr. **[Rechnungsnummer]** vom [Datum].
+
+## Rechnungsdetails
+
+- **Betrag:** [Betrag] € (inkl. MwSt.)
+- **Fälligkeit:** [Datum]
+- **Verwendungszweck:** [Rechnungsnummer]
+
+Bitte überweisen Sie den Betrag auf das Ihnen bekannte Konto.
+
+Bei Fragen stehe ich Ihnen gerne zur Verfügung.
+
+Mit freundlichen Grüßen
+Florian Beubl · Beseco IT Systems`,
+
+    passwort: `# Zugangsdaten
+
+Sehr geehrte Damen und Herren,
+
+anbei übermittle ich Ihnen Ihre Zugangsdaten für **[Dienst/System]**.
+
+## Ihre Zugangsdaten
+
+| Feld | Wert |
+|---|---|
+| Benutzername | [Benutzername] |
+| Passwort | [Passwort] |
+| URL / Server | [URL] |
+
+> **Bitte ändern Sie das Passwort nach dem ersten Login.**
+
+Diese Nachricht wird nach Ablauf automatisch gelöscht.
+
+Mit freundlichen Grüßen
+Florian Beubl · Beseco IT Systems`,
+
+    dokument: `# Unterlagen: [Betreff]
+
+Sehr geehrte Damen und Herren,
+
+anbei übersende ich Ihnen folgende Unterlagen:
+
+## Inhalt
+
+1. [Dokument 1]
+2. [Dokument 2]
+
+Bitte prüfen und bestätigen Sie den Empfang.
+
+---
+
+Bei Fragen stehe ich gerne zur Verfügung.
+
+Mit freundlichen Grüßen
+Florian Beubl · Beseco IT Systems`,
+
+    allgemein: `# Vertrauliche Mitteilung
+
+Sehr geehrte Damen und Herren,
+
+[Ihre Nachricht hier]
+
+Mit freundlichen Grüßen
+Florian Beubl · Beseco IT Systems`,
+  };
+
+  function toggleTemplates(e) {
+    e.stopPropagation();
+    document.getElementById('tpl-dropdown').classList.toggle('open');
+  }
+
+  function loadTemplate(name) {
+    const tpl = TEMPLATES[name];
+    if (!tpl) return;
+    if (editor.value.trim() && !confirm('Vorhandenen Inhalt durch Vorlage ersetzen?')) return;
+    editor.value = tpl;
+    editor.dispatchEvent(new Event('input'));
+    editor.focus();
+    document.getElementById('tpl-dropdown').classList.remove('open');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ── Auto-Save (localStorage Entwurf) ──
+  // ═══════════════════════════════════════════════════════════════════
+  const DRAFT_KEY = 'securesend_draft';
+  let   draftTimer = null;
+
+  function scheduleDraftSave() {
+    clearTimeout(draftTimer);
+    draftTimer = setTimeout(saveDraft, 15000);   // nach 15s Inaktivität
+  }
+
+  function saveDraft() {
+    const val = editor.value;
+    if (!val.trim()) { localStorage.removeItem(DRAFT_KEY); return; }
+    localStorage.setItem(DRAFT_KEY, val);
+    const ind = document.getElementById('draft-saved');
+    ind.style.display = 'inline';
+    setTimeout(() => { ind.style.display = 'none'; }, 3000);
+  }
+
+  function checkDraft() {
+    const saved = localStorage.getItem(DRAFT_KEY);
+    if (saved && saved.trim() && !editor.value.trim()) {
+      document.getElementById('draft-banner').classList.add('show');
+    }
+  }
+
+  function restoreDraft() {
+    const saved = localStorage.getItem(DRAFT_KEY);
+    if (saved) {
+      editor.value = saved;
+      editor.dispatchEvent(new Event('input'));
+    }
+    document.getElementById('draft-banner').classList.remove('show');
+  }
+
+  function discardDraft() {
+    localStorage.removeItem(DRAFT_KEY);
+    document.getElementById('draft-banner').classList.remove('show');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ── Ablauf-Monitoring: Progress Modal ──
+  // ═══════════════════════════════════════════════════════════════════
+  const SEND_STEPS = [
+    { id: 'prepare', icon: '📋', label: 'Nachricht wird vorbereitet' },
+    { id: 'upload',  icon: '⬆️', label: 'Datei wird hochgeladen'     },
+    { id: 'share',   icon: '🔗', label: 'Freigabe-Link wird erstellt' },
+    { id: 'email',   icon: '📧', label: 'E-Mail wird gesendet'        },
+    { id: 'sms',     icon: '📱', label: 'SMS wird versendet'           },
+  ];
+  // Ungefähre Timing-Stufen (ms nach Versandstart)
+  const STEP_TIMINGS = [300, 800, 2000, 3400, 4600];
+
+  let _stepTimers = [];
+
+  function openProgress(toEmail, toPhone) {
+    const overlay  = document.getElementById('prog-overlay');
+    const stepsEl  = document.getElementById('prog-steps');
+    const resultEl = document.getElementById('prog-result');
+    const closeBtn = document.getElementById('prog-close');
+    const subEl    = document.getElementById('prog-sub');
+
+    subEl.textContent = `An: ${toEmail} · SMS: ${toPhone}`;
+    resultEl.className = 'prog-result';
+    closeBtn.className = 'prog-close';
+
+    stepsEl.innerHTML = SEND_STEPS.map(s => `
+      <div class="prog-step" id="pstep-${s.id}">
+        <span class="prog-icon">${s.icon}</span>
+        <span class="prog-label">${s.label}</span>
+        <div class="prog-spinner"></div>
+        <span class="prog-step-check">✅</span>
+      </div>`).join('');
+
+    // Alle Steps grau (pending)
+    SEND_STEPS.forEach(s =>
+      document.getElementById(`pstep-${s.id}`).className = 'prog-step');
+
+    _stepTimers = [];
+    STEP_TIMINGS.forEach((ms, i) => {
+      _stepTimers.push(setTimeout(() => {
+        // Vorherigen abschließen
+        if (i > 0) {
+          const prev = document.getElementById(`pstep-${SEND_STEPS[i-1].id}`);
+          if (prev && !prev.classList.contains('err')) prev.className = 'prog-step done';
+        }
+        const cur = document.getElementById(`pstep-${SEND_STEPS[i].id}`);
+        if (cur && !cur.classList.contains('err')) cur.className = 'prog-step active';
+      }, ms));
+    });
+
+    overlay.classList.add('show');
+  }
+
+  function finishProgress(ok, data) {
+    // Alle Timer stoppen
+    _stepTimers.forEach(t => clearTimeout(t));
+    _stepTimers = [];
+
+    // Alle aktiven Steps abschließen oder als Fehler markieren
+    SEND_STEPS.forEach(s => {
+      const el = document.getElementById(`pstep-${s.id}`);
+      if (!el) return;
+      if (el.classList.contains('active') || el.classList.contains('done')) {
+        el.className = ok ? 'prog-step done' : 'prog-step err';
+      }
+    });
+
+    const resultEl = document.getElementById('prog-result');
+    const closeBtn = document.getElementById('prog-close');
+
+    if (ok) {
+      resultEl.className = 'prog-result ok show';
+      resultEl.innerHTML =
+        `✅ <strong>Erfolgreich gesendet!</strong><br>
+         🔑 Passwort: <strong>${data.password}</strong><br>
+         📎 Datei: <code>${data.filename}</code>`;
+    } else {
+      resultEl.className = 'prog-result err show';
+      resultEl.textContent = `❌ Fehler: ${data.error || 'Unbekannter Fehler'}`;
+    }
+    closeBtn.className = 'prog-close show';
+    document.getElementById('prog-sub').textContent = ok ? 'Abgeschlossen.' : 'Fehlgeschlagen.';
+  }
+
+  function closeProgress() {
+    document.getElementById('prog-overlay').classList.remove('show');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // ── Senden ──
+  // ═══════════════════════════════════════════════════════════════════
   async function doSend() {
-    const btn     = document.getElementById('send-btn');
-    const spinner = document.getElementById('spinner');
-    const label   = document.getElementById('btn-label');
+    const btn   = document.getElementById('send-btn');
+    const label = document.getElementById('btn-label');
 
     const toEmail      = document.getElementById('email').value.trim();
     const toPhone      = document.getElementById('phone').value.trim();
@@ -991,12 +1596,13 @@
       return;
     }
 
-    btn.disabled          = true;
-    spinner.style.display = 'block';
-    label.textContent     = 'Wird gesendet…';
+    btn.disabled      = true;
+    label.textContent = '…';
+
+    // Progress-Modal öffnen
+    openProgress(toEmail, toPhone);
 
     try {
-      // Immer FormData – unterstützt Text, Datei oder beides gleichzeitig
       const fd = new FormData();
       fd.append('to_email',       toEmail);
       fd.append('to_phone',       toPhone);
@@ -1007,33 +1613,28 @@
       fd.append('custom_message', customMsgVal);
       fd.append('content',        mdText);
       fd.append('filename',       document.getElementById('filename').value || 'nachricht');
-
-      if (selectedFile) {
-        fd.append('file', selectedFile, selectedFile.name);
-      }
+      if (selectedFile) fd.append('file', selectedFile, selectedFile.name);
 
       const resp = await fetch('/send', { method: 'POST', body: fd });
       const data = await resp.json();
 
+      finishProgress(data.ok, data);
+
       if (data.ok) {
-        showToast(true,
-          '✅ Erfolgreich gesendet!',
-          `E-Mail → ${toEmail} · SMS → ${toPhone}`,
-          `🔑 Passwort: ${data.password}\n📎 ${data.filename}`
-        );
-      } else {
-        showToast(false, '❌ Fehler', data.error);
+        // Entwurf löschen nach erfolgreichem Versand
+        localStorage.removeItem(DRAFT_KEY);
       }
     } catch (err) {
-      showToast(false, '❌ Netzwerkfehler', err.message);
+      finishProgress(false, { error: err.message });
     } finally {
-      btn.disabled          = false;
-      spinner.style.display = 'none';
-      label.textContent     = '🚀 Sicher übermitteln';
+      btn.disabled      = false;
+      label.textContent = '🚀 Sicher übermitteln';
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
   // ── Toast ──
+  // ═══════════════════════════════════════════════════════════════════
   function showToast(ok, title, msg, detail) {
     document.getElementById('toast-stripe').className = 'toast-stripe' + (ok ? '' : ' err');
     document.getElementById('toast-title').textContent = title;
@@ -1052,6 +1653,17 @@
   function hideToast() {
     document.getElementById('toast').classList.remove('show');
   }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // ── Init ──
+  // ═══════════════════════════════════════════════════════════════════
+  document.addEventListener('DOMContentLoaded', () => {
+    initProviders();
+    initContacts();
+    loadStatus();
+    checkDraft();
+    updateCounts();
+  });
 </script>
 </body>
 </html>
