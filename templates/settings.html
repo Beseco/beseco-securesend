@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Einstellungen · Beseco SecureSend</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --blue:      #1a56db;
+      --blue-dark: #1240a8;
+      --blue-pale: #eff4ff;
+      --gray-900:  #111827;
+      --gray-700:  #374151;
+      --gray-500:  #6b7280;
+      --gray-200:  #e5e7eb;
+      --gray-50:   #f9fafb;
+      --green:     #16a34a;
+      --red:       #dc2626;
+      --radius:    10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: #0f172a;
+      min-height: 100vh;
+      color: var(--gray-900);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #1a56db 0%, #1e40af 100%);
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 2px 16px rgba(0,0,0,.3);
+    }
+    .logo-icon {
+      width: 38px; height: 38px;
+      background: rgba(255,255,255,.18);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    header h1 { color: #fff; font-size: 18px; font-weight: 700; letter-spacing: -.3px; }
+    header p  { color: rgba(255,255,255,.65); font-size: 12px; letter-spacing: .8px; text-transform: uppercase; margin-top: 1px; }
+    .header-back {
+      margin-left: auto;
+      color: rgba(255,255,255,.8);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border: 1px solid rgba(255,255,255,.3);
+      border-radius: 7px;
+      transition: background .15s;
+    }
+    .header-back:hover { background: rgba(255,255,255,.12); }
+
+    /* ── Content ── */
+    main {
+      flex: 1;
+      padding: 32px;
+      max-width: 820px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 16px rgba(0,0,0,.12);
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+    .card-header {
+      padding: 14px 24px;
+      background: var(--gray-50);
+      border-bottom: 1px solid var(--gray-200);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .card-header .icon { font-size: 16px; }
+    .card-header span {
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--gray-700);
+    }
+    .card-body {
+      padding: 20px 24px;
+    }
+
+    /* ── Form ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .field.full { grid-column: 1 / -1; }
+
+    label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--gray-500);
+    }
+    label .hint {
+      font-weight: 400;
+      text-transform: none;
+      letter-spacing: 0;
+      font-size: 11px;
+      color: #9ca3af;
+    }
+
+    input {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      padding: 9px 12px;
+      border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius);
+      color: var(--gray-900);
+      background: #fff;
+      transition: border-color .15s, box-shadow .15s;
+      outline: none;
+      width: 100%;
+    }
+    input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(26,86,219,.12);
+    }
+    input.mono {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+    }
+    input::placeholder { color: #c0c8d4; }
+
+    /* ── Save Button ── */
+    .save-bar {
+      position: sticky;
+      bottom: 0;
+      background: #0f172a;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      border-top: 1px solid rgba(255,255,255,.08);
+    }
+    #save-btn {
+      padding: 12px 32px;
+      background: linear-gradient(135deg, #1a56db, #1e40af);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: opacity .2s;
+    }
+    #save-btn:hover    { opacity: .9; }
+    #save-btn:disabled { opacity: .55; cursor: not-allowed; }
+
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Status ── */
+    #status {
+      font-size: 13px;
+      font-weight: 600;
+      display: none;
+    }
+    #status.ok  { color: #4ade80; }
+    #status.err { color: #f87171; }
+
+    /* ── Info Box ── */
+    .info-box {
+      background: var(--blue-pale);
+      border: 1px solid #bfdbfe;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12.5px;
+      color: #1e40af;
+      margin-bottom: 14px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">⚙️</div>
+  <div>
+    <h1>Einstellungen</h1>
+    <p>Beseco SecureSend · Konfiguration</p>
+  </div>
+  <a class="header-back" href="/">← Zurück zur App</a>
+  {% if cfg.SETTINGS_PASSWORD_SET %}
+  <a class="header-back" href="/settings/logout" style="margin-left:8px;">🔓 Abmelden</a>
+  {% endif %}
+</header>
+
+<main>
+
+  <!-- Nextcloud -->
+  <div class="card">
+    <div class="card-header">
+      <span class="icon">🟢</span>
+      <span>Nextcloud</span>
+    </div>
+    <div class="card-body">
+      <div class="info-box">App-Passwort erstellen unter: Nextcloud → Einstellungen → Sicherheit → App-Passwörter</div>
+      <div class="form-grid">
+        <div class="field full">
+          <label>Server-URL</label>
+          <input type="url" id="NC_URL" class="mono" placeholder="https://nextcloud.example.com" value="{{ cfg.NC_URL }}">
+        </div>
+        <div class="field">
+          <label>Benutzername</label>
+          <input type="text" id="NC_USER" class="mono" placeholder="vorname.nachname@firma.de" value="{{ cfg.NC_USER }}">
+        </div>
+        <div class="field">
+          <label>App-Passwort</label>
+          <input type="password" id="NC_PASSWORD" class="mono" placeholder="••••••••••••••••••••" value="{{ cfg.NC_PASSWORD }}">
+        </div>
+        <div class="field">
+          <label>Zielordner <span class="hint">(wird automatisch angelegt)</span></label>
+          <input type="text" id="NC_FOLDER" placeholder="SecureSend" value="{{ cfg.NC_FOLDER }}">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- OneDrive / Azure -->
+  <div class="card">
+    <div class="card-header">
+      <span class="icon">☁️</span>
+      <span>OneDrive / Microsoft 365</span>
+    </div>
+    <div class="card-body">
+      <div class="info-box">App-Registrierung unter <strong>portal.azure.com</strong> → Azure Active Directory → App-Registrierungen. Benötigte Berechtigungen: Files.ReadWrite, Sites.ReadWrite.All</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>Client ID</label>
+          <input type="text" id="AZURE_CLIENT_ID" class="mono" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value="{{ cfg.AZURE_CLIENT_ID }}">
+        </div>
+        <div class="field">
+          <label>Client Secret</label>
+          <input type="password" id="AZURE_CLIENT_SECRET" class="mono" placeholder="••••••••••••••••••••" value="{{ cfg.AZURE_CLIENT_SECRET }}">
+        </div>
+        <div class="field">
+          <label>Tenant ID</label>
+          <input type="text" id="AZURE_TENANT_ID" class="mono" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value="{{ cfg.AZURE_TENANT_ID }}">
+        </div>
+        <div class="field">
+          <label>OneDrive-Benutzer</label>
+          <input type="email" id="ONEDRIVE_USER" placeholder="florian@firma.de" value="{{ cfg.ONEDRIVE_USER }}">
+        </div>
+        <div class="field">
+          <label>Zielordner</label>
+          <input type="text" id="ONEDRIVE_FOLDER" placeholder="SecureSend" value="{{ cfg.ONEDRIVE_FOLDER }}">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- sipgate -->
+  <div class="card">
+    <div class="card-header">
+      <span class="icon">📱</span>
+      <span>sipgate SMS</span>
+    </div>
+    <div class="card-body">
+      <div class="info-box">API-Token unter <strong>app.sipgate.com</strong> → Persönliche Zugangsdaten → Token</div>
+      <div class="form-grid">
+        <div class="field">
+          <label>Token-ID</label>
+          <input type="text" id="SIPGATE_TOKEN_ID" class="mono" placeholder="token-XXXXXX" value="{{ cfg.SIPGATE_TOKEN_ID }}">
+        </div>
+        <div class="field">
+          <label>Token</label>
+          <input type="password" id="SIPGATE_TOKEN" class="mono" placeholder="••••••••••••••••••••" value="{{ cfg.SIPGATE_TOKEN }}">
+        </div>
+        <div class="field">
+          <label>SMS-Geräte-ID <span class="hint">(meistens s0)</span></label>
+          <input type="text" id="SIPGATE_SMS_ID" placeholder="s0" value="{{ cfg.SIPGATE_SMS_ID }}">
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SMTP -->
+  <div class="card">
+    <div class="card-header">
+      <span class="icon">✉️</span>
+      <span>E-Mail (SMTP)</span>
+    </div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="field">
+          <label>SMTP-Host</label>
+          <input type="text" id="SMTP_HOST" class="mono" placeholder="webserver01.beseco.com" value="{{ cfg.SMTP_HOST }}">
+        </div>
+        <div class="field">
+          <label>SMTP-Port</label>
+          <input type="number" id="SMTP_PORT" placeholder="587" value="{{ cfg.SMTP_PORT }}">
+        </div>
+        <div class="field">
+          <label>Verschlüsselung</label>
+          <select id="SMTP_MODE" onchange="updateSmtpPortHint()">
+            <option value="none"     {% if cfg.SMTP_MODE == 'none'     %}selected{% endif %}>Kein TLS (Port 25)</option>
+            <option value="starttls" {% if cfg.SMTP_MODE == 'starttls' %}selected{% endif %}>STARTTLS (Port 587)</option>
+            <option value="ssl"      {% if cfg.SMTP_MODE == 'ssl'      %}selected{% endif %}>SSL/TLS (Port 465)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Benutzername <span class="hint">(leer lassen wenn kein Auth)</span></label>
+          <input type="text" id="SMTP_USER" class="mono" placeholder="support@beseco.com" value="{{ cfg.SMTP_USER }}">
+        </div>
+        <div class="field">
+          <label>Passwort</label>
+          <input type="password" id="SMTP_PASSWORD" class="mono" placeholder="••••••••••••••••••••" value="{{ cfg.SMTP_PASSWORD }}">
+        </div>
+        <div class="field">
+          <label>Absender E-Mail</label>
+          <input type="email" id="MAIL_FROM" placeholder="florian@firma.de" value="{{ cfg.MAIL_FROM }}">
+        </div>
+        <div class="field">
+          <label>Absender Name</label>
+          <input type="text" id="MAIL_FROM_NAME" placeholder="Max Mustermann – Firma" value="{{ cfg.MAIL_FROM_NAME }}">
+        </div>
+      </div>
+
+      <!-- Test-Bereich -->
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-200);">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <button type="button" id="smtp-test-btn" onclick="testSmtp()" style="
+            padding:8px 18px;background:#fff;border:1.5px solid var(--blue);
+            border-radius:8px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;
+            font-weight:600;color:var(--blue);cursor:pointer;display:flex;
+            align-items:center;gap:7px;transition:background .15s;">
+            <div class="spinner" id="smtp-spinner" style="border-color:rgba(26,86,219,.3);border-top-color:var(--blue);"></div>
+            <span id="smtp-btn-label">🔌 Verbindung testen</span>
+          </button>
+          <div id="smtp-test-result" style="font-size:13px;font-weight:600;display:none;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Benachrichtigungen -->
+  <div class="card">
+    <div class="card-header">
+      <span class="icon">🔔</span>
+      <span>Benachrichtigungen</span>
+    </div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="field full">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--gray-700);">
+            <input type="checkbox" id="MAIL_NOTIFY_ENABLED" style="width:auto;"
+              {% if cfg.MAIL_NOTIFY_ENABLED == 'true' %}checked{% endif %}>
+            Benachrichtigung bei erfolgreichem Versand senden
+          </label>
+        </div>
+        <div class="field full">
+          <label>E-Mail-Adresse für Benachrichtigungen</label>
+          <input type="email" id="MAIL_NOTIFY" placeholder="ich@firma.de" value="{{ cfg.MAIL_NOTIFY }}">
+        </div>
+        <div class="field full">
+          <div class="info-box" style="margin-bottom:0;">
+            Diese Adresse erhält eine Bestätigungsmail nach jedem Versand. Kein PIN, keine Nachrichteninhalte.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- App -->
+  <div class="card">
+    <div class="card-header">
+      <span class="icon">🔧</span>
+      <span>App-Einstellungen</span>
+    </div>
+    <div class="card-body">
+      <div class="form-grid">
+        <div class="field">
+          <label>Port <span class="hint">(Neustart erforderlich)</span></label>
+          <input type="number" id="FLASK_PORT" placeholder="5001" value="{{ cfg.FLASK_PORT }}">
+        </div>
+        <div class="field">
+          <label>Secret Key <span class="hint">(zufälliger String)</span></label>
+          <input type="text" id="SECRET_KEY" class="mono" placeholder="zufaelliger-langer-string" value="{{ cfg.SECRET_KEY }}">
+        </div>
+      </div>
+
+      <!-- Einstellungspasswort -->
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-200);">
+        <div style="margin-bottom:12px;font-size:13px;font-weight:600;color:var(--gray-700);">
+          🔒 Einstellungspasswort
+        </div>
+        <div style="margin-bottom:12px;font-size:13px;">
+          {% if cfg.SETTINGS_PASSWORD_SET %}
+            <span style="color:var(--green);">✅ Passwort gesetzt – Einstellungen sind geschützt</span>
+          {% else %}
+            <span style="color:#ca8a04;">⚠️ Kein Passwort – Einstellungen sind ungeschützt</span>
+          {% endif %}
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Neues Passwort</label>
+            <input type="password" id="SETTINGS_PASSWORD_NEW" placeholder="Neues Passwort">
+          </div>
+          <div class="field">
+            <label>Passwort bestätigen</label>
+            <input type="password" id="SETTINGS_PASSWORD_CONFIRM" placeholder="Wiederholen">
+          </div>
+          <div class="field full" style="margin-top:-4px;">
+            <span style="font-size:11px;color:#9ca3af;">Leer lassen um bestehendes Passwort zu behalten</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<div class="save-bar">
+  <button id="save-btn" onclick="saveSettings()">
+    <div class="spinner" id="spinner"></div>
+    <span id="btn-label">💾 Einstellungen speichern</span>
+  </button>
+  <div id="status"></div>
+</div>
+
+<script>
+  async function saveSettings() {
+    const btn     = document.getElementById('save-btn');
+    const spinner = document.getElementById('spinner');
+    const label   = document.getElementById('btn-label');
+    const status  = document.getElementById('status');
+
+    const fields = [
+      'NC_URL','NC_USER','NC_PASSWORD','NC_FOLDER',
+      'AZURE_CLIENT_ID','AZURE_CLIENT_SECRET','AZURE_TENANT_ID',
+      'ONEDRIVE_USER','ONEDRIVE_FOLDER',
+      'SIPGATE_TOKEN_ID','SIPGATE_TOKEN','SIPGATE_SMS_ID',
+      'SMTP_HOST','SMTP_PORT','SMTP_MODE','SMTP_USER','SMTP_PASSWORD',
+      'MAIL_FROM','MAIL_FROM_NAME',
+      'FLASK_PORT','SECRET_KEY',
+      'MAIL_NOTIFY',
+    ];
+
+    const payload = {};
+    fields.forEach(id => {
+      payload[id] = document.getElementById(id).value.trim();
+    });
+
+    // Checkbox: MAIL_NOTIFY_ENABLED separat behandeln
+    payload['MAIL_NOTIFY_ENABLED'] = document.getElementById('MAIL_NOTIFY_ENABLED').checked ? 'true' : 'false';
+
+    // Einstellungspasswort separat behandeln (nicht in fields-Liste)
+    payload['SETTINGS_PASSWORD_NEW']     = document.getElementById('SETTINGS_PASSWORD_NEW').value;
+    payload['SETTINGS_PASSWORD_CONFIRM'] = document.getElementById('SETTINGS_PASSWORD_CONFIRM').value;
+
+    btn.disabled          = true;
+    spinner.style.display = 'block';
+    label.textContent     = 'Wird gespeichert…';
+    status.style.display  = 'none';
+
+    try {
+      const resp = await fetch('/settings/save', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      });
+      const data = await resp.json();
+
+      if (data.ok) {
+        status.className     = 'ok';
+        status.textContent   = '✅ Gespeichert – Änderungen sind sofort aktiv.';
+        status.style.display = 'block';
+      } else {
+        status.className     = 'err';
+        status.textContent   = '❌ Fehler: ' + data.error;
+        status.style.display = 'block';
+      }
+    } catch (err) {
+      status.className     = 'err';
+      status.textContent   = '❌ Netzwerkfehler: ' + err.message;
+      status.style.display = 'block';
+    } finally {
+      btn.disabled          = false;
+      spinner.style.display = 'none';
+      label.textContent     = '💾 Einstellungen speichern';
+    }
+  }
+
+  // ── Port-Hint bei Moduswechsel ──
+  function updateSmtpPortHint() {
+    const mode = document.getElementById('SMTP_MODE').value;
+    const portField = document.getElementById('SMTP_PORT');
+    if (mode === 'ssl')      portField.placeholder = '465';
+    else if (mode === 'starttls') portField.placeholder = '587';
+    else                     portField.placeholder = '25';
+  }
+
+  // ── SMTP-Test ──
+  async function testSmtp() {
+    const btn     = document.getElementById('smtp-test-btn');
+    const spinner = document.getElementById('smtp-spinner');
+    const label   = document.getElementById('smtp-btn-label');
+    const result  = document.getElementById('smtp-test-result');
+
+    btn.disabled          = true;
+    spinner.style.display = 'block';
+    label.textContent     = 'Teste…';
+    result.style.display  = 'none';
+
+    try {
+      const resp = await fetch('/settings/test-smtp', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          host:      document.getElementById('SMTP_HOST').value.trim(),
+          port:      parseInt(document.getElementById('SMTP_PORT').value) || 25,
+          mode:      document.getElementById('SMTP_MODE').value,
+          user:      document.getElementById('SMTP_USER').value.trim(),
+          password:  document.getElementById('SMTP_PASSWORD').value,
+          mail_from: document.getElementById('MAIL_FROM').value.trim(),
+        }),
+      });
+      const data = await resp.json();
+
+      result.style.display = 'block';
+      if (data.ok) {
+        result.style.color = 'var(--green)';
+        result.textContent = '✅ ' + data.message;
+      } else {
+        result.style.color = 'var(--red)';
+        result.textContent = '❌ ' + data.error;
+      }
+    } catch (err) {
+      result.style.display = 'block';
+      result.style.color   = 'var(--red)';
+      result.textContent   = '❌ ' + err.message;
+    } finally {
+      btn.disabled          = false;
+      spinner.style.display = 'none';
+      label.textContent     = '🔌 Verbindung testen';
+    }
+  }
+</script>
+</body>
+</html>

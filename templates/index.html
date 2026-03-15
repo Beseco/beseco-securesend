@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Beseco SecureSend</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --blue:      #1a56db;
+      --blue-dark: #1240a8;
+      --blue-pale: #eff4ff;
+      --gray-900:  #111827;
+      --gray-700:  #374151;
+      --gray-500:  #6b7280;
+      --gray-200:  #e5e7eb;
+      --gray-50:   #f9fafb;
+      --green:     #16a34a;
+      --red:       #dc2626;
+      --yellow:    #ca8a04;
+      --radius:    10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: #0f172a;
+      min-height: 100vh;
+      color: var(--gray-900);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #1a56db 0%, #1e40af 100%);
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 2px 16px rgba(0,0,0,.3);
+    }
+    .logo-icon {
+      width: 38px; height: 38px;
+      background: rgba(255,255,255,.18);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    header h1 {
+      color: #fff;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -.3px;
+    }
+    header p {
+      color: rgba(255,255,255,.65);
+      font-size: 12px;
+      letter-spacing: .8px;
+      text-transform: uppercase;
+      margin-top: 1px;
+    }
+    .header-settings {
+      margin-left: auto;
+      color: rgba(255,255,255,.75);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 7px;
+      transition: background .15s;
+    }
+    .header-settings:hover { background: rgba(255,255,255,.12); color: #fff; }
+
+    /* ── Layout ── */
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      max-height: calc(100vh - 74px);
+    }
+
+    /* ── Panel ── */
+    .panel {
+      background: #ffffff;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel:first-child {
+      border-right: 1px solid var(--gray-200);
+    }
+    .panel-header {
+      padding: 14px 24px;
+      background: var(--gray-50);
+      border-bottom: 1px solid var(--gray-200);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel-header span {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--gray-500);
+    }
+    .panel-header .badge {
+      background: var(--blue-pale);
+      color: var(--blue);
+      border-radius: 4px;
+      padding: 2px 8px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    /* ── Linkes Panel: Eingabe ── */
+    .left-panel {
+      padding: 0;
+    }
+
+    .form-section {
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--gray-200);
+      background: #fff;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .field.full { grid-column: 1 / -1; }
+
+    label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--gray-500);
+    }
+
+    input, select, textarea {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      padding: 9px 12px;
+      border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius);
+      color: var(--gray-900);
+      background: #fff;
+      transition: border-color .15s, box-shadow .15s;
+      outline: none;
+      width: 100%;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(26,86,219,.12);
+    }
+    input::placeholder, textarea::placeholder { color: #c0c8d4; }
+
+    /* ── MD Editor ── */
+    .editor-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .editor-toolbar {
+      padding: 8px 24px;
+      background: var(--gray-50);
+      border-bottom: 1px solid var(--gray-200);
+      display: flex;
+      gap: 4px;
+    }
+    .tb-btn {
+      padding: 4px 10px;
+      border: 1px solid var(--gray-200);
+      border-radius: 5px;
+      background: #fff;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gray-700);
+      cursor: pointer;
+      transition: background .1s, border-color .1s;
+    }
+    .tb-btn:hover { background: var(--blue-pale); border-color: var(--blue); color: var(--blue); }
+
+    #md-editor {
+      flex: 1;
+      resize: none;
+      border: none;
+      border-radius: 0;
+      padding: 20px 24px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13.5px;
+      line-height: 1.7;
+      color: var(--gray-900);
+      background: #fff;
+      min-height: 260px;
+    }
+    #md-editor:focus { box-shadow: none; border-color: transparent; }
+
+    /* ── Custom Message ── */
+    .custom-msg-section {
+      padding: 0 24px 16px;
+      border-bottom: 1px solid var(--gray-200);
+    }
+    #custom-message {
+      min-height: 64px;
+      resize: vertical;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    /* ── Send Button ── */
+    .send-section {
+      padding: 16px 24px;
+      background: var(--gray-50);
+    }
+    #send-btn {
+      width: 100%;
+      padding: 13px;
+      background: linear-gradient(135deg, #1a56db, #1e40af);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: .3px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: opacity .2s, transform .1s;
+    }
+    #send-btn:hover  { opacity: .92; }
+    #send-btn:active { transform: scale(.98); }
+    #send-btn:disabled { opacity: .55; cursor: not-allowed; }
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2.5px solid rgba(255,255,255,.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Rechtes Panel: Preview ── */
+    .preview-panel {
+      background: #fafbfc;
+      overflow-y: auto;
+    }
+    #md-preview {
+      padding: 28px 32px;
+      font-size: 15px;
+      line-height: 1.75;
+      color: var(--gray-700);
+    }
+    #md-preview h1,h2,h3 { color: var(--gray-900); margin: 1.2em 0 .4em; }
+    #md-preview h1 { font-size: 22px; }
+    #md-preview h2 { font-size: 18px; border-bottom: 1px solid var(--gray-200); padding-bottom: 6px; }
+    #md-preview h3 { font-size: 15px; }
+    #md-preview p  { margin-bottom: .9em; }
+    #md-preview code {
+      font-family: 'IBM Plex Mono', monospace;
+      background: #f0f4f8;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: .88em;
+    }
+    #md-preview pre {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 16px 20px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-size: 13px;
+      margin: 1em 0;
+    }
+    #md-preview pre code { background: none; padding: 0; color: inherit; }
+    #md-preview ul, #md-preview ol { margin: .5em 0 .9em 1.4em; }
+    #md-preview li { margin-bottom: .3em; }
+    #md-preview blockquote {
+      border-left: 3px solid var(--blue);
+      padding: 8px 16px;
+      background: var(--blue-pale);
+      border-radius: 0 6px 6px 0;
+      margin: 1em 0;
+    }
+    #md-preview hr { border: none; border-top: 1px solid var(--gray-200); margin: 1.5em 0; }
+    #md-preview table { border-collapse: collapse; width: 100%; margin: 1em 0; }
+    #md-preview th { background: var(--gray-50); font-weight: 600; }
+    #md-preview th, #md-preview td { border: 1px solid var(--gray-200); padding: 8px 12px; font-size: 14px; }
+
+    .preview-empty {
+      text-align: center;
+      padding: 60px 32px;
+      color: var(--gray-500);
+    }
+    .preview-empty .icon { font-size: 40px; opacity: .35; margin-bottom: 12px; }
+    .preview-empty p { font-size: 14px; }
+
+    /* ── Toast / Result ── */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      max-width: 420px;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,.18);
+      padding: 0;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: opacity .3s, transform .3s;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 999;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    .toast-stripe {
+      height: 5px;
+      background: var(--green);
+    }
+    .toast-stripe.err { background: var(--red); }
+    .toast-body { padding: 16px 20px; }
+    .toast-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: var(--gray-900);
+    }
+    .toast-msg { font-size: 13px; color: var(--gray-500); line-height: 1.5; }
+    .toast-detail {
+      margin-top: 10px;
+      background: var(--gray-50);
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+    .toast-detail code {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      color: var(--blue);
+      word-break: break-all;
+    }
+    .toast-close {
+      position: absolute;
+      top: 10px; right: 12px;
+      background: none; border: none;
+      font-size: 18px; cursor: pointer;
+      color: var(--gray-500);
+      line-height: 1;
+    }
+
+    /* ── Provider Toggle ── */
+    .provider-toggle {
+      display: flex;
+      gap: 6px;
+    }
+    .prov-btn {
+      flex: 1;
+      padding: 9px 12px;
+      border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius);
+      background: #fff;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--gray-500);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: all .15s;
+    }
+    .prov-btn:hover {
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+    .prov-btn.active {
+      background: var(--blue-pale);
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+    .prov-icon { font-size: 15px; }
+
+    /* ── Char counter ── */
+    .char-count {
+      font-size: 11px;
+      color: var(--gray-500);
+      text-align: right;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">🔒</div>
+  <div>
+    <h1>Beseco SecureSend</h1>
+    <p>Sichere Dateiübermittlung · Beseco IT Systems</p>
+  </div>
+  <a class="header-settings" href="/settings">⚙️ Einstellungen</a>
+</header>
+
+<main>
+
+  <!-- ── Linkes Panel ── -->
+  <div class="panel left-panel">
+
+    <div class="form-section">
+
+      <!-- Provider Toggle -->
+      <div style="margin-bottom:14px;">
+        <label style="display:block;margin-bottom:6px;">Speicher-Provider</label>
+        <div class="provider-toggle" id="provider-toggle"></div>
+      </div>
+
+      <div class="form-grid">
+        <div class="field">
+          <label>Dateiname</label>
+          <input type="text" id="filename" placeholder="z.B. angebot-mueller" value="nachricht">
+        </div>
+        <div class="field">
+          <label>Gültigkeit (Tage)</label>
+          <select id="expiry">
+            <option value="7">7 Tage</option>
+            <option value="14" selected>14 Tage</option>
+            <option value="30">30 Tage</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>E-Mail Kunde</label>
+          <input type="email" id="email" placeholder="kunde@firma.de">
+        </div>
+        <div class="field">
+          <label>Mobilnummer (SMS)</label>
+          <input type="tel" id="phone" placeholder="0176 12345678">
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-header" style="border-top:none;">
+      <span>Nachricht</span>
+      <div class="badge">Markdown</div>
+    </div>
+
+    <div class="editor-toolbar">
+      <button class="tb-btn" onclick="insert('**', '**')"><b>B</b></button>
+      <button class="tb-btn" onclick="insert('*', '*')"><i>I</i></button>
+      <button class="tb-btn" onclick="insert('`', '`')">Code</button>
+      <button class="tb-btn" onclick="insertLine('## ')">H2</button>
+      <button class="tb-btn" onclick="insertLine('### ')">H3</button>
+      <button class="tb-btn" onclick="insertLine('- ')">Liste</button>
+      <button class="tb-btn" onclick="insertLine('> ')">Zitat</button>
+      <button class="tb-btn" onclick="insertLine('---')">HR</button>
+    </div>
+
+    <div class="editor-wrap">
+      <textarea id="md-editor"
+        placeholder="# Betreff&#10;&#10;Sehr geehrter Herr / Frau ...,&#10;&#10;anbei übermittle ich Ihnen ...&#10;&#10;Mit freundlichen Grüßen&#10;Florian Beubl"></textarea>
+    </div>
+
+    <div class="custom-msg-section" style="padding-top:14px;">
+      <div class="field">
+        <label>Persönliche Nachricht in der E-Mail (optional)</label>
+        <textarea id="custom-message" placeholder="Kurzer Hinweis der direkt in der E-Mail erscheint..."></textarea>
+        <div class="char-count"><span id="char-cnt">0</span> Zeichen</div>
+      </div>
+    </div>
+
+    <div class="send-section">
+      <button id="send-btn" onclick="doSend()">
+        <div class="spinner" id="spinner"></div>
+        <span id="btn-label">🚀 Sicher übermitteln</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Rechtes Panel: Preview ── -->
+  <div class="panel preview-panel">
+    <div class="panel-header">
+      <span>Vorschau</span>
+    </div>
+    <div id="md-preview">
+      <div class="preview-empty">
+        <div class="icon">📄</div>
+        <p>Markdown hier links eingeben –<br>die Vorschau erscheint in Echtzeit.</p>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Toast -->
+<div id="toast">
+  <button class="toast-close" onclick="hideToast()">×</button>
+  <div class="toast-stripe" id="toast-stripe"></div>
+  <div class="toast-body">
+    <div class="toast-title" id="toast-title"></div>
+    <div class="toast-msg"   id="toast-msg"></div>
+    <div class="toast-detail" id="toast-detail" style="display:none">
+      <code id="toast-code"></code>
+    </div>
+  </div>
+</div>
+
+<!-- Marked.js für Markdown-Preview -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+<script>
+  const editor     = document.getElementById('md-editor');
+  const preview    = document.getElementById('md-preview');
+  const customMsg  = document.getElementById('custom-message');
+  const charCnt    = document.getElementById('char-cnt');
+
+  // ── Provider ──
+  let currentProvider = '';
+
+  function setProvider(p) {
+    currentProvider = p;
+    document.querySelectorAll('.prov-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.provider === p);
+    });
+  }
+
+  async function initProviders() {
+    const container = document.getElementById('provider-toggle');
+    const sendBtn   = document.getElementById('send-btn');
+    let providers   = [];
+
+    try {
+      const resp = await fetch('/api/providers');
+      providers  = await resp.json();
+    } catch (e) {
+      providers  = [];
+    }
+
+    if (providers.length === 0) {
+      // Kein Provider: Warning-Banner, Send-Button deaktivieren
+      container.innerHTML = `
+        <div style="width:100%;background:#fef9c3;border:1.5px solid #ca8a04;
+                    border-radius:var(--radius);padding:10px 14px;font-size:13px;
+                    color:#713f12;display:flex;align-items:center;gap:8px;">
+          ⚠️ Kein Provider konfiguriert –
+          <a href="/settings" style="color:#1a56db;font-weight:600;">Einstellungen öffnen</a>
+        </div>`;
+      sendBtn.disabled = true;
+    } else if (providers.length === 1) {
+      // Genau 1 Provider: einfaches Badge, automatisch auswählen
+      const p = providers[0];
+      container.innerHTML = `
+        <div class="prov-btn active" data-provider="${p.id}"
+             style="cursor:default;flex:none;">
+          <span class="prov-icon">${p.icon}</span> ${p.name}
+        </div>`;
+      setProvider(p.id);
+    } else {
+      // 2+ Provider: Buttons dynamisch rendern
+      container.innerHTML = providers.map(p => `
+        <button class="prov-btn" data-provider="${p.id}"
+                onclick="setProvider('${p.id}')">
+          <span class="prov-icon">${p.icon}</span> ${p.name}
+        </button>`).join('');
+      setProvider(providers[0].id);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', initProviders);
+
+  // ── Live-Preview ──
+  marked.setOptions({ breaks: true, gfm: true });
+
+  editor.addEventListener('input', () => {
+    const val = editor.value;
+    preview.innerHTML = val.trim()
+      ? marked.parse(val)
+      : `<div class="preview-empty"><div class="icon">📄</div>
+         <p>Markdown hier links eingeben –<br>die Vorschau erscheint in Echtzeit.</p></div>`;
+  });
+
+  customMsg.addEventListener('input', () => {
+    charCnt.textContent = customMsg.value.length;
+  });
+
+  // ── Toolbar Helfer ──
+  function insert(before, after) {
+    const s = editor.selectionStart, e = editor.selectionEnd;
+    const sel = editor.value.substring(s, e) || 'Text';
+    editor.value = editor.value.slice(0, s) + before + sel + after + editor.value.slice(e);
+    editor.dispatchEvent(new Event('input'));
+    editor.focus();
+  }
+  function insertLine(prefix) {
+    const pos = editor.selectionStart;
+    const lineStart = editor.value.lastIndexOf('\n', pos - 1) + 1;
+    editor.value = editor.value.slice(0, lineStart) + prefix + editor.value.slice(lineStart);
+    editor.dispatchEvent(new Event('input'));
+    editor.focus();
+  }
+
+  // ── Senden ──
+  async function doSend() {
+    const btn     = document.getElementById('send-btn');
+    const spinner = document.getElementById('spinner');
+    const label   = document.getElementById('btn-label');
+
+    const payload = {
+      provider:       currentProvider,
+      content:        editor.value,
+      filename:       document.getElementById('filename').value,
+      email:          document.getElementById('email').value,
+      phone:          document.getElementById('phone').value,
+      expiry_days:    document.getElementById('expiry').value,
+      custom_message: customMsg.value,
+    };
+
+    if (!payload.content || !payload.email || !payload.phone) {
+      showToast(false, 'Fehlende Eingaben',
+        'Bitte Inhalt, E-Mail-Adresse und Mobilnummer ausfüllen.');
+      return;
+    }
+
+    btn.disabled    = true;
+    spinner.style.display = 'block';
+    label.textContent     = 'Wird gesendet…';
+
+    try {
+      const resp = await fetch('/send', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      });
+      const data = await resp.json();
+
+      if (data.ok) {
+        showToast(true,
+          '✅ Erfolgreich gesendet!',
+          `E-Mail → ${payload.email} · SMS → ${payload.phone}`,
+          `🔑 Passwort: ${data.password}\n📎 ${data.filename}`
+        );
+      } else {
+        showToast(false, '❌ Fehler', data.error);
+      }
+    } catch (err) {
+      showToast(false, '❌ Netzwerkfehler', err.message);
+    } finally {
+      btn.disabled          = false;
+      spinner.style.display = 'none';
+      label.textContent     = '🚀 Sicher übermitteln';
+    }
+  }
+
+  // ── Toast ──
+  function showToast(ok, title, msg, detail) {
+    document.getElementById('toast-stripe').className = 'toast-stripe' + (ok ? '' : ' err');
+    document.getElementById('toast-title').textContent = title;
+    document.getElementById('toast-msg').textContent   = msg;
+    const det = document.getElementById('toast-detail');
+    if (detail) {
+      det.style.display = 'block';
+      document.getElementById('toast-code').textContent = detail;
+    } else {
+      det.style.display = 'none';
+    }
+    const t = document.getElementById('toast');
+    t.classList.add('show');
+    if (ok) setTimeout(hideToast, 12000);
+  }
+  function hideToast() {
+    document.getElementById('toast').classList.remove('show');
+  }
+</script>
+</body>
+</html>
