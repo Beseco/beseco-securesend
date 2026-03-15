@@ -97,6 +97,9 @@ def require_settings_auth(f):
     @functools.wraps(f)
     def decorated(*args, **kwargs):
         if SETTINGS_PASSWORD and not session.get("settings_auth"):
+            # AJAX-Anfragen brauchen JSON, kein HTML-Redirect
+            if request.is_json or request.headers.get("Accept", "").startswith("application/json"):
+                return jsonify({"ok": False, "error": "Session abgelaufen – bitte Seite neu laden und anmelden."}), 401
             return redirect(url_for("settings_login"))
         return f(*args, **kwargs)
     return decorated

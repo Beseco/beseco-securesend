@@ -502,6 +502,13 @@
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(payload),
       });
+
+      // Session abgelaufen → zur Login-Seite
+      if (resp.status === 401) {
+        window.location.href = '/settings/login';
+        return;
+      }
+
       const data = await resp.json();
 
       if (data.ok) {
@@ -515,7 +522,7 @@
       }
     } catch (err) {
       status.className     = 'err';
-      status.textContent   = '❌ Netzwerkfehler: ' + err.message;
+      status.textContent   = '❌ Fehler: ' + err.message;
       status.style.display = 'block';
     } finally {
       btn.disabled          = false;
