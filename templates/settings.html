@@ -1,243 +1,104 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Einstellungen · Beseco SecureSend</title>
-  <link rel="icon" type="image/svg+xml" href="/static/icon.svg">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --blue:      #1a56db;
-      --blue-dark: #1240a8;
-      --blue-pale: #eff4ff;
-      --gray-900:  #111827;
-      --gray-700:  #374151;
-      --gray-500:  #6b7280;
-      --gray-200:  #e5e7eb;
-      --gray-50:   #f9fafb;
-      --green:     #16a34a;
-      --red:       #dc2626;
-      --radius:    10px;
-    }
+{% extends "base.html" %}
+{% set active = 'settings' %}
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+{% block title %}Einstellungen · Beseco SecureSend{% endblock %}
 
-    body {
-      font-family: 'IBM Plex Sans', sans-serif;
-      background: #0f172a;
-      min-height: 100vh;
-      color: var(--gray-900);
-      display: flex;
-      flex-direction: column;
-    }
+{% block page_title %}Einstellungen{% endblock %}
 
-    /* ── Header ── */
-    header {
-      background: linear-gradient(135deg, #1a56db 0%, #1e40af 100%);
-      padding: 18px 32px;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      box-shadow: 0 2px 16px rgba(0,0,0,.3);
-    }
-    .logo-icon {
-      width: 38px; height: 38px;
-      background: rgba(255,255,255,.18);
-      border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-      font-size: 20px;
-    }
-    header h1 { color: #fff; font-size: 18px; font-weight: 700; letter-spacing: -.3px; }
-    header p  { color: rgba(255,255,255,.65); font-size: 12px; letter-spacing: .8px; text-transform: uppercase; margin-top: 1px; }
-    .header-back {
-      margin-left: auto;
-      color: rgba(255,255,255,.8);
-      text-decoration: none;
-      font-size: 13px;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 7px 14px;
-      border: 1px solid rgba(255,255,255,.3);
-      border-radius: 7px;
-      transition: background .15s;
-    }
-    .header-back:hover { background: rgba(255,255,255,.12); }
+{% block topbar_right %}
+{% if cfg.SETTINGS_PASSWORD_SET %}
+<a href="/settings/logout"
+   class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:text-slate-900 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+  🔓 Abmelden
+</a>
+{% endif %}
+{% endblock %}
 
-    /* ── Content ── */
-    main {
-      flex: 1;
-      padding: 32px;
-      max-width: 820px;
-      margin: 0 auto;
-      width: 100%;
-    }
+{% block extra_css %}
+  .form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .field.full { grid-column: 1 / -1; }
+  .field label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    color: #6b7280;
+  }
+  .field label .hint {
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 11px;
+    color: #9ca3af;
+  }
+  .field input, .field select {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 14px;
+    padding: 9px 12px;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 10px;
+    color: #111827;
+    background: #fff;
+    transition: border-color .15s, box-shadow .15s;
+    outline: none;
+    width: 100%;
+  }
+  .field input:focus, .field select:focus {
+    border-color: #1a56db;
+    box-shadow: 0 0 0 3px rgba(26,86,219,.12);
+  }
+  .field input.mono {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+  }
+  .field input::placeholder { color: #c0c8d4; }
+  .info-box {
+    background: #eff4ff;
+    border: 1px solid #bfdbfe;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12.5px;
+    color: #1e40af;
+    margin-bottom: 14px;
+    line-height: 1.5;
+  }
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,.4);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+    display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #status {
+    font-size: 13px;
+    font-weight: 600;
+    display: none;
+  }
+  #status.ok  { color: #4ade80; }
+  #status.err { color: #f87171; }
+{% endblock %}
 
-    /* ── Card ── */
-    .card {
-      background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 2px 16px rgba(0,0,0,.12);
-      margin-bottom: 20px;
-      overflow: hidden;
-    }
-    .card-header {
-      padding: 14px 24px;
-      background: var(--gray-50);
-      border-bottom: 1px solid var(--gray-200);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    .card-header .icon { font-size: 16px; }
-    .card-header span {
-      font-size: 12px;
-      font-weight: 700;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: var(--gray-700);
-    }
-    .card-body {
-      padding: 20px 24px;
-    }
-
-    /* ── Form ── */
-    .form-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-    }
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 5px;
-    }
-    .field.full { grid-column: 1 / -1; }
-
-    label {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: .8px;
-      color: var(--gray-500);
-    }
-    label .hint {
-      font-weight: 400;
-      text-transform: none;
-      letter-spacing: 0;
-      font-size: 11px;
-      color: #9ca3af;
-    }
-
-    input {
-      font-family: 'IBM Plex Sans', sans-serif;
-      font-size: 14px;
-      padding: 9px 12px;
-      border: 1.5px solid var(--gray-200);
-      border-radius: var(--radius);
-      color: var(--gray-900);
-      background: #fff;
-      transition: border-color .15s, box-shadow .15s;
-      outline: none;
-      width: 100%;
-    }
-    input:focus {
-      border-color: var(--blue);
-      box-shadow: 0 0 0 3px rgba(26,86,219,.12);
-    }
-    input.mono {
-      font-family: 'IBM Plex Mono', monospace;
-      font-size: 13px;
-    }
-    input::placeholder { color: #c0c8d4; }
-
-    /* ── Save Button ── */
-    .save-bar {
-      position: sticky;
-      bottom: 0;
-      background: #0f172a;
-      padding: 16px 32px;
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      border-top: 1px solid rgba(255,255,255,.08);
-    }
-    #save-btn {
-      padding: 12px 32px;
-      background: linear-gradient(135deg, #1a56db, #1e40af);
-      color: #fff;
-      border: none;
-      border-radius: var(--radius);
-      font-family: 'IBM Plex Sans', sans-serif;
-      font-size: 15px;
-      font-weight: 700;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      transition: opacity .2s;
-    }
-    #save-btn:hover    { opacity: .9; }
-    #save-btn:disabled { opacity: .55; cursor: not-allowed; }
-
-    .spinner {
-      width: 16px; height: 16px;
-      border: 2px solid rgba(255,255,255,.4);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin .7s linear infinite;
-      display: none;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ── Status ── */
-    #status {
-      font-size: 13px;
-      font-weight: 600;
-      display: none;
-    }
-    #status.ok  { color: #4ade80; }
-    #status.err { color: #f87171; }
-
-    /* ── Info Box ── */
-    .info-box {
-      background: var(--blue-pale);
-      border: 1px solid #bfdbfe;
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-size: 12.5px;
-      color: #1e40af;
-      margin-bottom: 14px;
-      line-height: 1.5;
-    }
-  </style>
-</head>
-<body>
-
-<header>
-  <div class="logo-icon"><img src="/static/icon.svg" alt="Beseco SecureSend" style="width:24px;height:24px;border-radius:5px;"></div>
-  <div>
-    <h1>Einstellungen</h1>
-    <p>Beseco SecureSend · Konfiguration</p>
-  </div>
-  <a class="header-back" href="/">← Zurück zur App</a>
-  {% if cfg.SETTINGS_PASSWORD_SET %}
-  <a class="header-back" href="/settings/logout" style="margin-left:8px;">🔓 Abmelden</a>
-  {% endif %}
-</header>
-
-<main>
+{% block content %}
+<div class="max-w-3xl mx-auto pb-24">
 
   <!-- Nextcloud -->
-  <div class="card">
-    <div class="card-header">
-      <span class="icon">🟢</span>
-      <span>Nextcloud</span>
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-5 overflow-hidden">
+    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+      <span class="text-base">🟢</span>
+      <span class="text-sm font-bold uppercase tracking-wider text-slate-500">Nextcloud</span>
     </div>
-    <div class="card-body">
+    <div class="px-6 py-5">
       <div class="info-box">App-Passwort erstellen unter: Nextcloud → Einstellungen → Sicherheit → App-Passwörter</div>
       <div class="form-grid">
         <div class="field full">
@@ -261,12 +122,12 @@
   </div>
 
   <!-- OneDrive / Azure -->
-  <div class="card">
-    <div class="card-header">
-      <span class="icon">☁️</span>
-      <span>OneDrive / Microsoft 365</span>
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-5 overflow-hidden">
+    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+      <span class="text-base">☁️</span>
+      <span class="text-sm font-bold uppercase tracking-wider text-slate-500">OneDrive / Microsoft 365</span>
     </div>
-    <div class="card-body">
+    <div class="px-6 py-5">
       <div class="info-box">App-Registrierung unter <strong>portal.azure.com</strong> → Azure Active Directory → App-Registrierungen. Benötigte Berechtigungen: Files.ReadWrite, Sites.ReadWrite.All</div>
       <div class="form-grid">
         <div class="field">
@@ -294,12 +155,12 @@
   </div>
 
   <!-- sipgate -->
-  <div class="card">
-    <div class="card-header">
-      <span class="icon">📱</span>
-      <span>sipgate SMS</span>
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-5 overflow-hidden">
+    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+      <span class="text-base">📱</span>
+      <span class="text-sm font-bold uppercase tracking-wider text-slate-500">sipgate SMS</span>
     </div>
-    <div class="card-body">
+    <div class="px-6 py-5">
       <div class="info-box">API-Token unter <strong>app.sipgate.com</strong> → Persönliche Zugangsdaten → Token</div>
       <div class="form-grid">
         <div class="field">
@@ -319,12 +180,12 @@
   </div>
 
   <!-- SMTP -->
-  <div class="card">
-    <div class="card-header">
-      <span class="icon">✉️</span>
-      <span>E-Mail (SMTP)</span>
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-5 overflow-hidden">
+    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+      <span class="text-base">✉️</span>
+      <span class="text-sm font-bold uppercase tracking-wider text-slate-500">E-Mail (SMTP)</span>
     </div>
-    <div class="card-body">
+    <div class="px-6 py-5">
       <div class="form-grid">
         <div class="field">
           <label>SMTP-Host</label>
@@ -361,14 +222,11 @@
       </div>
 
       <!-- Test-Bereich -->
-      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-200);">
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid #e5e7eb;">
         <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <button type="button" id="smtp-test-btn" onclick="testSmtp()" style="
-            padding:8px 18px;background:#fff;border:1.5px solid var(--blue);
-            border-radius:8px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;
-            font-weight:600;color:var(--blue);cursor:pointer;display:flex;
-            align-items:center;gap:7px;transition:background .15s;">
-            <div class="spinner" id="smtp-spinner" style="border-color:rgba(26,86,219,.3);border-top-color:var(--blue);"></div>
+          <button type="button" id="smtp-test-btn" onclick="testSmtp()"
+                  class="flex items-center gap-2 px-4 py-2 bg-white border border-blue-400 text-blue-600 text-sm font-semibold rounded-lg hover:bg-blue-50 transition-colors">
+            <div class="spinner" id="smtp-spinner" style="border-color:rgba(26,86,219,.3);border-top-color:#1a56db;"></div>
             <span id="smtp-btn-label">🔌 Verbindung testen</span>
           </button>
           <div id="smtp-test-result" style="font-size:13px;font-weight:600;display:none;"></div>
@@ -378,15 +236,15 @@
   </div>
 
   <!-- Benachrichtigungen -->
-  <div class="card">
-    <div class="card-header">
-      <span class="icon">🔔</span>
-      <span>Benachrichtigungen</span>
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-5 overflow-hidden">
+    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+      <span class="text-base">🔔</span>
+      <span class="text-sm font-bold uppercase tracking-wider text-slate-500">Benachrichtigungen</span>
     </div>
-    <div class="card-body">
+    <div class="px-6 py-5">
       <div class="form-grid">
         <div class="field full">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--gray-700);">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:#374151;">
             <input type="checkbox" id="MAIL_NOTIFY_ENABLED" style="width:auto;"
               {% if cfg.MAIL_NOTIFY_ENABLED == 'true' %}checked{% endif %}>
             Benachrichtigung bei erfolgreichem Versand senden
@@ -406,15 +264,15 @@
   </div>
 
   <!-- Sicherheit: Verschlüsselte PDF -->
-  <div class="card">
-    <div class="card-header">
-      <span class="icon">🔐</span>
-      <span>Erhöhte Sicherheit – Verschlüsselte PDF</span>
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-5 overflow-hidden">
+    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+      <span class="text-base">🔐</span>
+      <span class="text-sm font-bold uppercase tracking-wider text-slate-500">Erhöhte Sicherheit – Verschlüsselte PDF</span>
     </div>
-    <div class="card-body">
+    <div class="px-6 py-5">
       <div class="form-grid">
         <div class="field full">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--gray-700);">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:#374151;">
             <input type="checkbox" id="SEND_AS_PDF" style="width:auto;"
               {% if cfg.SEND_AS_PDF == 'true' %}checked{% endif %}>
             Nachrichten als passwortgeschützte PDF versenden
@@ -426,7 +284,7 @@
             und anschließend mit dem Empfänger-Passwort verschlüsselt. Der Empfänger benötigt den
             per SMS gesendeten PIN zum Öffnen der PDF.<br><br>
             {% if cfg.PDF_LIBS_AVAILABLE %}
-              <span style="color:var(--green);font-weight:600;">✅ Bibliotheken verfügbar (fpdf2 + pypdf)</span>
+              <span style="color:#16a34a;font-weight:600;">✅ Bibliotheken verfügbar (fpdf2 + pypdf)</span>
             {% else %}
               <span style="color:#dc2626;font-weight:600;">
                 ❌ Bibliotheken fehlen –
@@ -441,12 +299,12 @@
   </div>
 
   <!-- App -->
-  <div class="card">
-    <div class="card-header">
-      <span class="icon">🔧</span>
-      <span>App-Einstellungen</span>
+  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-5 overflow-hidden">
+    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
+      <span class="text-base">🔧</span>
+      <span class="text-sm font-bold uppercase tracking-wider text-slate-500">App-Einstellungen</span>
     </div>
-    <div class="card-body">
+    <div class="px-6 py-5">
       <div class="form-grid">
         <div class="field">
           <label>Port <span class="hint">(Neustart erforderlich)</span></label>
@@ -459,13 +317,13 @@
       </div>
 
       <!-- Einstellungspasswort -->
-      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-200);">
-        <div style="margin-bottom:12px;font-size:13px;font-weight:600;color:var(--gray-700);">
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid #e5e7eb;">
+        <div style="margin-bottom:12px;font-size:13px;font-weight:600;color:#374151;">
           🔒 Einstellungspasswort
         </div>
         <div style="margin-bottom:12px;font-size:13px;">
           {% if cfg.SETTINGS_PASSWORD_SET %}
-            <span style="color:var(--green);">✅ Passwort gesetzt – Einstellungen sind geschützt</span>
+            <span style="color:#16a34a;">✅ Passwort gesetzt – Einstellungen sind geschützt</span>
           {% else %}
             <span style="color:#ca8a04;">⚠️ Kein Passwort – Einstellungen sind ungeschützt</span>
           {% endif %}
@@ -487,16 +345,20 @@
     </div>
   </div>
 
-</main>
+</div>
 
-<div class="save-bar">
-  <button id="save-btn" onclick="saveSettings()">
+<!-- Save Bar (sticky bottom) -->
+<div class="sticky bottom-0 bg-slate-950 border-t border-slate-800/50 px-6 py-4 flex items-center gap-4">
+  <button id="save-btn" onclick="saveSettings()"
+          class="flex items-center gap-2 px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-55 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-colors">
     <div class="spinner" id="spinner"></div>
     <span id="btn-label">💾 Einstellungen speichern</span>
   </button>
   <div id="status"></div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
   async function saveSettings() {
     const btn     = document.getElementById('save-btn');
@@ -606,15 +468,15 @@
 
       result.style.display = 'block';
       if (data.ok) {
-        result.style.color = 'var(--green)';
+        result.style.color = '#16a34a';
         result.textContent = '✅ ' + data.message;
       } else {
-        result.style.color = 'var(--red)';
+        result.style.color = '#dc2626';
         result.textContent = '❌ ' + data.error;
       }
     } catch (err) {
       result.style.display = 'block';
-      result.style.color   = 'var(--red)';
+      result.style.color   = '#dc2626';
       result.textContent   = '❌ ' + err.message;
     } finally {
       btn.disabled          = false;
@@ -623,5 +485,4 @@
     }
   }
 </script>
-</body>
-</html>
+{% endblock %}
