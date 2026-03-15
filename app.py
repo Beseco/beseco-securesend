@@ -399,6 +399,50 @@ def generate_password(length: int = 12) -> str:
 
 # ── PDF-Erstellung & Verschlüsselung ────────────────────────────────────────
 
+_UNICODE_REPLACE = {
+    '\u2013': '-',    # en dash  –
+    '\u2014': '--',   # em dash  —
+    '\u2015': '--',   # horizontal bar
+    '\u2018': "'",    # left single quotation mark
+    '\u2019': "'",    # right single quotation mark
+    '\u201a': ',',    # single low-9 quotation mark
+    '\u201b': "'",    # single high-reversed-9 quotation mark
+    '\u201c': '"',    # left double quotation mark
+    '\u201d': '"',    # right double quotation mark
+    '\u201e': '"',    # double low-9 quotation mark
+    '\u2026': '...',  # horizontal ellipsis
+    '\u2022': '-',    # bullet (we use chr(149) separately, but just in case)
+    '\u2023': '>',    # triangular bullet
+    '\u2039': '<',    # single left angle quotation
+    '\u203a': '>',    # single right angle quotation
+    '\u00ab': '"',    # left-pointing double angle quotation
+    '\u00bb': '"',    # right-pointing double angle quotation
+    '\u2032': "'",    # prime
+    '\u2033': '"',    # double prime
+    '\u00b7': '.',    # middle dot
+    '\u2212': '-',    # minus sign
+    '\u00d7': 'x',    # multiplication sign
+    '\u00f7': '/',    # division sign
+    '\u2192': '->',   # rightwards arrow
+    '\u2190': '<-',   # leftwards arrow
+    '\u2194': '<->',  # left right arrow
+    '\u21d2': '=>',   # rightwards double arrow
+    '\u2713': 'OK',   # check mark
+    '\u2714': 'OK',   # heavy check mark
+    '\u2717': 'X',    # ballot x
+    '\u2718': 'X',    # heavy ballot x
+}
+
+def _to_latin1(text: str) -> str:
+    """Ersetzt bekannte Unicode-Sonderzeichen durch Latin-1-kompatible Äquivalente.
+    Restliche Nicht-Latin-1-Zeichen werden durch '?' ersetzt, damit fpdf2
+    (Helvetica/built-in) keinen Encoding-Fehler wirft."""
+    for ch, repl in _UNICODE_REPLACE.items():
+        text = text.replace(ch, repl)
+    # Alles, was immer noch außerhalb Latin-1 liegt, durch '?' ersetzen
+    return text.encode('latin-1', errors='replace').decode('latin-1')
+
+
 def _md_plain(text: str) -> str:
     """Entfernt Markdown-Inline-Syntax für Plain-Text-Ausgabe (z.B. im PDF)."""
     text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)   # **bold**
@@ -407,7 +451,7 @@ def _md_plain(text: str) -> str:
     text = re.sub(r'_(.*?)_',       r'\1', text)    # _italic_
     text = re.sub(r'`(.*?)`',       r'\1', text)    # `code`
     text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)  # [link](url)
-    return text
+    return _to_latin1(text)
 
 
 def md_to_pdf_bytes(md_text: str, title: str = "Sichere Nachricht") -> bytes:
@@ -433,14 +477,14 @@ def md_to_pdf_bytes(md_text: str, title: str = "Sichere Nachricht") -> bytes:
                       new_x='LMARGIN', new_y='NEXT')
             self.set_font('Helvetica', '', 9)
             self.set_text_color(180, 210, 255)
-            self.cell(0, 5, title, align='L')
+            self.cell(0, 5, _to_latin1(title), align='L')
             self.ln(10)
 
         def footer(self):
             self.set_y(-14)
             self.set_font('Helvetica', 'I', 8)
             self.set_text_color(156, 163, 175)
-            txt = f'{sender_name}  {sender_email}  Seite {self.page_no()}'
+            txt = _to_latin1(f'{sender_name}  {sender_email}  Seite {self.page_no()}')
             self.cell(0, 8, txt, align='C')
 
     pdf = PDF()
