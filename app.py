@@ -6,6 +6,9 @@ Unterstützte Storage-Provider: OneDrive (Microsoft Graph) | Nextcloud (WebDAV +
 
 import os
 import json
+import uuid
+import re
+import mimetypes
 import secrets
 import string
 import smtplib
@@ -24,7 +27,9 @@ from urllib.parse import quote
 
 load_dotenv()
 
-CONFIG_FILE = Path(__file__).parent / "config.json"
+CONFIG_FILE      = Path(__file__).parent / "config.json"
+ADDRESSBOOK_FILE = Path(__file__).parent / "addressbook.json"
+HISTORY_FILE     = Path(__file__).parent / "history.json"
 
 def _load_cfg() -> dict:
     """Liest config.json – leeres Dict wenn nicht vorhanden."""
@@ -39,6 +44,42 @@ def _load_cfg() -> dict:
 def _get(key: str, default: str = "") -> str:
     """Wert aus config.json, dann Umgebungsvariable, dann Default."""
     return _load_cfg().get(key) or os.getenv(key) or default
+
+# ── Adressbuch Hilfsfunktionen ───────────────────────────────────────────────
+
+def _load_ab() -> list:
+    """Liest addressbook.json – leere Liste wenn nicht vorhanden."""
+    if ADDRESSBOOK_FILE.exists():
+        try:
+            with open(ADDRESSBOOK_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+def _save_ab(data: list):
+    """Schreibt addressbook.json."""
+    with open(ADDRESSBOOK_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+
+# ── History Hilfsfunktionen ──────────────────────────────────────────────────
+
+def _load_history() -> list:
+    """Liest history.json – leere Liste wenn nicht vorhanden."""
+    if HISTORY_FILE.exists():
+        try:
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+def _append_history(entry: dict):
+    """Fügt einen Eintrag am Anfang der history.json ein (neueste zuerst)."""
+    history = _load_history()
+    history.insert(0, entry)
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(history, f, indent=2, ensure_ascii=False)
 
 app = Flask(__name__)
 app.secret_key = _get("SECRET_KEY", "dev-secret-key")
@@ -122,14 +163,20 @@ def get_graph_token() -> str:
 
 # ── OneDrive: Datei hochladen ────────────────────────────────────────────────
 
-def upload_to_onedrive(token: str, filename: str, content: bytes) -> str:
+def upload_to_onedrive(token: str, filename: str, content: bytes,
+                       content_type: str = "text/markdown; charset=utf-8",
+                       subfolder: str = "") -> str:
+    if subfolder:
+        path = f"{ONEDRIVE_FOLDER}/{subfolder}/{filename}"
+    else:
+        path = f"{ONEDRIVE_FOLDER}/{filename}"
     url = (
         f"https://graph.microsoft.com/v1.0/users/{ONEDRIVE_USER}"
-        f"/drive/root:/{ONEDRIVE_FOLDER}/{filename}:/content"
+        f"/drive/root:/{path}:/content"
     )
     headers = {
         "Authorization": f"Bearer {token}",
-        "Content-Type": "text/markdown; charset=utf-8",
+        "Content-Type": content_type,
     }
     resp = requests.put(url, headers=headers, data=content, timeout=30)
     resp.raise_for_status()
@@ -191,25 +238,39 @@ def _nc_webdav_url(path: str) -> str:
 def _nc_auth():
     return (NC_USER, NC_PASSWORD)
 
-def nc_ensure_folder():
-    url = _nc_webdav_url(NC_FOLDER)
-    resp = requests.request("MKCOL", url, auth=_nc_auth(), timeout=15)
-    # 201 = erstellt, 405/409 = existiert schon → beides OK
-    if resp.status_code not in (201, 405, 409):
-        resp.raise_for_status()
+def nc_ensure_folder(folder_path: str = None):
+    """Stellt sicher dass der Ordner (und ggf. Unterordner) existiert."""
+    if folder_path is None:
+        folder_path = NC_FOLDER
+    # Für verschachtelte Pfade: jede Ebene einzeln anlegen
+    parts = folder_path.strip("/").split("/")
+    current = ""
+    for part in parts:
+        current = f"{current}/{part}" if current else part
+        url = _nc_webdav_url(current)
+        resp = requests.request("MKCOL", url, auth=_nc_auth(), timeout=15)
+        # 201 = erstellt, 405/409 = existiert schon → beides OK
+        if resp.status_code not in (201, 405, 409):
+            resp.raise_for_status()
 
 # ── Nextcloud: Datei hochladen (WebDAV PUT) ──────────────────────────────────
 
-def upload_to_nextcloud(filename: str, content: bytes) -> str:
+def upload_to_nextcloud(filename: str, content: bytes,
+                        content_type: str = "text/markdown; charset=utf-8",
+                        subfolder: str = "") -> str:
     """Lädt Datei hoch, gibt den Datei-Pfad zurück."""
-    nc_ensure_folder()
-    path = f"{NC_FOLDER}/{filename}"
+    if subfolder:
+        folder_path = f"{NC_FOLDER}/{subfolder}"
+    else:
+        folder_path = NC_FOLDER
+    nc_ensure_folder(folder_path)
+    path = f"{folder_path}/{filename}"
     url  = _nc_webdav_url(path)
     resp = requests.put(
         url,
         auth=_nc_auth(),
         data=content,
-        headers={"Content-Type": "text/markdown; charset=utf-8"},
+        headers={"Content-Type": content_type},
         timeout=30,
     )
     resp.raise_for_status()
@@ -247,14 +308,20 @@ def create_nextcloud_share_link(file_path: str, password: str, days: int) -> str
 # ── Einheitlicher Upload-Dispatcher ─────────────────────────────────────────
 
 def upload_and_share(provider: str, filename: str, content: bytes,
-                     password: str, days: int) -> str:
+                     password: str, days: int,
+                     content_type: str = "text/markdown; charset=utf-8",
+                     subfolder: str = "") -> str:
     """Lädt Datei hoch und gibt passwortgeschützten Link zurück."""
     if provider == "nextcloud":
-        file_path = upload_to_nextcloud(filename, content)
+        file_path = upload_to_nextcloud(filename, content,
+                                        content_type=content_type,
+                                        subfolder=subfolder)
         return create_nextcloud_share_link(file_path, password, days)
     else:  # onedrive
         token   = get_graph_token()
-        item_id = upload_to_onedrive(token, filename, content)
+        item_id = upload_to_onedrive(token, filename, content,
+                                     content_type=content_type,
+                                     subfolder=subfolder)
         return create_onedrive_share_link(token, item_id, password, days)
 
 # ── E-Mail senden ────────────────────────────────────────────────────────────
@@ -336,67 +403,254 @@ def api_providers():
     return jsonify(providers)
 
 
+# ── Adressbuch Routes ────────────────────────────────────────────────────────
+
+@app.route("/contacts")
+def contacts():
+    return render_template("contacts.html")
+
+
+@app.route("/api/contacts", methods=["GET"])
+def api_contacts_get():
+    return jsonify(_load_ab())
+
+
+@app.route("/api/contacts", methods=["POST"])
+def api_contacts_post():
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Keine Daten empfangen."}), 400
+    entry = {
+        "id":         str(uuid.uuid4()),
+        "company":    data.get("company", "").strip(),
+        "last_name":  data.get("last_name", "").strip(),
+        "first_name": data.get("first_name", "").strip(),
+        "mobile":     data.get("mobile", "").strip(),
+        "email":      data.get("email", "").strip(),
+        "created_at": datetime.now().isoformat(),
+    }
+    ab = _load_ab()
+    ab.append(entry)
+    _save_ab(ab)
+    return jsonify(entry), 201
+
+
+@app.route("/api/contacts/<contact_id>", methods=["PUT"])
+def api_contacts_put(contact_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Keine Daten empfangen."}), 400
+    ab = _load_ab()
+    for i, entry in enumerate(ab):
+        if entry["id"] == contact_id:
+            ab[i]["company"]    = data.get("company", entry["company"]).strip()
+            ab[i]["last_name"]  = data.get("last_name", entry["last_name"]).strip()
+            ab[i]["first_name"] = data.get("first_name", entry["first_name"]).strip()
+            ab[i]["mobile"]     = data.get("mobile", entry["mobile"]).strip()
+            ab[i]["email"]      = data.get("email", entry["email"]).strip()
+            _save_ab(ab)
+            return jsonify(ab[i])
+    return jsonify({"ok": False, "error": "Kontakt nicht gefunden."}), 404
+
+
+@app.route("/api/contacts/<contact_id>", methods=["DELETE"])
+def api_contacts_delete(contact_id):
+    ab = _load_ab()
+    new_ab = [e for e in ab if e["id"] != contact_id]
+    if len(new_ab) == len(ab):
+        return jsonify({"ok": False, "error": "Kontakt nicht gefunden."}), 404
+    _save_ab(new_ab)
+    return jsonify({"ok": True})
+
+
+# ── History Routes ───────────────────────────────────────────────────────────
+
+@app.route("/history")
+def history():
+    return render_template("history.html")
+
+
+@app.route("/api/history", methods=["GET"])
+def api_history_get():
+    return jsonify(_load_history())
+
+
+@app.route("/api/history/<entry_id>", methods=["DELETE"])
+def api_history_delete(entry_id):
+    hist = _load_history()
+    new_hist = [e for e in hist if e["id"] != entry_id]
+    if len(new_hist) == len(hist):
+        return jsonify({"ok": False, "error": "Eintrag nicht gefunden."}), 404
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+        json.dump(new_hist, f, indent=2, ensure_ascii=False)
+    return jsonify({"ok": True})
+
+
+# ── Send Route ───────────────────────────────────────────────────────────────
+
 @app.route("/send", methods=["POST"])
 def send():
-    data        = request.get_json()
-    md_content  = data.get("content", "").strip()
-    filename    = data.get("filename", "nachricht").strip()
-    to_email    = data.get("email", "").strip()
-    to_phone    = data.get("phone", "").strip()
-    expiry_days = int(data.get("expiry_days", 14))
-    custom_msg  = data.get("custom_message", "").strip()
+    # Datei-Upload Modus (multipart/form-data)
+    if request.content_type and request.content_type.startswith("multipart/form-data"):
+        to_email       = request.form.get("to_email", "").strip()
+        to_phone       = request.form.get("to_phone", "").strip()
+        expiry_days    = int(request.form.get("expiry_days", 14))
+        provider       = request.form.get("provider", "onedrive")
+        recipient_name = request.form.get("recipient_name", "").strip()
+        subfolder_raw  = request.form.get("subfolder", "").strip()
+        custom_msg     = request.form.get("custom_message", "").strip()
 
-    if not md_content or not to_email or not to_phone:
-        return jsonify({"ok": False, "error": "E-Mail, Telefon und Inhalt sind Pflichtfelder."}), 400
+        # Subfolder sanitizen
+        subfolder = re.sub(r"[^\w\s\-]", "", subfolder_raw).strip()
 
-    # Dateiname sichern
-    safe_name = "".join(c for c in filename if c.isalnum() or c in "-_")
-    if not safe_name:
-        safe_name = "nachricht"
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    full_filename = f"{ts}_{safe_name}.md"
+        if "file" not in request.files:
+            return jsonify({"ok": False, "error": "Keine Datei übermittelt."}), 400
 
-    provider = data.get("provider", "onedrive")
+        uploaded_file = request.files["file"]
+        original_name = uploaded_file.filename or "datei"
 
-    try:
-        # 1+2. Upload + passwortgeschützte Freigabe (provider-unabhängig)
-        password  = generate_password()
-        share_url = upload_and_share(
-            provider, full_filename, md_content.encode("utf-8"), password, expiry_days
-        )
+        # Dateiname sanitizen und Erweiterung beibehalten
+        name_parts    = original_name.rsplit(".", 1)
+        safe_base     = "".join(c for c in name_parts[0] if c.isalnum() or c in "-_")
+        if not safe_base:
+            safe_base = "datei"
+        ext           = ("." + name_parts[1]) if len(name_parts) > 1 else ""
+        ts            = datetime.now().strftime("%Y%m%d_%H%M%S")
+        full_filename = f"{ts}_{safe_base}{ext}"
 
-        # 3. E-Mail an Kunden
-        email_body = build_email_html(
-            share_url=share_url,
-            expiry_days=expiry_days,
-            custom_message=custom_msg,
-        )
-        send_email(to_email, f"Sichere Nachricht von Beseco IT – {safe_name}", email_body)
+        file_bytes    = uploaded_file.read()
 
-        # 4. SMS mit Passwort
-        sms_text = (
-            f"Beseco IT: Ihr Zugangscode für die sichere Nachricht lautet: {password}\n"
-            f"(Gültig {expiry_days} Tage)"
-        )
-        send_sms_sipgate(to_phone, sms_text)
+        # Content-Type ermitteln
+        guessed_type, _ = mimetypes.guess_type(original_name)
+        content_type    = guessed_type or uploaded_file.mimetype or "application/octet-stream"
 
-        # 5. Sender-Benachrichtigung (optional)
-        if MAIL_NOTIFY_ENABLED and MAIL_NOTIFY:
-            try:
-                notify_html = build_notify_email_html(to_email, full_filename, provider, share_url, expiry_days)
-                send_email(MAIL_NOTIFY, f"✅ SecureSend: Versand an {to_email}", notify_html)
-            except Exception:
-                pass
+        if not to_email or not to_phone:
+            return jsonify({"ok": False, "error": "E-Mail und Telefon sind Pflichtfelder."}), 400
 
-        return jsonify({
-            "ok":       True,
-            "url":      share_url,
-            "password": password,
-            "filename": full_filename,
-        })
+        try:
+            password  = generate_password()
+            share_url = upload_and_share(
+                provider, full_filename, file_bytes, password, expiry_days,
+                content_type=content_type, subfolder=subfolder
+            )
 
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+            email_body = build_email_html(
+                share_url=share_url,
+                expiry_days=expiry_days,
+                custom_message=custom_msg,
+            )
+            send_email(to_email, f"Sichere Datei von Beseco IT – {safe_base}{ext}", email_body)
+
+            sms_text = (
+                f"Beseco IT: Ihr Zugangscode für die sichere Datei lautet: {password}\n"
+                f"(Gültig {expiry_days} Tage)"
+            )
+            send_sms_sipgate(to_phone, sms_text)
+
+            if MAIL_NOTIFY_ENABLED and MAIL_NOTIFY:
+                try:
+                    notify_html = build_notify_email_html(to_email, full_filename, provider, share_url, expiry_days)
+                    send_email(MAIL_NOTIFY, f"✅ SecureSend: Versand an {to_email}", notify_html)
+                except Exception:
+                    pass
+
+            # History-Eintrag
+            _append_history({
+                "id":             str(uuid.uuid4()),
+                "timestamp":      datetime.now().isoformat(),
+                "provider":       provider,
+                "filename":       full_filename,
+                "share_url":      share_url,
+                "recipient_email": to_email,
+                "recipient_name": recipient_name,
+                "expiry_days":    expiry_days,
+            })
+
+            return jsonify({
+                "ok":       True,
+                "url":      share_url,
+                "password": password,
+                "filename": full_filename,
+            })
+
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+
+    # Text-Modus (application/json) – bisheriges Verhalten
+    else:
+        data           = request.get_json()
+        md_content     = data.get("content", "").strip()
+        filename       = data.get("filename", "nachricht").strip()
+        to_email       = data.get("email", "").strip()
+        to_phone       = data.get("phone", "").strip()
+        expiry_days    = int(data.get("expiry_days", 14))
+        custom_msg     = data.get("custom_message", "").strip()
+        recipient_name = data.get("recipient_name", "").strip()
+        subfolder_raw  = data.get("subfolder", "").strip()
+
+        # Subfolder sanitizen
+        subfolder = re.sub(r"[^\w\s\-]", "", subfolder_raw).strip()
+
+        if not md_content or not to_email or not to_phone:
+            return jsonify({"ok": False, "error": "E-Mail, Telefon und Inhalt sind Pflichtfelder."}), 400
+
+        # Dateiname sichern
+        safe_name = "".join(c for c in filename if c.isalnum() or c in "-_")
+        if not safe_name:
+            safe_name = "nachricht"
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        full_filename = f"{ts}_{safe_name}.md"
+
+        provider = data.get("provider", "onedrive")
+
+        try:
+            password  = generate_password()
+            share_url = upload_and_share(
+                provider, full_filename, md_content.encode("utf-8"), password, expiry_days,
+                content_type="text/markdown; charset=utf-8", subfolder=subfolder
+            )
+
+            email_body = build_email_html(
+                share_url=share_url,
+                expiry_days=expiry_days,
+                custom_message=custom_msg,
+            )
+            send_email(to_email, f"Sichere Nachricht von Beseco IT – {safe_name}", email_body)
+
+            sms_text = (
+                f"Beseco IT: Ihr Zugangscode für die sichere Nachricht lautet: {password}\n"
+                f"(Gültig {expiry_days} Tage)"
+            )
+            send_sms_sipgate(to_phone, sms_text)
+
+            if MAIL_NOTIFY_ENABLED and MAIL_NOTIFY:
+                try:
+                    notify_html = build_notify_email_html(to_email, full_filename, provider, share_url, expiry_days)
+                    send_email(MAIL_NOTIFY, f"✅ SecureSend: Versand an {to_email}", notify_html)
+                except Exception:
+                    pass
+
+            # History-Eintrag
+            _append_history({
+                "id":             str(uuid.uuid4()),
+                "timestamp":      datetime.now().isoformat(),
+                "provider":       provider,
+                "filename":       full_filename,
+                "share_url":      share_url,
+                "recipient_email": to_email,
+                "recipient_name": recipient_name,
+                "expiry_days":    expiry_days,
+            })
+
+            return jsonify({
+                "ok":       True,
+                "url":      share_url,
+                "password": password,
+                "filename": full_filename,
+            })
+
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
 
 
 def build_email_html(share_url: str, expiry_days: int, custom_message: str) -> str:

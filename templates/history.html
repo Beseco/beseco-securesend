@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Versandverlauf · Beseco SecureSend</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --blue:      #1a56db;
+      --blue-dark: #1240a8;
+      --blue-pale: #eff4ff;
+      --gray-900:  #111827;
+      --gray-700:  #374151;
+      --gray-500:  #6b7280;
+      --gray-200:  #e5e7eb;
+      --gray-50:   #f9fafb;
+      --green:     #16a34a;
+      --red:       #dc2626;
+      --radius:    10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: #0f172a;
+      min-height: 100vh;
+      color: var(--gray-900);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #1a56db 0%, #1e40af 100%);
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 2px 16px rgba(0,0,0,.3);
+    }
+    .logo-icon {
+      width: 38px; height: 38px;
+      background: rgba(255,255,255,.18);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    header h1 { color: #fff; font-size: 18px; font-weight: 700; letter-spacing: -.3px; }
+    header p  { color: rgba(255,255,255,.65); font-size: 12px; letter-spacing: .8px; text-transform: uppercase; margin-top: 1px; }
+
+    .header-nav {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header-nav a {
+      color: rgba(255,255,255,.8);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 7px 12px;
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 7px;
+      transition: background .15s;
+      white-space: nowrap;
+    }
+    .header-nav a:hover { background: rgba(255,255,255,.12); color: #fff; }
+    .header-nav a.active { background: rgba(255,255,255,.2); color: #fff; border-color: rgba(255,255,255,.5); }
+
+    /* ── Content ── */
+    main {
+      flex: 1;
+      padding: 32px;
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .search-wrap {
+      flex: 1;
+      position: relative;
+    }
+    .search-wrap input {
+      width: 100%;
+      padding: 10px 12px 10px 38px;
+      border: 1.5px solid rgba(255,255,255,.12);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,.07);
+      color: #e2e8f0;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .search-wrap input::placeholder { color: rgba(255,255,255,.3); }
+    .search-wrap input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(26,86,219,.2);
+      background: rgba(255,255,255,.1);
+    }
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: rgba(255,255,255,.35);
+      font-size: 15px;
+      pointer-events: none;
+    }
+
+    /* ── Card / Table ── */
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 16px rgba(0,0,0,.18);
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    thead th {
+      background: var(--gray-50);
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--gray-500);
+      border-bottom: 1px solid var(--gray-200);
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--gray-200);
+      transition: background .1s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--gray-50); }
+    tbody tr.expired { opacity: .5; }
+    tbody td {
+      padding: 12px 16px;
+      font-size: 14px;
+      color: var(--gray-700);
+    }
+    tbody td.mono {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+    }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 9px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-nextcloud { background: #dcfce7; color: #166534; }
+    .badge-onedrive  { background: #dbeafe; color: #1e40af; }
+    .badge-expired   { background: #f3f4f6; color: #6b7280; }
+
+    /* ── Link Button ── */
+    .btn-link {
+      padding: 5px 10px;
+      border: 1.5px solid var(--blue);
+      border-radius: 7px;
+      background: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--blue);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all .15s;
+      cursor: pointer;
+    }
+    .btn-link:hover { background: var(--blue-pale); }
+    .btn-link.disabled {
+      border-color: var(--gray-200);
+      color: var(--gray-500);
+      pointer-events: none;
+    }
+
+    /* ── Delete Button ── */
+    .btn-delete {
+      padding: 5px 8px;
+      border: 1.5px solid var(--gray-200);
+      border-radius: 7px;
+      background: #fff;
+      font-size: 14px;
+      cursor: pointer;
+      color: var(--gray-500);
+      transition: all .15s;
+    }
+    .btn-delete:hover { border-color: var(--red); color: var(--red); background: #fef2f2; }
+
+    /* ── Empty State ── */
+    .empty-state {
+      text-align: center;
+      padding: 60px 32px;
+      color: var(--gray-500);
+    }
+    .empty-state .icon { font-size: 44px; opacity: .35; margin-bottom: 14px; }
+    .empty-state p { font-size: 15px; }
+    .empty-state small { font-size: 13px; color: #9ca3af; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 6px 24px rgba(0,0,0,.16);
+      padding: 14px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all .25s;
+      pointer-events: none;
+      z-index: 2000;
+      max-width: 340px;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.ok  { color: var(--green); border-left: 4px solid var(--green); }
+    #toast.err { color: var(--red);   border-left: 4px solid var(--red); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">📜</div>
+  <div>
+    <h1>Versandverlauf</h1>
+    <p>Beseco SecureSend · History</p>
+  </div>
+  <nav class="header-nav">
+    <a href="/">🔒 Senden</a>
+    <a href="/contacts">📋 Adressbuch</a>
+    <a href="/history" class="active">📜 History</a>
+    <a href="/settings">⚙️ Einstellungen</a>
+  </nav>
+</header>
+
+<main>
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="search-input" placeholder="History durchsuchen…" oninput="filterTable()">
+    </div>
+  </div>
+
+  <div class="card">
+    <table id="history-table">
+      <thead>
+        <tr>
+          <th>Datum / Uhrzeit</th>
+          <th>Empfänger</th>
+          <th>Provider</th>
+          <th>Dateiname</th>
+          <th>Ablauf</th>
+          <th style="width:120px;">Aktionen</th>
+        </tr>
+      </thead>
+      <tbody id="history-body">
+        <tr id="loading-row">
+          <td colspan="6" style="text-align:center;padding:32px;color:var(--gray-500);">Wird geladen…</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+  let historyData = [];
+
+  function isExpired(entry) {
+    const ts   = new Date(entry.timestamp);
+    const days = parseInt(entry.expiry_days) || 14;
+    const exp  = new Date(ts.getTime() + days * 24 * 60 * 60 * 1000);
+    return new Date() > exp;
+  }
+
+  function formatDate(isoStr) {
+    const d = new Date(isoStr);
+    return d.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' })
+      + ' ' + d.toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit' });
+  }
+
+  function expiryLabel(entry) {
+    const ts   = new Date(entry.timestamp);
+    const days = parseInt(entry.expiry_days) || 14;
+    const exp  = new Date(ts.getTime() + days * 24 * 60 * 60 * 1000);
+    return exp.toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
+  }
+
+  function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  async function loadHistory() {
+    try {
+      const resp = await fetch('/api/history');
+      historyData = await resp.json();
+      renderTable(historyData);
+    } catch (e) {
+      showToast('err', 'Fehler beim Laden der History.');
+    }
+  }
+
+  function renderTable(data) {
+    const tbody = document.getElementById('history-body');
+    if (data.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6">
+            <div class="empty-state">
+              <div class="icon">📜</div>
+              <p>Noch kein Versandverlauf vorhanden.</p>
+              <small>Hier erscheinen Einträge nach dem ersten Versand.</small>
+            </div>
+          </td>
+        </tr>`;
+      return;
+    }
+
+    tbody.innerHTML = data.map(entry => {
+      const expired = isExpired(entry);
+      const providerBadge = entry.provider === 'nextcloud'
+        ? `<span class="badge badge-nextcloud">🟢 Nextcloud</span>`
+        : `<span class="badge badge-onedrive">☁️ OneDrive</span>`;
+      const expiredBadge = expired
+        ? `<span class="badge badge-expired">Abgelaufen</span>`
+        : `<span style="font-size:13px;color:var(--gray-700);">${expiryLabel(entry)}</span>`;
+      const linkBtn = expired
+        ? `<a class="btn-link disabled" title="Link abgelaufen">🔗 Link</a>`
+        : `<a class="btn-link" href="${esc(entry.share_url)}" target="_blank" rel="noopener">🔗 Link</a>`;
+      const recipient = entry.recipient_name
+        ? `${esc(entry.recipient_name)}<br><span style="font-size:12px;color:var(--gray-500);">${esc(entry.recipient_email)}</span>`
+        : esc(entry.recipient_email);
+
+      return `
+        <tr class="${expired ? 'expired' : ''}" data-id="${entry.id}">
+          <td style="white-space:nowrap;">${formatDate(entry.timestamp)}</td>
+          <td>${recipient}</td>
+          <td>${providerBadge}</td>
+          <td class="mono">${esc(entry.filename)}</td>
+          <td>${expiredBadge}</td>
+          <td>
+            <div style="display:flex;gap:6px;align-items:center;">
+              ${linkBtn}
+              <button class="btn-delete" title="Eintrag löschen" onclick="deleteEntry('${entry.id}')">🗑️</button>
+            </div>
+          </td>
+        </tr>`;
+    }).join('');
+  }
+
+  function filterTable() {
+    const q = document.getElementById('search-input').value.toLowerCase();
+    if (!q) { renderTable(historyData); return; }
+    const filtered = historyData.filter(e =>
+      (e.recipient_email + e.recipient_name + e.filename + e.provider).toLowerCase().includes(q)
+    );
+    renderTable(filtered);
+  }
+
+  async function deleteEntry(id) {
+    if (!confirm('Diesen History-Eintrag löschen?')) return;
+    try {
+      const resp = await fetch(`/api/history/${id}`, { method: 'DELETE' });
+      if (resp.ok) {
+        showToast('ok', 'Eintrag gelöscht.');
+        await loadHistory();
+      } else {
+        const data = await resp.json();
+        showToast('err', data.error || 'Fehler beim Löschen.');
+      }
+    } catch (e) {
+      showToast('err', 'Netzwerkfehler.');
+    }
+  }
+
+  // ── Toast ──
+  let toastTimer;
+  function showToast(type, msg) {
+    const t = document.getElementById('toast');
+    t.className = `show ${type}`;
+    t.textContent = msg;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.className = ''; }, 3500);
+  }
+
+  document.addEventListener('DOMContentLoaded', loadHistory);
+</script>
+</body>
+</html>

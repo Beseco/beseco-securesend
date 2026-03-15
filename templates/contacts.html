@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Adressbuch · Beseco SecureSend</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --blue:      #1a56db;
+      --blue-dark: #1240a8;
+      --blue-pale: #eff4ff;
+      --gray-900:  #111827;
+      --gray-700:  #374151;
+      --gray-500:  #6b7280;
+      --gray-200:  #e5e7eb;
+      --gray-50:   #f9fafb;
+      --green:     #16a34a;
+      --red:       #dc2626;
+      --radius:    10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'IBM Plex Sans', sans-serif;
+      background: #0f172a;
+      min-height: 100vh;
+      color: var(--gray-900);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      background: linear-gradient(135deg, #1a56db 0%, #1e40af 100%);
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      box-shadow: 0 2px 16px rgba(0,0,0,.3);
+    }
+    .logo-icon {
+      width: 38px; height: 38px;
+      background: rgba(255,255,255,.18);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    header h1 { color: #fff; font-size: 18px; font-weight: 700; letter-spacing: -.3px; }
+    header p  { color: rgba(255,255,255,.65); font-size: 12px; letter-spacing: .8px; text-transform: uppercase; margin-top: 1px; }
+
+    .header-nav {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header-nav a {
+      color: rgba(255,255,255,.8);
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      padding: 7px 12px;
+      border: 1px solid rgba(255,255,255,.25);
+      border-radius: 7px;
+      transition: background .15s;
+      white-space: nowrap;
+    }
+    .header-nav a:hover { background: rgba(255,255,255,.12); color: #fff; }
+    .header-nav a.active { background: rgba(255,255,255,.2); color: #fff; border-color: rgba(255,255,255,.5); }
+
+    /* ── Content ── */
+    main {
+      flex: 1;
+      padding: 32px;
+      max-width: 1100px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* ── Toolbar ── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .search-wrap {
+      flex: 1;
+      position: relative;
+    }
+    .search-wrap input {
+      width: 100%;
+      padding: 10px 12px 10px 38px;
+      border: 1.5px solid rgba(255,255,255,.12);
+      border-radius: var(--radius);
+      background: rgba(255,255,255,.07);
+      color: #e2e8f0;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .search-wrap input::placeholder { color: rgba(255,255,255,.3); }
+    .search-wrap input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(26,86,219,.2);
+      background: rgba(255,255,255,.1);
+    }
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: rgba(255,255,255,.35);
+      font-size: 15px;
+      pointer-events: none;
+    }
+
+    .btn-primary {
+      padding: 10px 18px;
+      background: linear-gradient(135deg, #1a56db, #1e40af);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      white-space: nowrap;
+      transition: opacity .2s;
+    }
+    .btn-primary:hover { opacity: .9; }
+
+    /* ── Card / Table ── */
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 16px rgba(0,0,0,.18);
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    thead th {
+      background: var(--gray-50);
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--gray-500);
+      border-bottom: 1px solid var(--gray-200);
+    }
+    tbody tr {
+      border-bottom: 1px solid var(--gray-200);
+      transition: background .1s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--gray-50); }
+    tbody td {
+      padding: 12px 16px;
+      font-size: 14px;
+      color: var(--gray-700);
+    }
+    tbody td.mono {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+    }
+
+    /* ── Action Buttons ── */
+    .action-btns {
+      display: flex;
+      gap: 6px;
+    }
+    .btn-icon {
+      padding: 6px 10px;
+      border: 1.5px solid var(--gray-200);
+      border-radius: 7px;
+      background: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      color: var(--gray-500);
+      transition: all .15s;
+      font-family: 'IBM Plex Sans', sans-serif;
+    }
+    .btn-icon:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-pale); }
+    .btn-icon.delete:hover { border-color: var(--red); color: var(--red); background: #fef2f2; }
+
+    /* ── Empty State ── */
+    .empty-state {
+      text-align: center;
+      padding: 60px 32px;
+      color: var(--gray-500);
+    }
+    .empty-state .icon { font-size: 44px; opacity: .35; margin-bottom: 14px; }
+    .empty-state p { font-size: 15px; }
+    .empty-state small { font-size: 13px; color: #9ca3af; }
+
+    /* ── Modal ── */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s;
+    }
+    .modal-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .modal {
+      background: #fff;
+      border-radius: 14px;
+      box-shadow: 0 24px 64px rgba(0,0,0,.25);
+      width: 100%;
+      max-width: 520px;
+      padding: 28px 32px;
+      transform: translateY(10px);
+      transition: transform .2s;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+    .modal-backdrop.open .modal { transform: translateY(0); }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--gray-900);
+      margin-bottom: 22px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .modal-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+    .modal-field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .modal-field.full { grid-column: 1 / -1; }
+    .modal-field label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--gray-500);
+    }
+    .modal-field input {
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      padding: 9px 12px;
+      border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius);
+      color: var(--gray-900);
+      background: #fff;
+      outline: none;
+      width: 100%;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .modal-field input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(26,86,219,.12);
+    }
+    .modal-field input::placeholder { color: #c0c8d4; }
+    .modal-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    .btn-cancel {
+      padding: 10px 20px;
+      border: 1.5px solid var(--gray-200);
+      border-radius: var(--radius);
+      background: #fff;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--gray-500);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .btn-cancel:hover { border-color: var(--gray-500); color: var(--gray-700); }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 6px 24px rgba(0,0,0,.16);
+      padding: 14px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all .25s;
+      pointer-events: none;
+      z-index: 2000;
+      max-width: 340px;
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.ok  { color: var(--green); border-left: 4px solid var(--green); }
+    #toast.err { color: var(--red);   border-left: 4px solid var(--red); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-icon">📋</div>
+  <div>
+    <h1>Adressbuch</h1>
+    <p>Beseco SecureSend · Kontaktverwaltung</p>
+  </div>
+  <nav class="header-nav">
+    <a href="/">🔒 Senden</a>
+    <a href="/contacts" class="active">📋 Adressbuch</a>
+    <a href="/history">📜 History</a>
+    <a href="/settings">⚙️ Einstellungen</a>
+  </nav>
+</header>
+
+<main>
+  <div class="toolbar">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="search-input" placeholder="Kontakte durchsuchen…" oninput="filterTable()">
+    </div>
+    <button class="btn-primary" onclick="openModal()">
+      ＋ Neuer Kontakt
+    </button>
+  </div>
+
+  <div class="card">
+    <table id="contacts-table">
+      <thead>
+        <tr>
+          <th>Firma</th>
+          <th>Nachname</th>
+          <th>Vorname</th>
+          <th>Mobil</th>
+          <th>E-Mail</th>
+          <th style="width:130px;">Aktionen</th>
+        </tr>
+      </thead>
+      <tbody id="contacts-body">
+        <tr id="loading-row">
+          <td colspan="6" style="text-align:center;padding:32px;color:var(--gray-500);">Wird geladen…</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- Modal -->
+<div class="modal-backdrop" id="modal-backdrop" onclick="backdropClick(event)">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="modal-icon">➕</span>
+      <span id="modal-title-text">Neuer Kontakt</span>
+    </div>
+    <div class="modal-grid">
+      <div class="modal-field full">
+        <label>Firma</label>
+        <input type="text" id="f-company" placeholder="Musterfirma GmbH">
+      </div>
+      <div class="modal-field">
+        <label>Nachname *</label>
+        <input type="text" id="f-last_name" placeholder="Mustermann">
+      </div>
+      <div class="modal-field">
+        <label>Vorname *</label>
+        <input type="text" id="f-first_name" placeholder="Max">
+      </div>
+      <div class="modal-field">
+        <label>Mobil *</label>
+        <input type="tel" id="f-mobile" placeholder="0176 12345678">
+      </div>
+      <div class="modal-field">
+        <label>E-Mail *</label>
+        <input type="email" id="f-email" placeholder="max@firma.de">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal()">Abbrechen</button>
+      <button class="btn-primary" onclick="saveContact()">
+        <span id="modal-save-label">💾 Speichern</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+  let contacts = [];
+  let editingId = null;
+
+  // ── Init ──
+  async function loadContacts() {
+    try {
+      const resp = await fetch('/api/contacts');
+      contacts   = await resp.json();
+      renderTable(contacts);
+    } catch (e) {
+      showToast('err', 'Fehler beim Laden der Kontakte.');
+    }
+  }
+
+  // ── Render ──
+  function renderTable(data) {
+    const tbody = document.getElementById('contacts-body');
+    if (data.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="6">
+            <div class="empty-state">
+              <div class="icon">📋</div>
+              <p>Noch keine Kontakte vorhanden.</p>
+              <small>Klicken Sie auf "Neuer Kontakt" um zu beginnen.</small>
+            </div>
+          </td>
+        </tr>`;
+      return;
+    }
+    tbody.innerHTML = data.map(c => `
+      <tr data-id="${c.id}">
+        <td>${esc(c.company)}</td>
+        <td>${esc(c.last_name)}</td>
+        <td>${esc(c.first_name)}</td>
+        <td class="mono">${esc(c.mobile)}</td>
+        <td class="mono">${esc(c.email)}</td>
+        <td>
+          <div class="action-btns">
+            <button class="btn-icon" onclick="editContact('${c.id}')">✏️ Bearbeiten</button>
+            <button class="btn-icon delete" onclick="deleteContact('${c.id}', '${esc(c.first_name)} ${esc(c.last_name)}')">🗑️</button>
+          </div>
+        </td>
+      </tr>`).join('');
+  }
+
+  function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Filter ──
+  function filterTable() {
+    const q = document.getElementById('search-input').value.toLowerCase();
+    if (!q) { renderTable(contacts); return; }
+    const filtered = contacts.filter(c =>
+      (c.company + c.last_name + c.first_name + c.mobile + c.email).toLowerCase().includes(q)
+    );
+    renderTable(filtered);
+  }
+
+  // ── Modal ──
+  function openModal(contact) {
+    editingId = contact ? contact.id : null;
+    document.getElementById('modal-icon').textContent       = contact ? '✏️' : '➕';
+    document.getElementById('modal-title-text').textContent = contact ? 'Kontakt bearbeiten' : 'Neuer Kontakt';
+    document.getElementById('modal-save-label').textContent = contact ? '💾 Speichern' : '➕ Hinzufügen';
+
+    document.getElementById('f-company').value    = contact ? (contact.company    || '') : '';
+    document.getElementById('f-last_name').value  = contact ? (contact.last_name  || '') : '';
+    document.getElementById('f-first_name').value = contact ? (contact.first_name || '') : '';
+    document.getElementById('f-mobile').value     = contact ? (contact.mobile     || '') : '';
+    document.getElementById('f-email').value      = contact ? (contact.email      || '') : '';
+
+    document.getElementById('modal-backdrop').classList.add('open');
+    document.getElementById('f-last_name').focus();
+  }
+
+  function closeModal() {
+    document.getElementById('modal-backdrop').classList.remove('open');
+    editingId = null;
+  }
+
+  function backdropClick(e) {
+    if (e.target === document.getElementById('modal-backdrop')) closeModal();
+  }
+
+  // ── Save ──
+  async function saveContact() {
+    const payload = {
+      company:    document.getElementById('f-company').value.trim(),
+      last_name:  document.getElementById('f-last_name').value.trim(),
+      first_name: document.getElementById('f-first_name').value.trim(),
+      mobile:     document.getElementById('f-mobile').value.trim(),
+      email:      document.getElementById('f-email').value.trim(),
+    };
+
+    if (!payload.last_name || !payload.first_name || !payload.mobile || !payload.email) {
+      showToast('err', 'Pflichtfelder: Nachname, Vorname, Mobil, E-Mail');
+      return;
+    }
+
+    try {
+      let resp;
+      if (editingId) {
+        resp = await fetch(`/api/contacts/${editingId}`, {
+          method:  'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify(payload),
+        });
+      } else {
+        resp = await fetch('/api/contacts', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify(payload),
+        });
+      }
+      const data = await resp.json();
+      if (resp.ok) {
+        closeModal();
+        showToast('ok', editingId ? 'Kontakt aktualisiert.' : 'Kontakt hinzugefügt.');
+        await loadContacts();
+      } else {
+        showToast('err', data.error || 'Fehler beim Speichern.');
+      }
+    } catch (e) {
+      showToast('err', 'Netzwerkfehler.');
+    }
+  }
+
+  // ── Edit ──
+  function editContact(id) {
+    const contact = contacts.find(c => c.id === id);
+    if (contact) openModal(contact);
+  }
+
+  // ── Delete ──
+  async function deleteContact(id, name) {
+    if (!confirm(`Kontakt "${name}" wirklich löschen?`)) return;
+    try {
+      const resp = await fetch(`/api/contacts/${id}`, { method: 'DELETE' });
+      if (resp.ok) {
+        showToast('ok', 'Kontakt gelöscht.');
+        await loadContacts();
+      } else {
+        const data = await resp.json();
+        showToast('err', data.error || 'Fehler beim Löschen.');
+      }
+    } catch (e) {
+      showToast('err', 'Netzwerkfehler.');
+    }
+  }
+
+  // ── Toast ──
+  let toastTimer;
+  function showToast(type, msg) {
+    const t = document.getElementById('toast');
+    t.className = `show ${type}`;
+    t.textContent = msg;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.className = ''; }, 3500);
+  }
+
+  // ── Keyboard ──
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+    if (e.key === 'Enter' && document.getElementById('modal-backdrop').classList.contains('open')) {
+      saveContact();
+    }
+  });
+
+  document.addEventListener('DOMContentLoaded', loadContacts);
+</script>
+</body>
+</html>

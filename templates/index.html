@@ -62,21 +62,27 @@
       text-transform: uppercase;
       margin-top: 1px;
     }
-    .header-settings {
+    .header-nav {
       margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header-nav a {
       color: rgba(255,255,255,.75);
       text-decoration: none;
       font-size: 13px;
       font-weight: 600;
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 7px 14px;
+      gap: 5px;
+      padding: 7px 12px;
       border: 1px solid rgba(255,255,255,.25);
       border-radius: 7px;
       transition: background .15s;
+      white-space: nowrap;
     }
-    .header-settings:hover { background: rgba(255,255,255,.12); color: #fff; }
+    .header-nav a:hover { background: rgba(255,255,255,.12); color: #fff; }
 
     /* ── Layout ── */
     main {
@@ -124,6 +130,7 @@
     /* ── Linkes Panel: Eingabe ── */
     .left-panel {
       padding: 0;
+      overflow-y: auto;
     }
 
     .form-section {
@@ -171,6 +178,76 @@
     }
     input::placeholder, textarea::placeholder { color: #c0c8d4; }
 
+    /* ── Contact Search ── */
+    .contact-search-wrap {
+      position: relative;
+    }
+    #contact-search {
+      padding-right: 36px;
+    }
+    .contact-dropdown {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0; right: 0;
+      background: #fff;
+      border: 1.5px solid var(--blue);
+      border-radius: var(--radius);
+      box-shadow: 0 8px 24px rgba(0,0,0,.12);
+      z-index: 100;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .contact-option {
+      padding: 9px 14px;
+      font-size: 13.5px;
+      cursor: pointer;
+      color: var(--gray-700);
+      border-bottom: 1px solid var(--gray-200);
+      transition: background .1s;
+    }
+    .contact-option:last-child { border-bottom: none; }
+    .contact-option:hover { background: var(--blue-pale); color: var(--blue); }
+    .contact-option .company-tag {
+      font-size: 11px;
+      color: var(--gray-500);
+      margin-left: 6px;
+    }
+    .contact-link {
+      font-size: 12px;
+      color: var(--gray-500);
+      text-decoration: none;
+      margin-top: 5px;
+      display: inline-block;
+    }
+    .contact-link:hover { color: var(--blue); }
+
+    /* ── Mode Tabs (Nachricht / Datei) ── */
+    .mode-tabs {
+      display: flex;
+      gap: 0;
+      margin-left: auto;
+    }
+    .mode-tab {
+      padding: 5px 14px;
+      border: 1.5px solid var(--gray-200);
+      background: #fff;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--gray-500);
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .mode-tab:first-child { border-radius: 7px 0 0 7px; border-right: none; }
+    .mode-tab:last-child  { border-radius: 0 7px 7px 0; }
+    .mode-tab.active {
+      background: var(--blue-pale);
+      border-color: var(--blue);
+      color: var(--blue);
+      z-index: 1;
+    }
+    .mode-tab:hover:not(.active) { background: var(--gray-50); }
+
     /* ── MD Editor ── */
     .editor-wrap {
       flex: 1;
@@ -210,9 +287,91 @@
       line-height: 1.7;
       color: var(--gray-900);
       background: #fff;
-      min-height: 260px;
+      min-height: 200px;
     }
     #md-editor:focus { box-shadow: none; border-color: transparent; }
+
+    /* ── File Upload Zone ── */
+    #file-upload-zone {
+      display: none;
+      flex: 1;
+      flex-direction: column;
+      padding: 20px 24px;
+      gap: 16px;
+    }
+    #file-upload-zone.visible { display: flex; }
+
+    .drop-zone {
+      border: 2px dashed var(--gray-200);
+      border-radius: 12px;
+      padding: 36px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all .2s;
+      background: var(--gray-50);
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--blue);
+      background: var(--blue-pale);
+    }
+    .drop-zone .drop-icon { font-size: 36px; margin-bottom: 10px; opacity: .5; }
+    .drop-zone p { font-size: 14px; color: var(--gray-500); }
+    .drop-zone small { font-size: 12px; color: #9ca3af; }
+
+    .file-info {
+      display: none;
+      background: var(--blue-pale);
+      border: 1.5px solid var(--blue);
+      border-radius: 10px;
+      padding: 14px 16px;
+      font-size: 13px;
+      color: var(--blue);
+      align-items: center;
+      gap: 10px;
+    }
+    .file-info.visible { display: flex; }
+    .file-info-name { font-weight: 700; word-break: break-all; }
+    .file-info-meta { font-size: 12px; opacity: .75; margin-top: 2px; }
+    .file-remove {
+      margin-left: auto;
+      background: none;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      color: var(--blue);
+      opacity: .6;
+      padding: 0 4px;
+    }
+    .file-remove:hover { opacity: 1; }
+    .file-warning {
+      background: #fef9c3;
+      border: 1.5px solid #ca8a04;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #713f12;
+      display: none;
+    }
+    .file-warning.visible { display: block; }
+
+    #file-input { display: none; }
+    .btn-browse {
+      padding: 9px 18px;
+      border: 1.5px solid var(--blue);
+      border-radius: var(--radius);
+      background: #fff;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--blue);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      transition: background .15s;
+      margin-top: 10px;
+    }
+    .btn-browse:hover { background: var(--blue-pale); }
 
     /* ── Custom Message ── */
     .custom-msg-section {
@@ -317,6 +476,26 @@
     .preview-empty .icon { font-size: 40px; opacity: .35; margin-bottom: 12px; }
     .preview-empty p { font-size: 14px; }
 
+    /* ── File preview placeholder ── */
+    .file-preview-placeholder {
+      display: none;
+      text-align: center;
+      padding: 60px 32px;
+      color: var(--gray-500);
+    }
+    .file-preview-placeholder .icon { font-size: 48px; opacity: .4; margin-bottom: 14px; }
+    .file-preview-placeholder p { font-size: 14px; }
+    .file-preview-placeholder .filename {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      color: var(--blue);
+      background: var(--blue-pale);
+      padding: 6px 14px;
+      border-radius: 6px;
+      display: inline-block;
+      margin-top: 10px;
+    }
+
     /* ── Toast / Result ── */
     #toast {
       position: fixed;
@@ -419,7 +598,11 @@
     <h1>Beseco SecureSend</h1>
     <p>Sichere Dateiübermittlung · Beseco IT Systems</p>
   </div>
-  <a class="header-settings" href="/settings">⚙️ Einstellungen</a>
+  <nav class="header-nav">
+    <a href="/contacts">📋 Adressbuch</a>
+    <a href="/history">📜 History</a>
+    <a href="/settings">⚙️ Einstellungen</a>
+  </nav>
 </header>
 
 <main>
@@ -433,6 +616,26 @@
       <div style="margin-bottom:14px;">
         <label style="display:block;margin-bottom:6px;">Speicher-Provider</label>
         <div class="provider-toggle" id="provider-toggle"></div>
+      </div>
+
+      <!-- Kontakt-Suche -->
+      <div style="margin-bottom:12px;">
+        <label style="display:block;margin-bottom:6px;">Kontakt</label>
+        <div class="contact-search-wrap">
+          <input type="text" id="contact-search"
+                 placeholder="Kontakt suchen oder neu eingeben…"
+                 autocomplete="off"
+                 oninput="onContactSearch()"
+                 onfocus="onContactSearch()">
+          <div class="contact-dropdown" id="contact-dropdown" style="display:none;"></div>
+        </div>
+        <a href="/contacts" class="contact-link">Adressbuch verwalten →</a>
+      </div>
+
+      <!-- Unterordner -->
+      <div style="margin-bottom:14px;">
+        <label style="display:block;margin-bottom:6px;">Unterordner <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></label>
+        <input type="text" id="subfolder" placeholder="z.B. Mueller_GmbH">
       </div>
 
       <div class="form-grid">
@@ -456,28 +659,67 @@
           <label>Mobilnummer (SMS)</label>
           <input type="tel" id="phone" placeholder="0176 12345678">
         </div>
+        <div class="field full">
+          <label>Empfänger Name <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional, für History)</span></label>
+          <input type="text" id="recipient-name" placeholder="Vorname Nachname">
+        </div>
       </div>
     </div>
 
+    <!-- Tab Panel Header: Nachricht / Datei -->
     <div class="panel-header" style="border-top:none;">
-      <span>Nachricht</span>
-      <div class="badge">Markdown</div>
+      <span>Inhalt</span>
+      <div class="badge" id="mode-badge">Markdown</div>
+      <div class="mode-tabs" style="margin-left:auto;">
+        <button class="mode-tab active" id="tab-text" onclick="setMode('text')">✏️ Nachricht</button>
+        <button class="mode-tab" id="tab-file" onclick="setMode('file')">📎 Datei</button>
+      </div>
     </div>
 
-    <div class="editor-toolbar">
-      <button class="tb-btn" onclick="insert('**', '**')"><b>B</b></button>
-      <button class="tb-btn" onclick="insert('*', '*')"><i>I</i></button>
-      <button class="tb-btn" onclick="insert('`', '`')">Code</button>
-      <button class="tb-btn" onclick="insertLine('## ')">H2</button>
-      <button class="tb-btn" onclick="insertLine('### ')">H3</button>
-      <button class="tb-btn" onclick="insertLine('- ')">Liste</button>
-      <button class="tb-btn" onclick="insertLine('> ')">Zitat</button>
-      <button class="tb-btn" onclick="insertLine('---')">HR</button>
+    <!-- ── Text-Modus: Toolbar + Editor ── -->
+    <div id="text-mode-wrap" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="editor-toolbar">
+        <button class="tb-btn" onclick="insert('**', '**')"><b>B</b></button>
+        <button class="tb-btn" onclick="insert('*', '*')"><i>I</i></button>
+        <button class="tb-btn" onclick="insert('`', '`')">Code</button>
+        <button class="tb-btn" onclick="insertLine('## ')">H2</button>
+        <button class="tb-btn" onclick="insertLine('### ')">H3</button>
+        <button class="tb-btn" onclick="insertLine('- ')">Liste</button>
+        <button class="tb-btn" onclick="insertLine('> ')">Zitat</button>
+        <button class="tb-btn" onclick="insertLine('---')">HR</button>
+      </div>
+      <div class="editor-wrap">
+        <textarea id="md-editor"
+          placeholder="# Betreff&#10;&#10;Sehr geehrter Herr / Frau ...,&#10;&#10;anbei übermittle ich Ihnen ...&#10;&#10;Mit freundlichen Grüßen&#10;Florian Beubl"></textarea>
+      </div>
     </div>
 
-    <div class="editor-wrap">
-      <textarea id="md-editor"
-        placeholder="# Betreff&#10;&#10;Sehr geehrter Herr / Frau ...,&#10;&#10;anbei übermittle ich Ihnen ...&#10;&#10;Mit freundlichen Grüßen&#10;Florian Beubl"></textarea>
+    <!-- ── Datei-Modus ── -->
+    <div id="file-upload-zone">
+      <div class="drop-zone" id="drop-zone"
+           onclick="document.getElementById('file-input').click()"
+           ondragover="onDragOver(event)"
+           ondragleave="onDragLeave(event)"
+           ondrop="onDrop(event)">
+        <div class="drop-icon">📁</div>
+        <p>Datei hierher ziehen oder</p>
+        <button class="btn-browse" onclick="event.stopPropagation(); document.getElementById('file-input').click()">
+          📂 Datei auswählen
+        </button>
+        <br><small style="margin-top:8px;display:block;">Max. 50 MB · Alle Dateitypen</small>
+      </div>
+      <div class="file-info" id="file-info">
+        <span style="font-size:24px;">📄</span>
+        <div style="flex:1;min-width:0;">
+          <div class="file-info-name" id="file-info-name"></div>
+          <div class="file-info-meta" id="file-info-meta"></div>
+        </div>
+        <button class="file-remove" onclick="clearFile()" title="Datei entfernen">×</button>
+      </div>
+      <div class="file-warning" id="file-warning">
+        ⚠️ Die Datei ist größer als 50 MB. Bitte eine kleinere Datei auswählen.
+      </div>
+      <input type="file" id="file-input" onchange="onFileSelected(this.files[0])">
     </div>
 
     <div class="custom-msg-section" style="padding-top:14px;">
@@ -506,6 +748,11 @@
         <div class="icon">📄</div>
         <p>Markdown hier links eingeben –<br>die Vorschau erscheint in Echtzeit.</p>
       </div>
+    </div>
+    <div class="file-preview-placeholder" id="file-preview-placeholder">
+      <div class="icon">📎</div>
+      <p>Datei ausgewählt und bereit zum Versand.</p>
+      <div class="filename" id="file-preview-name"></div>
     </div>
   </div>
 
@@ -555,7 +802,6 @@
     }
 
     if (providers.length === 0) {
-      // Kein Provider: Warning-Banner, Send-Button deaktivieren
       container.innerHTML = `
         <div style="width:100%;background:#fef9c3;border:1.5px solid #ca8a04;
                     border-radius:var(--radius);padding:10px 14px;font-size:13px;
@@ -565,7 +811,6 @@
         </div>`;
       sendBtn.disabled = true;
     } else if (providers.length === 1) {
-      // Genau 1 Provider: einfaches Badge, automatisch auswählen
       const p = providers[0];
       container.innerHTML = `
         <div class="prov-btn active" data-provider="${p.id}"
@@ -574,7 +819,6 @@
         </div>`;
       setProvider(p.id);
     } else {
-      // 2+ Provider: Buttons dynamisch rendern
       container.innerHTML = providers.map(p => `
         <button class="prov-btn" data-provider="${p.id}"
                 onclick="setProvider('${p.id}')">
@@ -584,7 +828,153 @@
     }
   }
 
-  document.addEventListener('DOMContentLoaded', initProviders);
+  document.addEventListener('DOMContentLoaded', () => {
+    initProviders();
+    initContacts();
+  });
+
+  // ── Modus-Umschalter (Text / Datei) ──
+  let currentMode  = 'text';
+  let selectedFile = null;
+
+  function setMode(mode) {
+    currentMode = mode;
+    document.getElementById('tab-text').classList.toggle('active', mode === 'text');
+    document.getElementById('tab-file').classList.toggle('active', mode === 'file');
+    document.getElementById('text-mode-wrap').style.display = mode === 'text' ? 'flex' : 'none';
+    document.getElementById('file-upload-zone').classList.toggle('visible', mode === 'file');
+    document.getElementById('mode-badge').textContent = mode === 'text' ? 'Markdown' : 'Datei-Upload';
+
+    // Rechte Seite umschalten
+    if (mode === 'file') {
+      preview.style.display = 'none';
+      document.getElementById('file-preview-placeholder').style.display = selectedFile ? 'block' : 'block';
+      updateFilePreview();
+    } else {
+      preview.style.display = 'block';
+      document.getElementById('file-preview-placeholder').style.display = 'none';
+    }
+  }
+
+  function updateFilePreview() {
+    const placeholder = document.getElementById('file-preview-placeholder');
+    const namEl       = document.getElementById('file-preview-name');
+    if (selectedFile) {
+      namEl.textContent = selectedFile.name;
+    } else {
+      namEl.textContent = '';
+    }
+  }
+
+  // ── Drag & Drop ──
+  function onDragOver(e) {
+    e.preventDefault();
+    document.getElementById('drop-zone').classList.add('drag-over');
+  }
+  function onDragLeave(e) {
+    document.getElementById('drop-zone').classList.remove('drag-over');
+  }
+  function onDrop(e) {
+    e.preventDefault();
+    document.getElementById('drop-zone').classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) onFileSelected(file);
+  }
+
+  function onFileSelected(file) {
+    if (!file) return;
+    const MAX = 50 * 1024 * 1024;
+    document.getElementById('file-warning').classList.toggle('visible', file.size > MAX);
+    if (file.size > MAX) { selectedFile = null; return; }
+
+    selectedFile = file;
+    const info = document.getElementById('file-info');
+    info.classList.add('visible');
+    document.getElementById('file-info-name').textContent = file.name;
+    document.getElementById('file-info-meta').textContent =
+      `${(file.size / 1024).toFixed(1)} KB · ${file.type || 'unbekannter Typ'}`;
+    updateFilePreview();
+  }
+
+  function clearFile() {
+    selectedFile = null;
+    document.getElementById('file-info').classList.remove('visible');
+    document.getElementById('file-warning').classList.remove('visible');
+    document.getElementById('file-input').value = '';
+    updateFilePreview();
+  }
+
+  // ── Kontakte ──
+  let allContacts      = [];
+  let selectedContact  = null;
+
+  async function initContacts() {
+    try {
+      const resp  = await fetch('/api/contacts');
+      allContacts = await resp.json();
+    } catch (e) {
+      allContacts = [];
+    }
+  }
+
+  function filterContacts(query) {
+    if (!query || query.length < 1) return [];
+    const q = query.toLowerCase();
+    return allContacts.filter(c =>
+      (c.first_name + ' ' + c.last_name + ' ' + c.company + ' ' + c.email).toLowerCase().includes(q)
+    ).slice(0, 8);
+  }
+
+  function onContactSearch() {
+    const q        = document.getElementById('contact-search').value;
+    const dropdown = document.getElementById('contact-dropdown');
+    const results  = filterContacts(q);
+
+    if (!q || results.length === 0) {
+      dropdown.style.display = 'none';
+      return;
+    }
+
+    dropdown.innerHTML = results.map(c => {
+      const label   = `${c.first_name} ${c.last_name}`;
+      const company = c.company ? `<span class="company-tag">· ${esc(c.company)}</span>` : '';
+      return `<div class="contact-option" onclick="selectContact('${c.id}')">${esc(label)}${company}</div>`;
+    }).join('');
+    dropdown.style.display = 'block';
+  }
+
+  function selectContact(id) {
+    const c = allContacts.find(x => x.id === id);
+    if (!c) return;
+    selectedContact = c;
+
+    document.getElementById('contact-search').value = `${c.first_name} ${c.last_name}${c.company ? ' – ' + c.company : ''}`;
+    document.getElementById('contact-dropdown').style.display = 'none';
+
+    // Felder befüllen
+    if (c.email)  document.getElementById('email').value  = c.email;
+    if (c.mobile) document.getElementById('phone').value  = c.mobile;
+    document.getElementById('recipient-name').value = `${c.first_name} ${c.last_name}`;
+
+    // Unterordner: {last_name}_{company} bereinigt
+    const base = ((c.last_name || '') + (c.company ? '_' + c.company : ''))
+      .replace(/[^\w\s\-]/g, '')
+      .replace(/\s+/g, '_')
+      .replace(/_+/g, '_')
+      .slice(0, 60);
+    document.getElementById('subfolder').value = base;
+  }
+
+  function esc(s) {
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Dropdown schließen beim Klick irgendwo anders
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.contact-search-wrap')) {
+      document.getElementById('contact-dropdown').style.display = 'none';
+    }
+  });
 
   // ── Live-Preview ──
   marked.setOptions({ breaks: true, gfm: true });
@@ -623,49 +1013,107 @@
     const spinner = document.getElementById('spinner');
     const label   = document.getElementById('btn-label');
 
-    const payload = {
-      provider:       currentProvider,
-      content:        editor.value,
-      filename:       document.getElementById('filename').value,
-      email:          document.getElementById('email').value,
-      phone:          document.getElementById('phone').value,
-      expiry_days:    document.getElementById('expiry').value,
-      custom_message: customMsg.value,
-    };
+    const toEmail      = document.getElementById('email').value.trim();
+    const toPhone      = document.getElementById('phone').value.trim();
+    const subfolder    = document.getElementById('subfolder').value.trim();
+    const recipName    = document.getElementById('recipient-name').value.trim();
+    const customMsgVal = customMsg.value;
 
-    if (!payload.content || !payload.email || !payload.phone) {
-      showToast(false, 'Fehlende Eingaben',
-        'Bitte Inhalt, E-Mail-Adresse und Mobilnummer ausfüllen.');
+    if (!toEmail || !toPhone) {
+      showToast(false, 'Fehlende Eingaben', 'Bitte E-Mail-Adresse und Mobilnummer ausfüllen.');
       return;
     }
 
-    btn.disabled    = true;
-    spinner.style.display = 'block';
-    label.textContent     = 'Wird gesendet…';
-
-    try {
-      const resp = await fetch('/send', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload),
-      });
-      const data = await resp.json();
-
-      if (data.ok) {
-        showToast(true,
-          '✅ Erfolgreich gesendet!',
-          `E-Mail → ${payload.email} · SMS → ${payload.phone}`,
-          `🔑 Passwort: ${data.password}\n📎 ${data.filename}`
-        );
-      } else {
-        showToast(false, '❌ Fehler', data.error);
+    if (currentMode === 'file') {
+      // ── Datei-Modus ──
+      if (!selectedFile) {
+        showToast(false, 'Keine Datei', 'Bitte eine Datei auswählen.');
+        return;
       }
-    } catch (err) {
-      showToast(false, '❌ Netzwerkfehler', err.message);
-    } finally {
-      btn.disabled          = false;
-      spinner.style.display = 'none';
-      label.textContent     = '🚀 Sicher übermitteln';
+
+      btn.disabled          = true;
+      spinner.style.display = 'block';
+      label.textContent     = 'Wird gesendet…';
+
+      try {
+        const fd = new FormData();
+        fd.append('file',           selectedFile, selectedFile.name);
+        fd.append('to_email',       toEmail);
+        fd.append('to_phone',       toPhone);
+        fd.append('expiry_days',    document.getElementById('expiry').value);
+        fd.append('provider',       currentProvider);
+        fd.append('recipient_name', recipName);
+        fd.append('subfolder',      subfolder);
+        fd.append('custom_message', customMsgVal);
+
+        const resp = await fetch('/send', { method: 'POST', body: fd });
+        const data = await resp.json();
+
+        if (data.ok) {
+          showToast(true,
+            '✅ Erfolgreich gesendet!',
+            `E-Mail → ${toEmail} · SMS → ${toPhone}`,
+            `🔑 Passwort: ${data.password}\n📎 ${data.filename}`
+          );
+        } else {
+          showToast(false, '❌ Fehler', data.error);
+        }
+      } catch (err) {
+        showToast(false, '❌ Netzwerkfehler', err.message);
+      } finally {
+        btn.disabled          = false;
+        spinner.style.display = 'none';
+        label.textContent     = '🚀 Sicher übermitteln';
+      }
+
+    } else {
+      // ── Text-Modus ──
+      const payload = {
+        provider:       currentProvider,
+        content:        editor.value,
+        filename:       document.getElementById('filename').value,
+        email:          toEmail,
+        phone:          toPhone,
+        expiry_days:    document.getElementById('expiry').value,
+        custom_message: customMsgVal,
+        recipient_name: recipName,
+        subfolder:      subfolder,
+      };
+
+      if (!payload.content || !payload.email || !payload.phone) {
+        showToast(false, 'Fehlende Eingaben',
+          'Bitte Inhalt, E-Mail-Adresse und Mobilnummer ausfüllen.');
+        return;
+      }
+
+      btn.disabled          = true;
+      spinner.style.display = 'block';
+      label.textContent     = 'Wird gesendet…';
+
+      try {
+        const resp = await fetch('/send', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify(payload),
+        });
+        const data = await resp.json();
+
+        if (data.ok) {
+          showToast(true,
+            '✅ Erfolgreich gesendet!',
+            `E-Mail → ${payload.email} · SMS → ${payload.phone}`,
+            `🔑 Passwort: ${data.password}\n📎 ${data.filename}`
+          );
+        } else {
+          showToast(false, '❌ Fehler', data.error);
+        }
+      } catch (err) {
+        showToast(false, '❌ Netzwerkfehler', err.message);
+      } finally {
+        btn.disabled          = false;
+        spinner.style.display = 'none';
+        label.textContent     = '🚀 Sicher übermitteln';
+      }
     }
   }
 
