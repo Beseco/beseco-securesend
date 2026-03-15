@@ -221,32 +221,85 @@
     }
     .contact-link:hover { color: var(--blue); }
 
-    /* ── Mode Tabs (Nachricht / Datei) ── */
-    .mode-tabs {
+    /* ── Compact Attachment Bar ── */
+    .attach-bar {
+      padding: 10px 24px;
+      border-top: 1px solid var(--gray-200);
+      background: var(--gray-50);
       display: flex;
-      gap: 0;
-      margin-left: auto;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
     }
-    .mode-tab {
-      padding: 5px 14px;
-      border: 1.5px solid var(--gray-200);
+    .btn-attach {
+      padding: 7px 14px;
+      border: 1.5px dashed var(--gray-200);
+      border-radius: var(--radius);
       background: #fff;
       font-family: 'IBM Plex Sans', sans-serif;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 600;
       color: var(--gray-500);
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       transition: all .15s;
+      white-space: nowrap;
     }
-    .mode-tab:first-child { border-radius: 7px 0 0 7px; border-right: none; }
-    .mode-tab:last-child  { border-radius: 0 7px 7px 0; }
-    .mode-tab.active {
-      background: var(--blue-pale);
+    .btn-attach:hover {
       border-color: var(--blue);
       color: var(--blue);
-      z-index: 1;
+      background: var(--blue-pale);
     }
-    .mode-tab:hover:not(.active) { background: var(--gray-50); }
+    .attach-chip {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      background: var(--blue-pale);
+      border: 1.5px solid var(--blue);
+      border-radius: 8px;
+      padding: 6px 12px;
+      font-size: 13px;
+      color: var(--blue);
+      flex: 1;
+      min-width: 0;
+    }
+    .attach-chip.visible { display: flex; }
+    .attach-chip-name {
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .attach-chip-meta { font-size: 12px; opacity: .75; white-space: nowrap; }
+    .attach-chip-remove {
+      margin-left: auto;
+      background: none;
+      border: none;
+      font-size: 17px;
+      cursor: pointer;
+      color: var(--blue);
+      opacity: .65;
+      padding: 0 2px;
+      flex-shrink: 0;
+    }
+    .attach-chip-remove:hover { opacity: 1; }
+    .attach-drop-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(26,86,219,.08);
+      border: 3px dashed var(--blue);
+      border-radius: 12px;
+      z-index: 500;
+      pointer-events: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      color: var(--blue);
+    }
+    .attach-drop-overlay.visible { display: flex; }
 
     /* ── MD Editor ── */
     .editor-wrap {
@@ -291,58 +344,6 @@
     }
     #md-editor:focus { box-shadow: none; border-color: transparent; }
 
-    /* ── File Upload Zone ── */
-    #file-upload-zone {
-      display: none;
-      flex: 1;
-      flex-direction: column;
-      padding: 20px 24px;
-      gap: 16px;
-    }
-    #file-upload-zone.visible { display: flex; }
-
-    .drop-zone {
-      border: 2px dashed var(--gray-200);
-      border-radius: 12px;
-      padding: 36px 24px;
-      text-align: center;
-      cursor: pointer;
-      transition: all .2s;
-      background: var(--gray-50);
-    }
-    .drop-zone:hover, .drop-zone.drag-over {
-      border-color: var(--blue);
-      background: var(--blue-pale);
-    }
-    .drop-zone .drop-icon { font-size: 36px; margin-bottom: 10px; opacity: .5; }
-    .drop-zone p { font-size: 14px; color: var(--gray-500); }
-    .drop-zone small { font-size: 12px; color: #9ca3af; }
-
-    .file-info {
-      display: none;
-      background: var(--blue-pale);
-      border: 1.5px solid var(--blue);
-      border-radius: 10px;
-      padding: 14px 16px;
-      font-size: 13px;
-      color: var(--blue);
-      align-items: center;
-      gap: 10px;
-    }
-    .file-info.visible { display: flex; }
-    .file-info-name { font-weight: 700; word-break: break-all; }
-    .file-info-meta { font-size: 12px; opacity: .75; margin-top: 2px; }
-    .file-remove {
-      margin-left: auto;
-      background: none;
-      border: none;
-      font-size: 18px;
-      cursor: pointer;
-      color: var(--blue);
-      opacity: .6;
-      padding: 0 4px;
-    }
-    .file-remove:hover { opacity: 1; }
     .file-warning {
       background: #fef9c3;
       border: 1.5px solid #ca8a04;
@@ -351,27 +352,10 @@
       font-size: 13px;
       color: #713f12;
       display: none;
+      width: 100%;
     }
     .file-warning.visible { display: block; }
-
     #file-input { display: none; }
-    .btn-browse {
-      padding: 9px 18px;
-      border: 1.5px solid var(--blue);
-      border-radius: var(--radius);
-      background: #fff;
-      font-family: 'IBM Plex Sans', sans-serif;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--blue);
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      transition: background .15s;
-      margin-top: 10px;
-    }
-    .btn-browse:hover { background: var(--blue-pale); }
 
     /* ── Custom Message ── */
     .custom-msg-section {
@@ -476,24 +460,26 @@
     .preview-empty .icon { font-size: 40px; opacity: .35; margin-bottom: 12px; }
     .preview-empty p { font-size: 14px; }
 
-    /* ── File preview placeholder ── */
-    .file-preview-placeholder {
+    /* ── Datei-Badge in der Vorschau ── */
+    .preview-file-badge {
       display: none;
-      text-align: center;
-      padding: 60px 32px;
-      color: var(--gray-500);
-    }
-    .file-preview-placeholder .icon { font-size: 48px; opacity: .4; margin-bottom: 14px; }
-    .file-preview-placeholder p { font-size: 14px; }
-    .file-preview-placeholder .filename {
-      font-family: 'IBM Plex Mono', monospace;
+      margin: 0 32px 16px;
+      background: var(--blue-pale);
+      border: 1.5px solid var(--blue);
+      border-radius: 8px;
+      padding: 10px 14px;
       font-size: 13px;
       color: var(--blue);
-      background: var(--blue-pale);
-      padding: 6px 14px;
-      border-radius: 6px;
-      display: inline-block;
-      margin-top: 10px;
+      align-items: center;
+      gap: 8px;
+    }
+    .preview-file-badge.visible { display: flex; }
+    .preview-file-badge .pf-name {
+      font-family: 'IBM Plex Mono', monospace;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     /* ── Toast / Result ── */
@@ -635,7 +621,7 @@
       <!-- Unterordner -->
       <div style="margin-bottom:14px;">
         <label style="display:block;margin-bottom:6px;">Unterordner <span style="font-weight:400;text-transform:none;letter-spacing:0;">(optional)</span></label>
-        <input type="text" id="subfolder" placeholder="z.B. Mueller_GmbH">
+        <input type="text" id="subfolder" placeholder="z.B. MusterGmbH/Mueller">
       </div>
 
       <div class="form-grid">
@@ -666,18 +652,14 @@
       </div>
     </div>
 
-    <!-- Tab Panel Header: Nachricht / Datei -->
+    <!-- Panel Header -->
     <div class="panel-header" style="border-top:none;">
-      <span>Inhalt</span>
-      <div class="badge" id="mode-badge">Markdown</div>
-      <div class="mode-tabs" style="margin-left:auto;">
-        <button class="mode-tab active" id="tab-text" onclick="setMode('text')">✏️ Nachricht</button>
-        <button class="mode-tab" id="tab-file" onclick="setMode('file')">📎 Datei</button>
-      </div>
+      <span>Nachricht</span>
+      <div class="badge">Markdown</div>
     </div>
 
-    <!-- ── Text-Modus: Toolbar + Editor ── -->
-    <div id="text-mode-wrap" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+    <!-- ── Markdown Editor ── -->
+    <div style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
       <div class="editor-toolbar">
         <button class="tb-btn" onclick="insert('**', '**')"><b>B</b></button>
         <button class="tb-btn" onclick="insert('*', '*')"><i>I</i></button>
@@ -694,33 +676,30 @@
       </div>
     </div>
 
-    <!-- ── Datei-Modus ── -->
-    <div id="file-upload-zone">
-      <div class="drop-zone" id="drop-zone"
-           onclick="document.getElementById('file-input').click()"
-           ondragover="onDragOver(event)"
-           ondragleave="onDragLeave(event)"
-           ondrop="onDrop(event)">
-        <div class="drop-icon">📁</div>
-        <p>Datei hierher ziehen oder</p>
-        <button class="btn-browse" onclick="event.stopPropagation(); document.getElementById('file-input').click()">
-          📂 Datei auswählen
-        </button>
-        <br><small style="margin-top:8px;display:block;">Max. 50 MB · Alle Dateitypen</small>
-      </div>
-      <div class="file-info" id="file-info">
-        <span style="font-size:24px;">📄</span>
+    <!-- ── Kompakte Datei-Anlage ── -->
+    <div class="attach-bar"
+         ondragover="onDragOver(event)"
+         ondragleave="onDragLeave(event)"
+         ondrop="onDrop(event)">
+      <button class="btn-attach" type="button"
+              onclick="document.getElementById('file-input').click()">
+        📎 Datei anhängen <span style="font-weight:400;font-size:12px;">(optional)</span>
+      </button>
+      <div class="attach-chip" id="attach-chip">
+        <span style="font-size:18px;flex-shrink:0;">📄</span>
         <div style="flex:1;min-width:0;">
-          <div class="file-info-name" id="file-info-name"></div>
-          <div class="file-info-meta" id="file-info-meta"></div>
+          <div class="attach-chip-name" id="attach-chip-name"></div>
+          <div class="attach-chip-meta" id="attach-chip-meta"></div>
         </div>
-        <button class="file-remove" onclick="clearFile()" title="Datei entfernen">×</button>
+        <button class="attach-chip-remove" onclick="clearFile()" title="Datei entfernen">×</button>
       </div>
       <div class="file-warning" id="file-warning">
         ⚠️ Die Datei ist größer als 50 MB. Bitte eine kleinere Datei auswählen.
       </div>
       <input type="file" id="file-input" onchange="onFileSelected(this.files[0])">
     </div>
+    <!-- Drag-Over Overlay -->
+    <div class="attach-drop-overlay" id="drop-overlay">📎 Loslassen zum Anhängen</div>
 
     <div class="custom-msg-section" style="padding-top:14px;">
       <div class="field">
@@ -743,16 +722,19 @@
     <div class="panel-header">
       <span>Vorschau</span>
     </div>
+    <!-- Datei-Badge (wird eingeblendet wenn Datei gewählt) -->
+    <div class="preview-file-badge" id="preview-file-badge">
+      <span style="font-size:18px;flex-shrink:0;">📎</span>
+      <div style="flex:1;min-width:0;">
+        <div class="pf-name" id="preview-file-name"></div>
+        <div style="font-size:12px;opacity:.75;" id="preview-file-meta"></div>
+      </div>
+    </div>
     <div id="md-preview">
       <div class="preview-empty">
         <div class="icon">📄</div>
         <p>Markdown hier links eingeben –<br>die Vorschau erscheint in Echtzeit.</p>
       </div>
-    </div>
-    <div class="file-preview-placeholder" id="file-preview-placeholder">
-      <div class="icon">📎</div>
-      <p>Datei ausgewählt und bereit zum Versand.</p>
-      <div class="filename" id="file-preview-name"></div>
     </div>
   </div>
 
@@ -833,50 +815,19 @@
     initContacts();
   });
 
-  // ── Modus-Umschalter (Text / Datei) ──
-  let currentMode  = 'text';
+  // ── Datei-Anhang ──
   let selectedFile = null;
 
-  function setMode(mode) {
-    currentMode = mode;
-    document.getElementById('tab-text').classList.toggle('active', mode === 'text');
-    document.getElementById('tab-file').classList.toggle('active', mode === 'file');
-    document.getElementById('text-mode-wrap').style.display = mode === 'text' ? 'flex' : 'none';
-    document.getElementById('file-upload-zone').classList.toggle('visible', mode === 'file');
-    document.getElementById('mode-badge').textContent = mode === 'text' ? 'Markdown' : 'Datei-Upload';
-
-    // Rechte Seite umschalten
-    if (mode === 'file') {
-      preview.style.display = 'none';
-      document.getElementById('file-preview-placeholder').style.display = selectedFile ? 'block' : 'block';
-      updateFilePreview();
-    } else {
-      preview.style.display = 'block';
-      document.getElementById('file-preview-placeholder').style.display = 'none';
-    }
-  }
-
-  function updateFilePreview() {
-    const placeholder = document.getElementById('file-preview-placeholder');
-    const namEl       = document.getElementById('file-preview-name');
-    if (selectedFile) {
-      namEl.textContent = selectedFile.name;
-    } else {
-      namEl.textContent = '';
-    }
-  }
-
-  // ── Drag & Drop ──
   function onDragOver(e) {
     e.preventDefault();
-    document.getElementById('drop-zone').classList.add('drag-over');
+    document.getElementById('drop-overlay').classList.add('visible');
   }
   function onDragLeave(e) {
-    document.getElementById('drop-zone').classList.remove('drag-over');
+    document.getElementById('drop-overlay').classList.remove('visible');
   }
   function onDrop(e) {
     e.preventDefault();
-    document.getElementById('drop-zone').classList.remove('drag-over');
+    document.getElementById('drop-overlay').classList.remove('visible');
     const file = e.dataTransfer.files[0];
     if (file) onFileSelected(file);
   }
@@ -888,20 +839,28 @@
     if (file.size > MAX) { selectedFile = null; return; }
 
     selectedFile = file;
-    const info = document.getElementById('file-info');
-    info.classList.add('visible');
-    document.getElementById('file-info-name').textContent = file.name;
-    document.getElementById('file-info-meta').textContent =
-      `${(file.size / 1024).toFixed(1)} KB · ${file.type || 'unbekannter Typ'}`;
-    updateFilePreview();
+    const sizeStr = file.size >= 1048576
+      ? `${(file.size / 1048576).toFixed(1)} MB`
+      : `${(file.size / 1024).toFixed(1)} KB`;
+    const typeStr = file.type || 'unbekannter Typ';
+
+    // Kompakter Chip in der Attach-Bar
+    document.getElementById('attach-chip').classList.add('visible');
+    document.getElementById('attach-chip-name').textContent = file.name;
+    document.getElementById('attach-chip-meta').textContent = `${sizeStr} · ${typeStr}`;
+
+    // Badge in der Vorschau
+    document.getElementById('preview-file-badge').classList.add('visible');
+    document.getElementById('preview-file-name').textContent = file.name;
+    document.getElementById('preview-file-meta').textContent = `${sizeStr} · ${typeStr}`;
   }
 
   function clearFile() {
     selectedFile = null;
-    document.getElementById('file-info').classList.remove('visible');
+    document.getElementById('attach-chip').classList.remove('visible');
     document.getElementById('file-warning').classList.remove('visible');
+    document.getElementById('preview-file-badge').classList.remove('visible');
     document.getElementById('file-input').value = '';
-    updateFilePreview();
   }
 
   // ── Kontakte ──
@@ -956,13 +915,16 @@
     if (c.mobile) document.getElementById('phone').value  = c.mobile;
     document.getElementById('recipient-name').value = `${c.first_name} ${c.last_name}`;
 
-    // Unterordner: {last_name}_{company} bereinigt
-    const base = ((c.last_name || '') + (c.company ? '_' + c.company : ''))
-      .replace(/[^\w\s\-]/g, '')
-      .replace(/\s+/g, '_')
-      .replace(/_+/g, '_')
-      .slice(0, 60);
-    document.getElementById('subfolder').value = base;
+    // Unterordner: Firma/Nachname (zwei Ebenen)
+    const cleanPart = s =>
+      (s || '').replace(/[^\w\s\-äöüÄÖÜß]/g, '').replace(/\s+/g, '_').replace(/_+/g, '_').trim();
+    const company  = cleanPart(c.company);
+    const lastName = cleanPart(c.last_name);
+    let subfolder  = '';
+    if (company && lastName) subfolder = `${company}/${lastName}`;
+    else if (company)        subfolder = company;
+    else if (lastName)       subfolder = lastName;
+    document.getElementById('subfolder').value = subfolder.slice(0, 80);
   }
 
   function esc(s) {
@@ -1018,102 +980,56 @@
     const subfolder    = document.getElementById('subfolder').value.trim();
     const recipName    = document.getElementById('recipient-name').value.trim();
     const customMsgVal = customMsg.value;
+    const mdText       = editor.value.trim();
 
     if (!toEmail || !toPhone) {
       showToast(false, 'Fehlende Eingaben', 'Bitte E-Mail-Adresse und Mobilnummer ausfüllen.');
       return;
     }
+    if (!mdText && !selectedFile) {
+      showToast(false, 'Fehlende Eingaben', 'Bitte Nachricht eingeben oder Datei anhängen.');
+      return;
+    }
 
-    if (currentMode === 'file') {
-      // ── Datei-Modus ──
-      if (!selectedFile) {
-        showToast(false, 'Keine Datei', 'Bitte eine Datei auswählen.');
-        return;
+    btn.disabled          = true;
+    spinner.style.display = 'block';
+    label.textContent     = 'Wird gesendet…';
+
+    try {
+      // Immer FormData – unterstützt Text, Datei oder beides gleichzeitig
+      const fd = new FormData();
+      fd.append('to_email',       toEmail);
+      fd.append('to_phone',       toPhone);
+      fd.append('expiry_days',    document.getElementById('expiry').value);
+      fd.append('provider',       currentProvider);
+      fd.append('recipient_name', recipName);
+      fd.append('subfolder',      subfolder);
+      fd.append('custom_message', customMsgVal);
+      fd.append('content',        mdText);
+      fd.append('filename',       document.getElementById('filename').value || 'nachricht');
+
+      if (selectedFile) {
+        fd.append('file', selectedFile, selectedFile.name);
       }
 
-      btn.disabled          = true;
-      spinner.style.display = 'block';
-      label.textContent     = 'Wird gesendet…';
+      const resp = await fetch('/send', { method: 'POST', body: fd });
+      const data = await resp.json();
 
-      try {
-        const fd = new FormData();
-        fd.append('file',           selectedFile, selectedFile.name);
-        fd.append('to_email',       toEmail);
-        fd.append('to_phone',       toPhone);
-        fd.append('expiry_days',    document.getElementById('expiry').value);
-        fd.append('provider',       currentProvider);
-        fd.append('recipient_name', recipName);
-        fd.append('subfolder',      subfolder);
-        fd.append('custom_message', customMsgVal);
-
-        const resp = await fetch('/send', { method: 'POST', body: fd });
-        const data = await resp.json();
-
-        if (data.ok) {
-          showToast(true,
-            '✅ Erfolgreich gesendet!',
-            `E-Mail → ${toEmail} · SMS → ${toPhone}`,
-            `🔑 Passwort: ${data.password}\n📎 ${data.filename}`
-          );
-        } else {
-          showToast(false, '❌ Fehler', data.error);
-        }
-      } catch (err) {
-        showToast(false, '❌ Netzwerkfehler', err.message);
-      } finally {
-        btn.disabled          = false;
-        spinner.style.display = 'none';
-        label.textContent     = '🚀 Sicher übermitteln';
+      if (data.ok) {
+        showToast(true,
+          '✅ Erfolgreich gesendet!',
+          `E-Mail → ${toEmail} · SMS → ${toPhone}`,
+          `🔑 Passwort: ${data.password}\n📎 ${data.filename}`
+        );
+      } else {
+        showToast(false, '❌ Fehler', data.error);
       }
-
-    } else {
-      // ── Text-Modus ──
-      const payload = {
-        provider:       currentProvider,
-        content:        editor.value,
-        filename:       document.getElementById('filename').value,
-        email:          toEmail,
-        phone:          toPhone,
-        expiry_days:    document.getElementById('expiry').value,
-        custom_message: customMsgVal,
-        recipient_name: recipName,
-        subfolder:      subfolder,
-      };
-
-      if (!payload.content || !payload.email || !payload.phone) {
-        showToast(false, 'Fehlende Eingaben',
-          'Bitte Inhalt, E-Mail-Adresse und Mobilnummer ausfüllen.');
-        return;
-      }
-
-      btn.disabled          = true;
-      spinner.style.display = 'block';
-      label.textContent     = 'Wird gesendet…';
-
-      try {
-        const resp = await fetch('/send', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify(payload),
-        });
-        const data = await resp.json();
-
-        if (data.ok) {
-          showToast(true,
-            '✅ Erfolgreich gesendet!',
-            `E-Mail → ${payload.email} · SMS → ${payload.phone}`,
-            `🔑 Passwort: ${data.password}\n📎 ${data.filename}`
-          );
-        } else {
-          showToast(false, '❌ Fehler', data.error);
-        }
-      } catch (err) {
-        showToast(false, '❌ Netzwerkfehler', err.message);
-      } finally {
-        btn.disabled          = false;
-        spinner.style.display = 'none';
-        label.textContent     = '🚀 Sicher übermitteln';
-      }
+    } catch (err) {
+      showToast(false, '❌ Netzwerkfehler', err.message);
+    } finally {
+      btn.disabled          = false;
+      spinner.style.display = 'none';
+      label.textContent     = '🚀 Sicher übermitteln';
     }
   }
 
