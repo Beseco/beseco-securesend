@@ -27,7 +27,6 @@ from email.utils import formataddr
 from datetime import datetime, timedelta, timezone
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from werkzeug.security import generate_password_hash, check_password_hash
-from dotenv import load_dotenv
 from urllib.parse import quote
 
 # PDF-Bibliotheken (optional – nur geladen wenn SEND_AS_PDF aktiv)
@@ -37,8 +36,6 @@ try:
     _PDF_LIBS_AVAILABLE = True
 except ImportError:
     _PDF_LIBS_AVAILABLE = False
-
-load_dotenv()
 
 CONFIG_FILE      = Path(__file__).parent / "config.json"
 ADDRESSBOOK_FILE = Path(__file__).parent / "addressbook.json"

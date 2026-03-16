@@ -1,7 +1,6 @@
 flask>=3.0.0
 requests>=2.31.0
 msal>=1.28.0
-python-dotenv>=1.0.0
 markdown>=3.6
 fpdf2>=2.7.9
 pypdf>=4.0.0
