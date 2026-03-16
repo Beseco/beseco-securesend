@@ -1,0 +1,231 @@
+"""
+cloud/routers/admin_reseller.py — Reseller admin endpoints (reseller_admin+).
+
+Organisations in reseller:
+  GET    /admin/reseller/orgs        → list orgs
+  POST   /admin/reseller/orgs        → create org
+  PUT    /admin/reseller/orgs/{id}   → update org
+  DELETE /admin/reseller/orgs/{id}   → deactivate org (soft delete)
+
+Reseller management (superadmin only):
+  GET    /admin/resellers            → list all resellers
+  POST   /admin/resellers            → create reseller
+  PUT    /admin/resellers/{id}       → update reseller
+  DELETE /admin/resellers/{id}       → deactivate reseller
+"""
+
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from database import get_db
+from dependencies import reseller_admin_required, superadmin_required
+from models.organization import Organization
+from models.reseller import Reseller
+from models.user import User
+from schemas.organization import OrgCreate, OrgRead, OrgUpdate
+from schemas.reseller import ResellerCreate, ResellerRead, ResellerUpdate
+
+router = APIRouter(tags=["admin-reseller"])
+
+
+# ── Helper ─────────────────────────────────────────────────────────────────────
+
+def _get_reseller_id(current_user: User) -> str:
+    """
+    For reseller_admin: the reseller_id comes from their org's reseller.
+    For superadmin: they may operate across resellers; require explicit
+    reseller context via their organisation.
+    """
+    if current_user.reseller_id:
+        return current_user.reseller_id
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="No reseller context found for this user",
+    )
+
+
+# ── Organisations ──────────────────────────────────────────────────────────────
+
+@router.get("/admin/reseller/orgs", response_model=list[OrgRead])
+async def list_reseller_orgs(
+    current_user: User = Depends(reseller_admin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> list[OrgRead]:
+    reseller_id = _get_reseller_id(current_user)
+    result = await db.execute(
+        select(Organization)
+        .where(Organization.reseller_id == reseller_id)
+        .order_by(Organization.name)
+    )
+    orgs = result.scalars().all()
+    return [OrgRead.model_validate(o) for o in orgs]
+
+
+@router.post(
+    "/admin/reseller/orgs",
+    response_model=OrgRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_reseller_org(
+    body: OrgCreate,
+    current_user: User = Depends(reseller_admin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> OrgRead:
+    reseller_id = _get_reseller_id(current_user)
+
+    # Slug uniqueness
+    existing = await db.execute(select(Organization).where(Organization.slug == body.slug))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Slug already in use")
+
+    org = Organization(
+        reseller_id=reseller_id,
+        name=body.name,
+        slug=body.slug,
+        is_active=body.is_active,
+        settings_json=body.settings_json,
+    )
+    db.add(org)
+    await db.commit()
+    await db.refresh(org)
+    return OrgRead.model_validate(org)
+
+
+@router.put("/admin/reseller/orgs/{org_id}", response_model=OrgRead)
+async def update_reseller_org(
+    org_id: str,
+    body: OrgUpdate,
+    current_user: User = Depends(reseller_admin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> OrgRead:
+    reseller_id = _get_reseller_id(current_user)
+    result = await db.execute(
+        select(Organization).where(
+            Organization.id == org_id,
+            Organization.reseller_id == reseller_id,
+        )
+    )
+    org = result.scalar_one_or_none()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organisation not found")
+
+    if body.slug is not None and body.slug != org.slug:
+        clash = await db.execute(
+            select(Organization).where(Organization.slug == body.slug)
+        )
+        if clash.scalar_one_or_none():
+            raise HTTPException(status_code=409, detail="Slug already in use")
+
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(org, field, value)
+
+    await db.commit()
+    await db.refresh(org)
+    return OrgRead.model_validate(org)
+
+
+@router.delete("/admin/reseller/orgs/{org_id}", response_model=OrgRead)
+async def deactivate_reseller_org(
+    org_id: str,
+    current_user: User = Depends(reseller_admin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> OrgRead:
+    """Soft-delete: sets is_active=False rather than removing the row."""
+    reseller_id = _get_reseller_id(current_user)
+    result = await db.execute(
+        select(Organization).where(
+            Organization.id == org_id,
+            Organization.reseller_id == reseller_id,
+        )
+    )
+    org = result.scalar_one_or_none()
+    if not org:
+        raise HTTPException(status_code=404, detail="Organisation not found")
+
+    org.is_active = False
+    await db.commit()
+    await db.refresh(org)
+    return OrgRead.model_validate(org)
+
+
+# ── Resellers (superadmin only) ────────────────────────────────────────────────
+
+@router.get("/admin/resellers", response_model=list[ResellerRead])
+async def list_resellers(
+    current_user: User = Depends(superadmin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> list[ResellerRead]:
+    result = await db.execute(select(Reseller).order_by(Reseller.name))
+    return [ResellerRead.model_validate(r) for r in result.scalars().all()]
+
+
+@router.post(
+    "/admin/resellers",
+    response_model=ResellerRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_reseller(
+    body: ResellerCreate,
+    current_user: User = Depends(superadmin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> ResellerRead:
+    existing = await db.execute(select(Reseller).where(Reseller.slug == body.slug))
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=409, detail="Slug already in use")
+
+    reseller = Reseller(
+        name=body.name,
+        slug=body.slug,
+        contact_email=body.contact_email,
+        is_active=body.is_active,
+    )
+    db.add(reseller)
+    await db.commit()
+    await db.refresh(reseller)
+    return ResellerRead.model_validate(reseller)
+
+
+@router.put("/admin/resellers/{reseller_id}", response_model=ResellerRead)
+async def update_reseller(
+    reseller_id: str,
+    body: ResellerUpdate,
+    current_user: User = Depends(superadmin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> ResellerRead:
+    result = await db.execute(select(Reseller).where(Reseller.id == reseller_id))
+    reseller = result.scalar_one_or_none()
+    if not reseller:
+        raise HTTPException(status_code=404, detail="Reseller not found")
+
+    if body.slug is not None and body.slug != reseller.slug:
+        clash = await db.execute(select(Reseller).where(Reseller.slug == body.slug))
+        if clash.scalar_one_or_none():
+            raise HTTPException(status_code=409, detail="Slug already in use")
+
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(reseller, field, value)
+
+    await db.commit()
+    await db.refresh(reseller)
+    return ResellerRead.model_validate(reseller)
+
+
+@router.delete("/admin/resellers/{reseller_id}", response_model=ResellerRead)
+async def deactivate_reseller(
+    reseller_id: str,
+    current_user: User = Depends(superadmin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> ResellerRead:
+    """Soft-delete: sets is_active=False."""
+    result = await db.execute(select(Reseller).where(Reseller.id == reseller_id))
+    reseller = result.scalar_one_or_none()
+    if not reseller:
+        raise HTTPException(status_code=404, detail="Reseller not found")
+
+    reseller.is_active = False
+    await db.commit()
+    await db.refresh(reseller)
+    return ResellerRead.model_validate(reseller)
