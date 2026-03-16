@@ -1,6 +1,7 @@
 # Konfiguration & Secrets
 .env
 config.json
+data.db
 addressbook.json
 history.json
 

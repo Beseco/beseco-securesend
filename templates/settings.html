@@ -15,312 +15,526 @@
 {% endblock %}
 
 {% block extra_css %}
-  .form-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-  }
-  .field {
+  /* ── Tab Navigation ── */
+  .st-tab-btn {
+    padding: 12px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #94a3b8;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    cursor: pointer;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    transition: color .15s, border-color .15s;
+    white-space: nowrap;
     display: flex;
-    flex-direction: column;
-    gap: 5px;
+    align-items: center;
+    gap: 7px;
   }
+  .st-tab-btn:hover { color: #334155; }
+  .st-tab-btn.active { color: #1a56db; border-bottom-color: #1a56db; }
+
+  /* ── Form fields ── */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
   .field.full { grid-column: 1 / -1; }
   .field label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: .8px;
-    color: #6b7280;
+    font-size: 11px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: .8px; color: #6b7280;
   }
   .field label .hint {
-    font-weight: 400;
-    text-transform: none;
-    letter-spacing: 0;
-    font-size: 11px;
-    color: #9ca3af;
+    font-weight: 400; text-transform: none; letter-spacing: 0;
+    font-size: 11px; color: #9ca3af;
   }
-  .field input, .field select {
-    font-family: 'IBM Plex Sans', sans-serif;
-    font-size: 14px;
-    padding: 9px 12px;
-    border: 1.5px solid #e5e7eb;
-    border-radius: 10px;
-    color: #111827;
-    background: #fff;
-    transition: border-color .15s, box-shadow .15s;
-    outline: none;
-    width: 100%;
+  .field input, .field select, .field textarea {
+    font-family: 'IBM Plex Sans', sans-serif; font-size: 14px;
+    padding: 9px 12px; border: 1.5px solid #e5e7eb; border-radius: 10px;
+    color: #111827; background: #fff;
+    transition: border-color .15s, box-shadow .15s; outline: none; width: 100%;
   }
-  .field input:focus, .field select:focus {
-    border-color: #1a56db;
-    box-shadow: 0 0 0 3px rgba(26,86,219,.12);
+  .field input:focus, .field select:focus, .field textarea:focus {
+    border-color: #1a56db; box-shadow: 0 0 0 3px rgba(26,86,219,.12);
   }
-  .field input.mono {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 13px;
+  .field input.mono, .field textarea.mono {
+    font-family: 'IBM Plex Mono', monospace; font-size: 13px;
   }
-  .field input::placeholder { color: #c0c8d4; }
+  .field input::placeholder, .field textarea::placeholder { color: #c0c8d4; }
+
   .info-box {
-    background: #eff4ff;
-    border: 1px solid #bfdbfe;
-    border-radius: 8px;
-    padding: 10px 14px;
-    font-size: 12.5px;
-    color: #1e40af;
-    margin-bottom: 14px;
-    line-height: 1.5;
+    background: #eff4ff; border: 1px solid #bfdbfe; border-radius: 8px;
+    padding: 10px 14px; font-size: 12.5px; color: #1e40af;
+    margin-bottom: 14px; line-height: 1.5;
   }
+  .section-divider {
+    border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;
+  }
+  .section-heading {
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .8px; color: #6b7280; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 7px;
+  }
+
+  /* ── Spinner ── */
   .spinner {
     width: 16px; height: 16px;
-    border: 2px solid rgba(255,255,255,.4);
-    border-top-color: #fff;
-    border-radius: 50%;
-    animation: spin .7s linear infinite;
-    display: none;
+    border: 2px solid rgba(255,255,255,.4); border-top-color: #fff;
+    border-radius: 50%; animation: spin .7s linear infinite; display: none;
   }
   @keyframes spin { to { transform: rotate(360deg); } }
-  #status {
-    font-size: 13px;
-    font-weight: 600;
-    display: none;
-  }
+  #status { font-size: 13px; font-weight: 600; display: none; }
   #status.ok  { color: #4ade80; }
   #status.err { color: #f87171; }
+
+  /* ── Vorlagen styles ── */
+  .tpl-card {
+    background: #fff; border: 1.5px solid #e5e7eb; border-radius: 12px;
+    padding: 16px 20px; margin-bottom: 10px; transition: border-color .15s;
+  }
+  .tpl-card:hover { border-color: #93c5fd; }
+  .tpl-card.editing { border-color: #1a56db; box-shadow: 0 0 0 3px rgba(26,86,219,.1); }
+  .tpl-name { font-weight: 700; font-size: 15px; color: #111827; }
+  .tpl-title { font-size: 12px; color: #6b7280; margin-top: 2px; }
+  .tpl-default-badge {
+    display: inline-block; background: #dbeafe; color: #1e40af;
+    font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+    margin-left: 8px; vertical-align: middle;
+  }
+  .btn-icon {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 12px; font-size: 12px; font-weight: 600;
+    border-radius: 7px; border: 1.5px solid transparent;
+    cursor: pointer; transition: all .15s; background: transparent;
+  }
+  .btn-icon.edit   { border-color: #93c5fd; color: #1a56db; }
+  .btn-icon.edit:hover { background: #eff6ff; }
+  .btn-icon.del    { border-color: #fca5a5; color: #dc2626; }
+  .btn-icon.del:hover { background: #fef2f2; }
+  .btn-icon.def    { border-color: #a7f3d0; color: #059669; }
+  .btn-icon.def:hover { background: #ecfdf5; }
+  .btn-icon.save   { background: #1a56db; color: #fff; border-color: #1a56db; }
+  .btn-icon.save:hover { background: #1d4ed8; }
+  .btn-icon.cancel { border-color: #e5e7eb; color: #6b7280; }
+  .btn-icon.cancel:hover { background: #f9fafb; }
+  .edit-form { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .edit-form label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .7px; color: #6b7280; display: block; margin-bottom: 4px;
+  }
+  .edit-form input, .edit-form textarea {
+    width: 100%; font-family: 'IBM Plex Sans', sans-serif; font-size: 14px;
+    padding: 8px 12px; border: 1.5px solid #e5e7eb; border-radius: 9px;
+    color: #111827; background: #fff; outline: none;
+    transition: border-color .15s, box-shadow .15s; box-sizing: border-box;
+  }
+  .edit-form input:focus, .edit-form textarea:focus {
+    border-color: #1a56db; box-shadow: 0 0 0 3px rgba(26,86,219,.1);
+  }
+  .edit-form textarea {
+    resize: vertical; min-height: 180px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+  }
+  .edit-form textarea.html-area { min-height: 300px; }
+  .var-hint {
+    background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+    padding: 10px 14px; font-size: 12px; color: #475569; line-height: 1.7;
+  }
+  .var-hint code {
+    background: #e0e7ff; color: #3730a3; padding: 1px 5px;
+    border-radius: 4px; font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+  }
+  .new-btn {
+    display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px;
+    background: #1a56db; color: #fff; font-weight: 700; font-size: 13px;
+    border-radius: 9px; border: none; cursor: pointer; transition: background .15s;
+  }
+  .new-btn:hover { background: #1d4ed8; }
+  .sub-tab-btn {
+    padding: 7px 16px; font-size: 13px; font-weight: 600; border-radius: 8px;
+    border: none; cursor: pointer; transition: all .15s;
+    color: #6b7280; background: transparent;
+  }
+  .sub-tab-btn.active { background: #1a56db; color: #fff; box-shadow: 0 2px 8px rgba(26,86,219,.25); }
+  .sub-tab-btn:not(.active):hover { background: #f1f5f9; color: #374151; }
+  .section-hidden { display: none !important; }
+
+  /* ── Connection tables ── */
+  .conn-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  .conn-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .7px;
+    color: #9ca3af;
+    padding: 6px 12px 8px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .conn-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: middle;
+  }
+  .conn-table tr:last-child td { border-bottom: none; }
+  .conn-table tr:hover td { background: #f8fafc; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .status-dot.active { background: #22c55e; }
+  .status-dot.inactive { background: #d1d5db; }
+  .default-badge {
+    display: inline-block; background: #dbeafe; color: #1e40af;
+    font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 20px;
+  }
+
+  /* ── Toast (settings-specific) ── */
+  #settings-toast {
+    position: fixed; bottom: 90px; right: 24px;
+    background: #1e293b; color: #fff; font-size: 13px; font-weight: 600;
+    padding: 10px 18px; border-radius: 10px; z-index: 9999;
+    opacity: 0; transform: translateY(6px);
+    transition: opacity .25s, transform .25s; pointer-events: none;
+  }
+  #settings-toast.show { opacity: 1; transform: translateY(0); }
+  #settings-toast.err { background: #dc2626; }
 {% endblock %}
 
 {% block content %}
-<div class="max-w-3xl mx-auto pb-24">
+<div class="max-w-3xl mx-auto pb-28">
 
-  <!-- Nextcloud -->
+  <!-- Tab Navigation -->
   <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-5 overflow-hidden">
-    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-      <span class="text-base">🟢</span>
-      <span class="text-sm font-bold uppercase tracking-wider text-slate-500">Nextcloud</span>
+    <div class="flex border-b border-slate-200 overflow-x-auto px-2">
+      <button class="st-tab-btn active" id="st-btn-verbindungen" onclick="switchSettingsTab('verbindungen')">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"/>
+        </svg>
+        Verbindungen
+      </button>
+      <button class="st-tab-btn" id="st-btn-allgemein" onclick="switchSettingsTab('allgemein')">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        Allgemein
+      </button>
+      <button class="st-tab-btn" id="st-btn-sicherheit" onclick="switchSettingsTab('sicherheit')">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z"/>
+        </svg>
+        Sicherheit & App
+      </button>
+      <button class="st-tab-btn" id="st-btn-vorlagen" onclick="switchSettingsTab('vorlagen')">
+        <svg class="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+        </svg>
+        Vorlagen
+      </button>
     </div>
-    <div class="px-6 py-5">
-      <div class="info-box">App-Passwort erstellen unter: Nextcloud → Einstellungen → Sicherheit → App-Passwörter</div>
-      <div class="form-grid">
-        <div class="field full">
-          <label>Server-URL</label>
-          <input type="url" id="NC_URL" class="mono" placeholder="https://nextcloud.example.com" value="{{ cfg.NC_URL }}">
-        </div>
-        <div class="field">
-          <label>Benutzername</label>
-          <input type="text" id="NC_USER" class="mono" placeholder="vorname.nachname@firma.de" value="{{ cfg.NC_USER }}">
-        </div>
-        <div class="field">
-          <label>App-Passwort</label>
-          <input type="password" id="NC_PASSWORD" class="mono" placeholder="••••••••••••••••••••" value="{{ cfg.NC_PASSWORD }}">
-        </div>
-        <div class="field">
-          <label>Zielordner <span class="hint">(wird automatisch angelegt)</span></label>
-          <input type="text" id="NC_FOLDER" placeholder="SecureSend" value="{{ cfg.NC_FOLDER }}">
-        </div>
-      </div>
-    </div>
-  </div>
 
-  <!-- OneDrive / Azure -->
-  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-5 overflow-hidden">
-    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-      <span class="text-base">☁️</span>
-      <span class="text-sm font-bold uppercase tracking-wider text-slate-500">OneDrive / Microsoft 365</span>
-    </div>
-    <div class="px-6 py-5">
-      <div class="info-box">App-Registrierung unter <strong>portal.azure.com</strong> → Azure Active Directory → App-Registrierungen. Benötigte Berechtigungen: Files.ReadWrite, Sites.ReadWrite.All</div>
-      <div class="form-grid">
-        <div class="field">
-          <label>Client ID</label>
-          <input type="text" id="AZURE_CLIENT_ID" class="mono" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value="{{ cfg.AZURE_CLIENT_ID }}">
-        </div>
-        <div class="field">
-          <label>Client Secret</label>
-          <input type="password" id="AZURE_CLIENT_SECRET" class="mono" placeholder="••••••••••••••••••••" value="{{ cfg.AZURE_CLIENT_SECRET }}">
-        </div>
-        <div class="field">
-          <label>Tenant ID</label>
-          <input type="text" id="AZURE_TENANT_ID" class="mono" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" value="{{ cfg.AZURE_TENANT_ID }}">
-        </div>
-        <div class="field">
-          <label>OneDrive-Benutzer</label>
-          <input type="email" id="ONEDRIVE_USER" placeholder="florian@firma.de" value="{{ cfg.ONEDRIVE_USER }}">
-        </div>
-        <div class="field">
-          <label>Zielordner</label>
-          <input type="text" id="ONEDRIVE_FOLDER" placeholder="SecureSend" value="{{ cfg.ONEDRIVE_FOLDER }}">
-        </div>
-      </div>
-    </div>
-  </div>
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- TAB: Verbindungen                                      -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div id="st-tab-verbindungen" class="divide-y divide-slate-100">
 
-  <!-- sipgate -->
-  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-5 overflow-hidden">
-    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-      <span class="text-base">📱</span>
-      <span class="text-sm font-bold uppercase tracking-wider text-slate-500">sipgate SMS</span>
-    </div>
-    <div class="px-6 py-5">
-      <div class="info-box">API-Token unter <strong>app.sipgate.com</strong> → Persönliche Zugangsdaten → Token</div>
-      <div class="form-grid">
-        <div class="field">
-          <label>Token-ID</label>
-          <input type="text" id="SIPGATE_TOKEN_ID" class="mono" placeholder="token-XXXXXX" value="{{ cfg.SIPGATE_TOKEN_ID }}">
+      <!-- Cloudspeicher -->
+      <div class="px-6 py-5">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div class="section-heading" style="margin-bottom:0;">☁️ Cloudspeicher</div>
+          <button class="new-btn" onclick="openCloudProviderForm()">+ Hinzufügen</button>
         </div>
-        <div class="field">
-          <label>Token</label>
-          <input type="password" id="SIPGATE_TOKEN" class="mono" placeholder="••••••••••••••••••••" value="{{ cfg.SIPGATE_TOKEN }}">
+        <div id="cloud-providers-empty" style="display:none;padding:24px;text-align:center;color:#94a3b8;font-size:13px;">
+          Noch kein Cloudspeicher konfiguriert.
         </div>
-        <div class="field">
-          <label>SMS-Geräte-ID <span class="hint">(meistens s0)</span></label>
-          <input type="text" id="SIPGATE_SMS_ID" placeholder="s0" value="{{ cfg.SIPGATE_SMS_ID }}">
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- SMTP -->
-  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-5 overflow-hidden">
-    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-      <span class="text-base">✉️</span>
-      <span class="text-sm font-bold uppercase tracking-wider text-slate-500">E-Mail (SMTP)</span>
-    </div>
-    <div class="px-6 py-5">
-      <div class="form-grid">
-        <div class="field">
-          <label>SMTP-Host</label>
-          <input type="text" id="SMTP_HOST" class="mono" placeholder="webserver01.beseco.com" value="{{ cfg.SMTP_HOST }}">
-        </div>
-        <div class="field">
-          <label>SMTP-Port</label>
-          <input type="number" id="SMTP_PORT" placeholder="587" value="{{ cfg.SMTP_PORT }}">
-        </div>
-        <div class="field">
-          <label>Verschlüsselung</label>
-          <select id="SMTP_MODE" onchange="updateSmtpPortHint()">
-            <option value="none"     {% if cfg.SMTP_MODE == 'none'     %}selected{% endif %}>Kein TLS (Port 25)</option>
-            <option value="starttls" {% if cfg.SMTP_MODE == 'starttls' %}selected{% endif %}>STARTTLS (Port 587)</option>
-            <option value="ssl"      {% if cfg.SMTP_MODE == 'ssl'      %}selected{% endif %}>SSL/TLS (Port 465)</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Benutzername <span class="hint">(leer lassen wenn kein Auth)</span></label>
-          <input type="text" id="SMTP_USER" class="mono" placeholder="support@beseco.com" value="{{ cfg.SMTP_USER }}">
-        </div>
-        <div class="field">
-          <label>Passwort</label>
-          <input type="password" id="SMTP_PASSWORD" class="mono" placeholder="••••••••••••••••••••" value="{{ cfg.SMTP_PASSWORD }}">
-        </div>
-        <div class="field">
-          <label>Absender E-Mail</label>
-          <input type="email" id="MAIL_FROM" placeholder="florian@firma.de" value="{{ cfg.MAIL_FROM }}">
-        </div>
-        <div class="field">
-          <label>Absender Name</label>
-          <input type="text" id="MAIL_FROM_NAME" placeholder="Max Mustermann – Firma" value="{{ cfg.MAIL_FROM_NAME }}">
-        </div>
-      </div>
-
-      <!-- Test-Bereich -->
-      <div style="margin-top:16px;padding-top:16px;border-top:1px solid #e5e7eb;">
-        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-          <button type="button" id="smtp-test-btn" onclick="testSmtp()"
-                  class="flex items-center gap-2 px-4 py-2 bg-white border border-blue-400 text-blue-600 text-sm font-semibold rounded-lg hover:bg-blue-50 transition-colors">
-            <div class="spinner" id="smtp-spinner" style="border-color:rgba(26,86,219,.3);border-top-color:#1a56db;"></div>
-            <span id="smtp-btn-label">🔌 Verbindung testen</span>
-          </button>
-          <div id="smtp-test-result" style="font-size:13px;font-weight:600;display:none;"></div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Benachrichtigungen -->
-  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-5 overflow-hidden">
-    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-      <span class="text-base">🔔</span>
-      <span class="text-sm font-bold uppercase tracking-wider text-slate-500">Benachrichtigungen</span>
-    </div>
-    <div class="px-6 py-5">
-      <div class="form-grid">
-        <div class="field full">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:#374151;">
-            <input type="checkbox" id="MAIL_NOTIFY_ENABLED" style="width:auto;"
-              {% if cfg.MAIL_NOTIFY_ENABLED == 'true' %}checked{% endif %}>
-            Benachrichtigung bei erfolgreichem Versand senden
-          </label>
-        </div>
-        <div class="field full">
-          <label>E-Mail-Adresse für Benachrichtigungen</label>
-          <input type="email" id="MAIL_NOTIFY" placeholder="ich@firma.de" value="{{ cfg.MAIL_NOTIFY }}">
-        </div>
-        <div class="field full">
-          <div class="info-box" style="margin-bottom:0;">
-            Diese Adresse erhält eine Bestätigungsmail nach jedem Versand. Kein PIN, keine Nachrichteninhalte.
+        <table class="conn-table" id="cloud-providers-table" style="display:none;">
+          <thead>
+            <tr>
+              <th>Name</th><th>Dienst</th><th>Status</th><th>Standard</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="cloud-providers-body"></tbody>
+        </table>
+        <!-- Add/Edit inline form -->
+        <div id="cloud-provider-form" class="section-hidden" style="margin-top:16px;padding:16px;background:#f8fafc;border-radius:10px;border:1.5px solid #e5e7eb;">
+          <div style="font-size:13px;font-weight:700;color:#1a56db;margin-bottom:12px;" id="cloud-provider-form-title">Neuer Cloudspeicher</div>
+          <input type="hidden" id="cp-edit-id">
+          <div class="form-grid">
+            <div class="field">
+              <label>Name</label>
+              <input type="text" id="cp-name" placeholder="z.B. Meine Nextcloud">
+            </div>
+            <div class="field">
+              <label>Dienst</label>
+              <select id="cp-service" onchange="onCloudServiceChange()">
+                <option value="nextcloud">Nextcloud</option>
+                <option value="onedrive">OneDrive / Microsoft 365</option>
+              </select>
+            </div>
+            <div class="field full">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:#374151;">
+                <input type="checkbox" id="cp-active" checked style="width:auto;">
+                Aktiv
+              </label>
+            </div>
+          </div>
+          <!-- Nextcloud fields -->
+          <div id="cp-nc-fields" class="form-grid" style="margin-top:12px;">
+            <div class="field full">
+              <label>Server-URL</label>
+              <input type="url" id="cp-nc-url" class="mono" placeholder="https://nextcloud.example.com">
+            </div>
+            <div class="field">
+              <label>Benutzername</label>
+              <input type="text" id="cp-nc-user" class="mono" placeholder="benutzername">
+            </div>
+            <div class="field">
+              <label>App-Passwort</label>
+              <input type="password" id="cp-nc-password" class="mono" placeholder="••••••••••••••••••••">
+            </div>
+            <div class="field">
+              <label>Zielordner <span class="hint">(wird automatisch angelegt)</span></label>
+              <input type="text" id="cp-nc-folder" placeholder="SecureSend">
+            </div>
+          </div>
+          <!-- OneDrive fields -->
+          <div id="cp-od-fields" class="form-grid section-hidden" style="margin-top:12px;">
+            <div class="field">
+              <label>Client ID</label>
+              <input type="text" id="cp-od-client-id" class="mono" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+            </div>
+            <div class="field">
+              <label>Client Secret</label>
+              <input type="password" id="cp-od-client-secret" class="mono" placeholder="••••••••••••••••••••">
+            </div>
+            <div class="field">
+              <label>Tenant ID</label>
+              <input type="text" id="cp-od-tenant-id" class="mono" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
+            </div>
+            <div class="field">
+              <label>OneDrive-Benutzer</label>
+              <input type="email" id="cp-od-user" placeholder="user@firma.de">
+            </div>
+            <div class="field">
+              <label>Zielordner</label>
+              <input type="text" id="cp-od-folder" placeholder="SecureSend">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px;">
+            <button class="btn-icon save" onclick="saveCloudProvider()">Speichern</button>
+            <button class="btn-icon cancel" onclick="closeCloudProviderForm()">Abbrechen</button>
           </div>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- Sicherheit: Verschlüsselte PDF -->
-  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-5 overflow-hidden">
-    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-      <span class="text-base">🔐</span>
-      <span class="text-sm font-bold uppercase tracking-wider text-slate-500">Erhöhte Sicherheit – Verschlüsselte PDF</span>
-    </div>
-    <div class="px-6 py-5">
-      <div class="form-grid">
-        <div class="field full">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:#374151;">
-            <input type="checkbox" id="SEND_AS_PDF" style="width:auto;"
-              {% if cfg.SEND_AS_PDF == 'true' %}checked{% endif %}>
-            Nachrichten als passwortgeschützte PDF versenden
-          </label>
+      <!-- SMS Gateway -->
+      <div class="px-6 py-5">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div class="section-heading" style="margin-bottom:0;">📱 SMS Gateway</div>
+          <button class="new-btn" onclick="openSmsGatewayForm()">+ Hinzufügen</button>
         </div>
-        <div class="field full">
-          <div class="info-box" style="margin-bottom:0;">
-            Wenn aktiv, wird der Markdown-Text in eine professionell gestaltete PDF-Datei umgewandelt
-            und anschließend mit dem Empfänger-Passwort verschlüsselt. Der Empfänger benötigt den
-            per SMS gesendeten PIN zum Öffnen der PDF.<br><br>
-            {% if cfg.PDF_LIBS_AVAILABLE %}
-              <span style="color:#16a34a;font-weight:600;">✅ Bibliotheken verfügbar (fpdf2 + pypdf)</span>
-            {% else %}
-              <span style="color:#dc2626;font-weight:600;">
-                ❌ Bibliotheken fehlen –
-                <code style="background:#fee2e2;padding:2px 6px;border-radius:4px;font-size:11px;">pip install fpdf2 pypdf</code>
-                ausführen.
-              </span>
-            {% endif %}
+        <div id="sms-gateways-empty" style="display:none;padding:24px;text-align:center;color:#94a3b8;font-size:13px;">
+          Noch kein SMS Gateway konfiguriert.
+        </div>
+        <table class="conn-table" id="sms-gateways-table" style="display:none;">
+          <thead>
+            <tr>
+              <th>Name</th><th>Dienst</th><th>Status</th><th>Standard</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="sms-gateways-body"></tbody>
+        </table>
+        <!-- Add/Edit inline form -->
+        <div id="sms-gateway-form" class="section-hidden" style="margin-top:16px;padding:16px;background:#f8fafc;border-radius:10px;border:1.5px solid #e5e7eb;">
+          <div style="font-size:13px;font-weight:700;color:#1a56db;margin-bottom:12px;" id="sms-gateway-form-title">Neues SMS Gateway</div>
+          <input type="hidden" id="sg-edit-id">
+          <div class="form-grid">
+            <div class="field">
+              <label>Name</label>
+              <input type="text" id="sg-name" placeholder="z.B. sipgate Hauptkonto">
+            </div>
+            <div class="field">
+              <label>Dienst</label>
+              <select id="sg-service">
+                <option value="sipgate">sipgate</option>
+              </select>
+            </div>
+            <div class="field full">
+              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:#374151;">
+                <input type="checkbox" id="sg-active" checked style="width:auto;">
+                Aktiv
+              </label>
+            </div>
+          </div>
+          <div class="info-box" style="margin-top:12px;">API-Token unter <strong>app.sipgate.com</strong> → Persönliche Zugangsdaten → Token</div>
+          <div class="form-grid" style="margin-top:4px;">
+            <div class="field">
+              <label>Token-ID</label>
+              <input type="text" id="sg-token-id" class="mono" placeholder="token-XXXXXX">
+            </div>
+            <div class="field">
+              <label>Token</label>
+              <input type="password" id="sg-token" class="mono" placeholder="••••••••••••••••••••">
+            </div>
+            <div class="field">
+              <label>SMS-Geräte-ID <span class="hint">(meistens s0)</span></label>
+              <input type="text" id="sg-sms-id" placeholder="s0">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:14px;">
+            <button class="btn-icon save" onclick="saveSmsGateway()">Speichern</button>
+            <button class="btn-icon cancel" onclick="closeSmsGatewayForm()">Abbrechen</button>
           </div>
         </div>
       </div>
-    </div>
-  </div>
 
-  <!-- App -->
-  <div class="bg-white rounded-2xl shadow-sm border border-slate-200 mb-5 overflow-hidden">
-    <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center gap-2">
-      <span class="text-base">🔧</span>
-      <span class="text-sm font-bold uppercase tracking-wider text-slate-500">App-Einstellungen</span>
-    </div>
-    <div class="px-6 py-5">
-      <div class="form-grid">
-        <div class="field">
-          <label>Port <span class="hint">(Neustart erforderlich)</span></label>
-          <input type="number" id="FLASK_PORT" placeholder="5001" value="{{ cfg.FLASK_PORT }}">
+      <!-- SMTP -->
+      <div class="px-6 py-5">
+        <div class="section-heading">✉️ E-Mail (SMTP)</div>
+        <div class="form-grid">
+          <div class="field">
+            <label>SMTP-Host</label>
+            <input type="text" id="SMTP_HOST" class="mono" placeholder="webserver01.beseco.com" value="{{ cfg.SMTP_HOST }}">
+          </div>
+          <div class="field">
+            <label>SMTP-Port</label>
+            <input type="number" id="SMTP_PORT" placeholder="587" value="{{ cfg.SMTP_PORT }}">
+          </div>
+          <div class="field">
+            <label>Verschlüsselung</label>
+            <select id="SMTP_MODE" onchange="updateSmtpPortHint()">
+              <option value="none"     {% if cfg.SMTP_MODE == 'none'     %}selected{% endif %}>Kein TLS (Port 25)</option>
+              <option value="starttls" {% if cfg.SMTP_MODE == 'starttls' %}selected{% endif %}>STARTTLS (Port 587)</option>
+              <option value="ssl"      {% if cfg.SMTP_MODE == 'ssl'      %}selected{% endif %}>SSL/TLS (Port 465)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Benutzername <span class="hint">(leer lassen wenn kein Auth)</span></label>
+            <input type="text" id="SMTP_USER" class="mono" placeholder="support@beseco.com" value="{{ cfg.SMTP_USER }}">
+          </div>
+          <div class="field">
+            <label>Passwort</label>
+            <input type="password" id="SMTP_PASSWORD" class="mono" placeholder="••••••••••••••••••••" value="{{ cfg.SMTP_PASSWORD }}">
+          </div>
+          <div class="field">
+            <label>Absender E-Mail</label>
+            <input type="email" id="MAIL_FROM" placeholder="florian@firma.de" value="{{ cfg.MAIL_FROM }}">
+          </div>
+          <div class="field">
+            <label>Absender Name</label>
+            <input type="text" id="MAIL_FROM_NAME" placeholder="Max Mustermann – Firma" value="{{ cfg.MAIL_FROM_NAME }}">
+          </div>
         </div>
-        <div class="field">
-          <label>Secret Key <span class="hint">(zufälliger String)</span></label>
-          <input type="text" id="SECRET_KEY" class="mono" placeholder="zufaelliger-langer-string" value="{{ cfg.SECRET_KEY }}">
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid #e5e7eb;">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <button type="button" id="smtp-test-btn" onclick="testSmtp()"
+                    class="flex items-center gap-2 px-4 py-2 bg-white border border-blue-400 text-blue-600 text-sm font-semibold rounded-lg hover:bg-blue-50 transition-colors">
+              <div class="spinner" id="smtp-spinner" style="border-color:rgba(26,86,219,.3);border-top-color:#1a56db;"></div>
+              <span id="smtp-btn-label">🔌 Verbindung testen</span>
+            </button>
+            <div id="smtp-test-result" style="font-size:13px;font-weight:600;display:none;"></div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /st-tab-verbindungen -->
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- TAB: Allgemein                                         -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div id="st-tab-allgemein" class="divide-y divide-slate-100 section-hidden">
+
+      <!-- Benachrichtigungen -->
+      <div class="px-6 py-5">
+        <div class="section-heading">🔔 Benachrichtigungen</div>
+        <div class="form-grid">
+          <div class="field full">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:#374151;">
+              <input type="checkbox" id="MAIL_NOTIFY_ENABLED" style="width:auto;"
+                {% if cfg.MAIL_NOTIFY_ENABLED == 'true' %}checked{% endif %}>
+              Benachrichtigung bei erfolgreichem Versand senden
+            </label>
+          </div>
+          <div class="field full">
+            <label>E-Mail-Adresse für Benachrichtigungen</label>
+            <input type="email" id="MAIL_NOTIFY" placeholder="ich@firma.de" value="{{ cfg.MAIL_NOTIFY }}">
+          </div>
+          <div class="field full">
+            <div class="info-box" style="margin-bottom:0;">
+              Diese Adresse erhält eine Bestätigungsmail nach jedem Versand. Kein PIN, keine Nachrichteninhalte.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Signatur -->
+      <div class="px-6 py-5">
+        <div class="section-heading">✍️ Signatur</div>
+        <div class="info-box">
+          Die Signatur wird automatisch in den Nachrichteneditor vorgeladen und steht als Variable
+          <code style="background:#dbeafe;padding:2px 6px;border-radius:4px;font-size:11px;">*signatur*</code>
+          in E-Mail-Vorlagen zur Verfügung.
+        </div>
+        <div class="field full">
+          <label>Signatur-Text (Markdown)</label>
+          <textarea id="SIGNATURE" rows="4"
+            style="font-family:'IBM Plex Mono',monospace;font-size:13px;padding:9px 12px;
+                   border:1.5px solid #e5e7eb;border-radius:10px;color:#111827;background:#fff;
+                   transition:border-color .15s,box-shadow .15s;outline:none;width:100%;resize:vertical;"
+            placeholder="---&#10;Mit freundlichen Grüßen&#10;&#10;**Max Mustermann** · Firma GmbH&#10;max@firma.de · +49 123 456789">{{ cfg.SIGNATURE }}</textarea>
+        </div>
+      </div>
+
+    </div><!-- /st-tab-allgemein -->
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- TAB: Sicherheit & App                                  -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div id="st-tab-sicherheit" class="divide-y divide-slate-100 section-hidden">
+
+      <!-- PDF-Bibliotheken Info -->
+      <div class="px-6 py-5">
+        <div class="section-heading">🔐 Erhöhte Sicherheit (PDF)</div>
+        <div class="form-grid">
+          <div class="field full">
+            <div class="info-box" style="margin-bottom:0;">
+              Die Sicherheitsstufe <strong>Erhöhte Sicherheit</strong> wandelt die Nachricht in eine
+              passwortgeschützte PDF-Datei um. Diese Stufe wird im Sendeformular ausgewählt.<br><br>
+              {% if cfg.PDF_LIBS_AVAILABLE %}
+                <span style="color:#16a34a;font-weight:600;">✅ Bibliotheken verfügbar (fpdf2 + pypdf)</span>
+              {% else %}
+                <span style="color:#dc2626;font-weight:600;">
+                  ❌ Bibliotheken fehlen –
+                  <code style="background:#fee2e2;padding:2px 6px;border-radius:4px;font-size:11px;">pip install fpdf2 pypdf</code>
+                  ausführen.
+                </span>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- App-Einstellungen -->
+      <div class="px-6 py-5">
+        <div class="section-heading">🔧 App-Einstellungen</div>
+        <div class="form-grid">
+          <div class="field">
+            <label>Port <span class="hint">(Neustart erforderlich)</span></label>
+            <input type="number" id="FLASK_PORT" placeholder="5001" value="{{ cfg.FLASK_PORT }}">
+          </div>
+          <div class="field">
+            <label>Secret Key <span class="hint">(zufälliger String)</span></label>
+            <input type="text" id="SECRET_KEY" class="mono" placeholder="zufaelliger-langer-string" value="{{ cfg.SECRET_KEY }}">
+          </div>
         </div>
       </div>
 
       <!-- Einstellungspasswort -->
-      <div style="margin-top:16px;padding-top:16px;border-top:1px solid #e5e7eb;">
-        <div style="margin-bottom:12px;font-size:13px;font-weight:600;color:#374151;">
-          🔒 Einstellungspasswort
-        </div>
+      <div class="px-6 py-5">
+        <div class="section-heading">🔒 Einstellungspasswort</div>
         <div style="margin-bottom:12px;font-size:13px;">
           {% if cfg.SETTINGS_PASSWORD_SET %}
             <span style="color:#16a34a;">✅ Passwort gesetzt – Einstellungen sind geschützt</span>
@@ -342,13 +556,97 @@
           </div>
         </div>
       </div>
-    </div>
-  </div>
+
+    </div><!-- /st-tab-sicherheit -->
+
+    <!-- ══════════════════════════════════════════════════════ -->
+    <!-- TAB: Vorlagen                                          -->
+    <!-- ══════════════════════════════════════════════════════ -->
+    <div id="st-tab-vorlagen" class="section-hidden">
+
+      <!-- Sub-tab bar -->
+      <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex gap-2 flex-wrap">
+        <button class="sub-tab-btn active" id="vtab-btn-msg" onclick="switchVorlagenTab('msg')">
+          Nachrichten-Vorlagen
+        </button>
+        <button class="sub-tab-btn" id="vtab-btn-email" onclick="switchVorlagenTab('email')">
+          E-Mail-Vorlagen
+        </button>
+      </div>
+
+      <!-- Sub-tab: Nachrichten-Vorlagen -->
+      <div id="vtab-msg" class="px-6 py-5">
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <div class="var-hint flex-1 min-w-0" style="margin-right:16px;">
+            <strong>Verfügbare Variablen:</strong>
+            <code>*vorname*</code> <code>*nachname*</code> <code>*firma*</code>
+            <code>*datum*</code> <code>*signatur*</code>
+          </div>
+          <button class="new-btn" onclick="startNewMsgTemplate()">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+            </svg>
+            Neue Vorlage
+          </button>
+        </div>
+        <div id="new-msg-form" class="tpl-card editing section-hidden">
+          <div class="tpl-name" style="color:#1a56db;">Neue Nachrichten-Vorlage</div>
+          <div class="edit-form">
+            <div><label>Name</label><input type="text" id="new-msg-name" placeholder="z.B. Angebot"></div>
+            <div><label>Titel / Betreff</label><input type="text" id="new-msg-title" placeholder="z.B. Angebot – [Betreff]"></div>
+            <div><label>Inhalt (Markdown)</label><textarea id="new-msg-content" placeholder="# Überschrift&#10;&#10;Nachricht hier…"></textarea></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn-icon save" onclick="createMsgTemplate()">Speichern</button>
+              <button class="btn-icon cancel" onclick="cancelNewMsg()">Abbrechen</button>
+            </div>
+          </div>
+        </div>
+        <div id="msg-list"></div>
+      </div>
+
+      <!-- Sub-tab: E-Mail-Vorlagen -->
+      <div id="vtab-email" class="px-6 py-5 section-hidden">
+        <div class="flex items-center justify-between mb-4 flex-wrap gap-3">
+          <div class="var-hint flex-1 min-w-0" style="margin-right:16px;">
+            <strong>Variablen:</strong>
+            <code>*vorname*</code> <code>*nachname*</code> <code>*firma*</code>
+            <code>*link*</code> <code>*passcode*</code> <code>*ablauf*</code>
+            <code>*datum*</code> <code>*dateiname*</code> <code>*signatur*</code>
+            <code>*custom_message*</code>
+          </div>
+          <button class="new-btn" onclick="startNewEmailTemplate()">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/>
+            </svg>
+            Neue Vorlage
+          </button>
+        </div>
+        <div id="new-email-form" class="tpl-card editing section-hidden">
+          <div class="tpl-name" style="color:#1a56db;">Neue E-Mail-Vorlage</div>
+          <div class="edit-form">
+            <div><label>Name</label><input type="text" id="new-email-name" placeholder="z.B. Standard-Vorlage"></div>
+            <div><label>Betreff</label><input type="text" id="new-email-subject" placeholder="z.B. Sichere Nachricht – *dateiname*"></div>
+            <div><label>HTML-Body</label><textarea class="html-area" id="new-email-body" placeholder="<!DOCTYPE html>&#10;<html>…"></textarea></div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:#374151;cursor:pointer;">
+                <input type="checkbox" id="new-email-default" style="width:auto;"> Als Standard setzen
+              </label>
+              <button class="btn-icon save" onclick="createEmailTemplate()">Speichern</button>
+              <button class="btn-icon cancel" onclick="cancelNewEmail()">Abbrechen</button>
+            </div>
+          </div>
+        </div>
+        <div id="email-list"></div>
+      </div>
+
+    </div><!-- /st-tab-vorlagen -->
+
+  </div><!-- /tab container -->
 
 </div>
 
-<!-- Save Bar (sticky bottom) -->
-<div class="sticky bottom-0 bg-slate-950 border-t border-slate-800/50 px-6 py-4 flex items-center gap-4">
+<!-- Save Bar (only for config tabs) -->
+<div id="settings-save-bar" class="sticky bottom-0 bg-slate-950 border-t border-slate-800/50 px-6 py-4 flex items-center gap-4">
   <button id="save-btn" onclick="saveSettings()"
           class="flex items-center gap-2 px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-55 disabled:cursor-not-allowed text-white text-sm font-bold rounded-xl transition-colors">
     <div class="spinner" id="spinner"></div>
@@ -356,133 +654,661 @@
   </button>
   <div id="status"></div>
 </div>
+
+<!-- Toast for vorlagen -->
+<div id="settings-toast"></div>
+
 {% endblock %}
 
 {% block scripts %}
 <script>
-  async function saveSettings() {
-    const btn     = document.getElementById('save-btn');
-    const spinner = document.getElementById('spinner');
-    const label   = document.getElementById('btn-label');
-    const status  = document.getElementById('status');
+// ═══════════════════════════════════════════════════════════════════
+// ── Tab Navigation ──
+// ═══════════════════════════════════════════════════════════════════
+const SETTINGS_TABS = ['verbindungen', 'allgemein', 'sicherheit', 'vorlagen'];
 
-    const fields = [
-      'NC_URL','NC_USER','NC_PASSWORD','NC_FOLDER',
-      'AZURE_CLIENT_ID','AZURE_CLIENT_SECRET','AZURE_TENANT_ID',
-      'ONEDRIVE_USER','ONEDRIVE_FOLDER',
-      'SIPGATE_TOKEN_ID','SIPGATE_TOKEN','SIPGATE_SMS_ID',
-      'SMTP_HOST','SMTP_PORT','SMTP_MODE','SMTP_USER','SMTP_PASSWORD',
-      'MAIL_FROM','MAIL_FROM_NAME',
-      'FLASK_PORT','SECRET_KEY',
-      'MAIL_NOTIFY',
-    ];
+function switchSettingsTab(tab) {
+  SETTINGS_TABS.forEach(t => {
+    document.getElementById(`st-tab-${t}`).classList.toggle('section-hidden', t !== tab);
+    document.getElementById(`st-btn-${t}`).classList.toggle('active', t === tab);
+  });
+  // Show/hide save bar: hide for verbindungen and vorlagen tabs
+  const saveBar = document.getElementById('settings-save-bar');
+  saveBar.style.display = (tab === 'vorlagen' || tab === 'verbindungen') ? 'none' : 'flex';
+  // Load vorlagen on first open
+  if (tab === 'vorlagen' && !_vorlagenLoaded) {
+    loadMsgTemplates();
+    loadEmailTemplates();
+    _vorlagenLoaded = true;
+  }
+  // Load connections on first open
+  if (tab === 'verbindungen' && !_connectionsLoaded) {
+    loadCloudProviders();
+    loadSmsGateways();
+    _connectionsLoaded = true;
+  }
+}
 
-    const payload = {};
-    fields.forEach(id => {
-      payload[id] = document.getElementById(id).value.trim();
+function switchVorlagenTab(tab) {
+  ['msg', 'email'].forEach(t => {
+    document.getElementById(`vtab-${t}`).classList.toggle('section-hidden', t !== tab);
+    document.getElementById(`vtab-btn-${t}`).classList.toggle('active', t === tab);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ── Settings speichern ──
+// ═══════════════════════════════════════════════════════════════════
+async function saveSettings() {
+  const btn     = document.getElementById('save-btn');
+  const spinner = document.getElementById('spinner');
+  const label   = document.getElementById('btn-label');
+  const status  = document.getElementById('status');
+
+  const fields = [
+    'SMTP_HOST','SMTP_PORT','SMTP_MODE','SMTP_USER','SMTP_PASSWORD',
+    'MAIL_FROM','MAIL_FROM_NAME',
+    'FLASK_PORT','SECRET_KEY',
+    'MAIL_NOTIFY',
+  ];
+
+  const payload = {};
+  fields.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) payload[id] = el.value.trim();
+  });
+
+  payload['SIGNATURE']             = document.getElementById('SIGNATURE').value;
+  payload['MAIL_NOTIFY_ENABLED']   = document.getElementById('MAIL_NOTIFY_ENABLED').checked ? 'true' : 'false';
+  payload['SETTINGS_PASSWORD_NEW']     = document.getElementById('SETTINGS_PASSWORD_NEW').value;
+  payload['SETTINGS_PASSWORD_CONFIRM'] = document.getElementById('SETTINGS_PASSWORD_CONFIRM').value;
+
+  btn.disabled = true; spinner.style.display = 'block';
+  label.textContent = 'Wird gespeichert…'; status.style.display = 'none';
+
+  try {
+    const resp = await fetch('/settings/save', {
+      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
     });
-
-    // Checkboxen separat behandeln
-    payload['MAIL_NOTIFY_ENABLED'] = document.getElementById('MAIL_NOTIFY_ENABLED').checked ? 'true' : 'false';
-    payload['SEND_AS_PDF']         = document.getElementById('SEND_AS_PDF').checked         ? 'true' : 'false';
-
-    // Einstellungspasswort separat behandeln (nicht in fields-Liste)
-    payload['SETTINGS_PASSWORD_NEW']     = document.getElementById('SETTINGS_PASSWORD_NEW').value;
-    payload['SETTINGS_PASSWORD_CONFIRM'] = document.getElementById('SETTINGS_PASSWORD_CONFIRM').value;
-
-    btn.disabled          = true;
-    spinner.style.display = 'block';
-    label.textContent     = 'Wird gespeichert…';
-    status.style.display  = 'none';
-
-    try {
-      const resp = await fetch('/settings/save', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload),
-      });
-
-      // Session abgelaufen → zur Login-Seite
-      if (resp.status === 401) {
-        window.location.href = '/settings/login';
-        return;
-      }
-
-      const data = await resp.json();
-
-      if (data.ok) {
-        status.className     = 'ok';
-        status.textContent   = '✅ Gespeichert – Änderungen sind sofort aktiv.';
-        status.style.display = 'block';
-      } else {
-        status.className     = 'err';
-        status.textContent   = '❌ Fehler: ' + data.error;
-        status.style.display = 'block';
-      }
-    } catch (err) {
-      status.className     = 'err';
-      status.textContent   = '❌ Fehler: ' + err.message;
-      status.style.display = 'block';
-    } finally {
-      btn.disabled          = false;
-      spinner.style.display = 'none';
-      label.textContent     = '💾 Einstellungen speichern';
+    if (resp.status === 401) { window.location.href = '/settings/login'; return; }
+    const data = await resp.json();
+    if (data.ok) {
+      status.className = 'ok'; status.textContent = '✅ Gespeichert – Änderungen sind sofort aktiv.';
+    } else {
+      status.className = 'err'; status.textContent = '❌ Fehler: ' + data.error;
     }
+    status.style.display = 'block';
+  } catch (err) {
+    status.className = 'err'; status.textContent = '❌ Fehler: ' + err.message;
+    status.style.display = 'block';
+  } finally {
+    btn.disabled = false; spinner.style.display = 'none';
+    label.textContent = '💾 Einstellungen speichern';
   }
+}
 
-  // ── Port-Hint bei Moduswechsel ──
-  function updateSmtpPortHint() {
-    const mode = document.getElementById('SMTP_MODE').value;
-    const portField = document.getElementById('SMTP_PORT');
-    if (mode === 'ssl')      portField.placeholder = '465';
-    else if (mode === 'starttls') portField.placeholder = '587';
-    else                     portField.placeholder = '25';
+function updateSmtpPortHint() {
+  const mode = document.getElementById('SMTP_MODE').value;
+  const p    = document.getElementById('SMTP_PORT');
+  if (mode === 'ssl') p.placeholder = '465';
+  else if (mode === 'starttls') p.placeholder = '587';
+  else p.placeholder = '25';
+}
+
+async function testSmtp() {
+  const btn = document.getElementById('smtp-test-btn');
+  const sp  = document.getElementById('smtp-spinner');
+  const lb  = document.getElementById('smtp-btn-label');
+  const res = document.getElementById('smtp-test-result');
+  btn.disabled = true; sp.style.display = 'block'; lb.textContent = 'Teste…'; res.style.display = 'none';
+  try {
+    const resp = await fetch('/settings/test-smtp', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        host: document.getElementById('SMTP_HOST').value.trim(),
+        port: parseInt(document.getElementById('SMTP_PORT').value) || 25,
+        mode: document.getElementById('SMTP_MODE').value,
+        user: document.getElementById('SMTP_USER').value.trim(),
+        password: document.getElementById('SMTP_PASSWORD').value,
+        mail_from: document.getElementById('MAIL_FROM').value.trim(),
+      }),
+    });
+    const data = await resp.json();
+    res.style.display = 'block';
+    if (data.ok) { res.style.color = '#16a34a'; res.textContent = '✅ ' + data.message; }
+    else         { res.style.color = '#dc2626'; res.textContent = '❌ ' + data.error; }
+  } catch (err) {
+    res.style.display = 'block'; res.style.color = '#dc2626'; res.textContent = '❌ ' + err.message;
+  } finally {
+    btn.disabled = false; sp.style.display = 'none'; lb.textContent = '🔌 Verbindung testen';
   }
+}
 
-  // ── SMTP-Test ──
-  async function testSmtp() {
-    const btn     = document.getElementById('smtp-test-btn');
-    const spinner = document.getElementById('smtp-spinner');
-    const label   = document.getElementById('smtp-btn-label');
-    const result  = document.getElementById('smtp-test-result');
+// ═══════════════════════════════════════════════════════════════════
+// ── Verbindungen (Cloud Providers & SMS Gateways) ──
+// ═══════════════════════════════════════════════════════════════════
+let _connectionsLoaded = false;
 
-    btn.disabled          = true;
-    spinner.style.display = 'block';
-    label.textContent     = 'Teste…';
-    result.style.display  = 'none';
+// ── Cloud Providers ──
 
-    try {
-      const resp = await fetch('/settings/test-smtp', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          host:      document.getElementById('SMTP_HOST').value.trim(),
-          port:      parseInt(document.getElementById('SMTP_PORT').value) || 25,
-          mode:      document.getElementById('SMTP_MODE').value,
-          user:      document.getElementById('SMTP_USER').value.trim(),
-          password:  document.getElementById('SMTP_PASSWORD').value,
-          mail_from: document.getElementById('MAIL_FROM').value.trim(),
-        }),
-      });
-      const data = await resp.json();
+async function loadCloudProviders() {
+  try {
+    const resp = await fetch('/api/cloud-providers');
+    if (resp.status === 401) return;
+    const providers = await resp.json();
+    renderCloudProviders(providers);
+  } catch(e) {
+    document.getElementById('cloud-providers-empty').style.display = 'block';
+    document.getElementById('cloud-providers-empty').textContent = 'Fehler beim Laden.';
+    document.getElementById('cloud-providers-table').style.display = 'none';
+  }
+}
 
-      result.style.display = 'block';
-      if (data.ok) {
-        result.style.color = '#16a34a';
-        result.textContent = '✅ ' + data.message;
+function renderCloudProviders(providers) {
+  const tbody  = document.getElementById('cloud-providers-body');
+  const empty  = document.getElementById('cloud-providers-empty');
+  const table  = document.getElementById('cloud-providers-table');
+  if (!providers.length) {
+    empty.style.display = 'block';
+    table.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  table.style.display = 'table';
+  tbody.innerHTML = providers.map(p => {
+    const cfg = typeof p.config_json === 'string' ? JSON.parse(p.config_json) : p.config_json;
+    const svcLabel = p.service === 'nextcloud' ? '🟢 Nextcloud' : '☁️ OneDrive';
+    return `<tr>
+      <td style="font-weight:600;color:#111827;">${esc(p.name)}</td>
+      <td>${svcLabel}</td>
+      <td><span class="status-dot ${p.is_active ? 'active' : 'inactive'}"></span> ${p.is_active ? 'Aktiv' : 'Inaktiv'}</td>
+      <td>${p.is_default ? '<span class="default-badge">Standard</span>' : ''}</td>
+      <td style="text-align:right;">
+        <div style="display:flex;gap:4px;justify-content:flex-end;">
+          ${!p.is_default ? `<button class="btn-icon def" onclick="setDefaultCloudProvider('${p.id}')">Standard</button>` : ''}
+          ${p.service === 'nextcloud' ? `<button class="btn-icon" id="sync-btn-${p.id}" onclick="syncNextcloudContacts('${p.id}')">🔄 Kontakte sync</button>` : ''}
+          <button class="btn-icon edit" onclick="openCloudProviderForm('${p.id}')">Bearbeiten</button>
+          <button class="btn-icon del" onclick="deleteCloudProvider('${p.id}','${esc(p.name)}')">Löschen</button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openCloudProviderForm(id) {
+  const form = document.getElementById('cloud-provider-form');
+  const title = document.getElementById('cloud-provider-form-title');
+  document.getElementById('cp-edit-id').value = id || '';
+  if (id) {
+    // Pre-fill from existing data via API
+    fetch('/api/cloud-providers').then(r => r.json()).then(providers => {
+      const p = providers.find(x => x.id === id);
+      if (!p) return;
+      const cfg = typeof p.config_json === 'string' ? JSON.parse(p.config_json) : p.config_json;
+      document.getElementById('cp-name').value    = p.name;
+      document.getElementById('cp-service').value = p.service;
+      document.getElementById('cp-active').checked = !!p.is_active;
+      if (p.service === 'nextcloud') {
+        document.getElementById('cp-nc-url').value      = cfg.url || '';
+        document.getElementById('cp-nc-user').value     = cfg.user || '';
+        document.getElementById('cp-nc-password').value = cfg.password || '';
+        document.getElementById('cp-nc-folder').value   = cfg.folder || '';
       } else {
-        result.style.color = '#dc2626';
-        result.textContent = '❌ ' + data.error;
+        document.getElementById('cp-od-client-id').value     = cfg.client_id || '';
+        document.getElementById('cp-od-client-secret').value = cfg.client_secret || '';
+        document.getElementById('cp-od-tenant-id').value     = cfg.tenant_id || '';
+        document.getElementById('cp-od-user').value          = cfg.user || '';
+        document.getElementById('cp-od-folder').value        = cfg.folder || '';
       }
-    } catch (err) {
-      result.style.display = 'block';
-      result.style.color   = '#dc2626';
-      result.textContent   = '❌ ' + err.message;
-    } finally {
-      btn.disabled          = false;
-      spinner.style.display = 'none';
-      label.textContent     = '🔌 Verbindung testen';
-    }
+      onCloudServiceChange();
+      title.textContent = 'Cloudspeicher bearbeiten';
+      form.classList.remove('section-hidden');
+      form.scrollIntoView({behavior:'smooth', block:'nearest'});
+    });
+  } else {
+    // Reset form
+    ['cp-name','cp-nc-url','cp-nc-user','cp-nc-password','cp-nc-folder',
+     'cp-od-client-id','cp-od-client-secret','cp-od-tenant-id','cp-od-user','cp-od-folder'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    document.getElementById('cp-service').value = 'nextcloud';
+    document.getElementById('cp-active').checked = true;
+    onCloudServiceChange();
+    title.textContent = 'Neuer Cloudspeicher';
+    form.classList.remove('section-hidden');
+    form.scrollIntoView({behavior:'smooth', block:'nearest'});
   }
+}
+
+function closeCloudProviderForm() {
+  document.getElementById('cloud-provider-form').classList.add('section-hidden');
+}
+
+function onCloudServiceChange() {
+  const svc = document.getElementById('cp-service').value;
+  document.getElementById('cp-nc-fields').classList.toggle('section-hidden', svc !== 'nextcloud');
+  document.getElementById('cp-od-fields').classList.toggle('section-hidden', svc !== 'onedrive');
+}
+
+async function saveCloudProvider() {
+  const id      = document.getElementById('cp-edit-id').value;
+  const name    = document.getElementById('cp-name').value.trim();
+  const service = document.getElementById('cp-service').value;
+  const active  = document.getElementById('cp-active').checked;
+  if (!name) { _stToast('err', 'Name ist Pflichtfeld.'); return; }
+
+  let config_json = {};
+  if (service === 'nextcloud') {
+    config_json = {
+      url:      document.getElementById('cp-nc-url').value.trim(),
+      user:     document.getElementById('cp-nc-user').value.trim(),
+      password: document.getElementById('cp-nc-password').value,
+      folder:   document.getElementById('cp-nc-folder').value.trim() || 'SecureSend',
+    };
+  } else {
+    config_json = {
+      client_id:     document.getElementById('cp-od-client-id').value.trim(),
+      client_secret: document.getElementById('cp-od-client-secret').value,
+      tenant_id:     document.getElementById('cp-od-tenant-id').value.trim(),
+      user:          document.getElementById('cp-od-user').value.trim(),
+      folder:        document.getElementById('cp-od-folder').value.trim() || 'SecureSend',
+    };
+  }
+
+  const payload = { name, service, is_active: active ? 1 : 0, config_json };
+  try {
+    const resp = id
+      ? await fetch(`/api/cloud-providers/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+      : await fetch('/api/cloud-providers', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Fehler');
+    _stToast('ok', id ? 'Cloudspeicher aktualisiert.' : 'Cloudspeicher hinzugefügt.');
+    closeCloudProviderForm();
+    loadCloudProviders();
+  } catch(e) { _stToast('err', 'Fehler: ' + e.message); }
+}
+
+async function deleteCloudProvider(id, name) {
+  if (!confirm(`Cloudspeicher "${name}" wirklich löschen?`)) return;
+  try {
+    const resp = await fetch(`/api/cloud-providers/${id}`, { method:'DELETE' });
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Fehler');
+    _stToast('ok', 'Cloudspeicher gelöscht.'); loadCloudProviders();
+  } catch(e) { _stToast('err', 'Fehler: ' + e.message); }
+}
+
+async function setDefaultCloudProvider(id) {
+  try {
+    const resp = await fetch(`/api/cloud-providers/${id}/set-default`, { method:'POST' });
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Fehler');
+    _stToast('ok', 'Als Standard-Cloudspeicher gesetzt.'); loadCloudProviders();
+  } catch(e) { _stToast('err', 'Fehler: ' + e.message); }
+}
+
+async function syncNextcloudContacts(providerId) {
+  const btn = document.getElementById(`sync-btn-${providerId}`);
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Synchronisiere…'; }
+  try {
+    const resp = await fetch('/api/contacts/sync-nextcloud', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ provider_id: providerId }),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      _stToast('ok', data.message);
+    } else {
+      _stToast('err', data.error || 'Sync fehlgeschlagen.');
+    }
+  } catch(e) {
+    _stToast('err', 'Netzwerkfehler beim Sync.');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔄 Kontakte sync'; }
+  }
+}
+
+// ── SMS Gateways ──
+
+async function loadSmsGateways() {
+  try {
+    const resp = await fetch('/api/sms-gateways');
+    if (resp.status === 401) return;
+    const gateways = await resp.json();
+    renderSmsGateways(gateways);
+  } catch(e) {
+    document.getElementById('sms-gateways-empty').style.display = 'block';
+    document.getElementById('sms-gateways-empty').textContent = 'Fehler beim Laden.';
+    document.getElementById('sms-gateways-table').style.display = 'none';
+  }
+}
+
+function renderSmsGateways(gateways) {
+  const tbody = document.getElementById('sms-gateways-body');
+  const empty = document.getElementById('sms-gateways-empty');
+  const table = document.getElementById('sms-gateways-table');
+  if (!gateways.length) {
+    empty.style.display = 'block';
+    table.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  table.style.display = 'table';
+  tbody.innerHTML = gateways.map(g => `<tr>
+    <td style="font-weight:600;color:#111827;">${esc(g.name)}</td>
+    <td>📱 ${esc(g.service)}</td>
+    <td><span class="status-dot ${g.is_active ? 'active' : 'inactive'}"></span> ${g.is_active ? 'Aktiv' : 'Inaktiv'}</td>
+    <td>${g.is_default ? '<span class="default-badge">Standard</span>' : ''}</td>
+    <td style="text-align:right;">
+      <div style="display:flex;gap:4px;justify-content:flex-end;">
+        ${!g.is_default ? `<button class="btn-icon def" onclick="setDefaultSmsGateway('${g.id}')">Standard</button>` : ''}
+        <button class="btn-icon edit" onclick="openSmsGatewayForm('${g.id}')">Bearbeiten</button>
+        <button class="btn-icon del" onclick="deleteSmsGateway('${g.id}','${esc(g.name)}')">Löschen</button>
+      </div>
+    </td>
+  </tr>`).join('');
+}
+
+function openSmsGatewayForm(id) {
+  const form  = document.getElementById('sms-gateway-form');
+  const title = document.getElementById('sms-gateway-form-title');
+  document.getElementById('sg-edit-id').value = id || '';
+  if (id) {
+    fetch('/api/sms-gateways').then(r => r.json()).then(gateways => {
+      const g = gateways.find(x => x.id === id);
+      if (!g) return;
+      const cfg = typeof g.config_json === 'string' ? JSON.parse(g.config_json) : g.config_json;
+      document.getElementById('sg-name').value     = g.name;
+      document.getElementById('sg-service').value  = g.service;
+      document.getElementById('sg-active').checked = !!g.is_active;
+      document.getElementById('sg-token-id').value = cfg.token_id || '';
+      document.getElementById('sg-token').value    = cfg.token || '';
+      document.getElementById('sg-sms-id').value   = cfg.sms_id || 's0';
+      title.textContent = 'SMS Gateway bearbeiten';
+      form.classList.remove('section-hidden');
+      form.scrollIntoView({behavior:'smooth', block:'nearest'});
+    });
+  } else {
+    ['sg-name','sg-token-id','sg-token'].forEach(id => { document.getElementById(id).value = ''; });
+    document.getElementById('sg-sms-id').value   = 's0';
+    document.getElementById('sg-service').value  = 'sipgate';
+    document.getElementById('sg-active').checked = true;
+    title.textContent = 'Neues SMS Gateway';
+    form.classList.remove('section-hidden');
+    form.scrollIntoView({behavior:'smooth', block:'nearest'});
+  }
+}
+
+function closeSmsGatewayForm() {
+  document.getElementById('sms-gateway-form').classList.add('section-hidden');
+}
+
+async function saveSmsGateway() {
+  const id      = document.getElementById('sg-edit-id').value;
+  const name    = document.getElementById('sg-name').value.trim();
+  const service = document.getElementById('sg-service').value;
+  const active  = document.getElementById('sg-active').checked;
+  if (!name) { _stToast('err', 'Name ist Pflichtfeld.'); return; }
+
+  const config_json = {
+    token_id: document.getElementById('sg-token-id').value.trim(),
+    token:    document.getElementById('sg-token').value,
+    sms_id:   document.getElementById('sg-sms-id').value.trim() || 's0',
+  };
+
+  const payload = { name, service, is_active: active ? 1 : 0, config_json };
+  try {
+    const resp = id
+      ? await fetch(`/api/sms-gateways/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+      : await fetch('/api/sms-gateways', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Fehler');
+    _stToast('ok', id ? 'SMS Gateway aktualisiert.' : 'SMS Gateway hinzugefügt.');
+    closeSmsGatewayForm();
+    loadSmsGateways();
+  } catch(e) { _stToast('err', 'Fehler: ' + e.message); }
+}
+
+async function deleteSmsGateway(id, name) {
+  if (!confirm(`SMS Gateway "${name}" wirklich löschen?`)) return;
+  try {
+    const resp = await fetch(`/api/sms-gateways/${id}`, { method:'DELETE' });
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Fehler');
+    _stToast('ok', 'SMS Gateway gelöscht.'); loadSmsGateways();
+  } catch(e) { _stToast('err', 'Fehler: ' + e.message); }
+}
+
+async function setDefaultSmsGateway(id) {
+  try {
+    const resp = await fetch(`/api/sms-gateways/${id}/set-default`, { method:'POST' });
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Fehler');
+    _stToast('ok', 'Als Standard-SMS-Gateway gesetzt.'); loadSmsGateways();
+  } catch(e) { _stToast('err', 'Fehler: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ── Vorlagen Toast ──
+// ═══════════════════════════════════════════════════════════════════
+let _stToastTimer = null;
+function _stToast(type, msg) {
+  const el = document.getElementById('settings-toast');
+  el.textContent = (type === 'ok' ? '✅ ' : '❌ ') + msg;
+  el.className = 'show' + (type === 'err' ? ' err' : '');
+  clearTimeout(_stToastTimer);
+  _stToastTimer = setTimeout(() => { el.className = ''; }, 3000);
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ── Nachrichten-Vorlagen ──
+// ═══════════════════════════════════════════════════════════════════
+// Initial load: Verbindungen tab is active by default
+document.addEventListener('DOMContentLoaded', function() {
+  // Hide save bar since Verbindungen tab is default
+  document.getElementById('settings-save-bar').style.display = 'none';
+  // Load connection data
+  loadCloudProviders();
+  loadSmsGateways();
+  _connectionsLoaded = true;
+});
+
+let _msgTemplates  = [];
+let _vorlagenLoaded = false;
+
+async function loadMsgTemplates() {
+  try {
+    const resp = await fetch('/api/templates');
+    _msgTemplates = await resp.json();
+    renderMsgList();
+  } catch (e) {
+    document.getElementById('msg-list').innerHTML = '<p style="color:#dc2626;font-size:13px;">Fehler beim Laden.</p>';
+  }
+}
+
+function renderMsgList() {
+  const c = document.getElementById('msg-list');
+  if (!_msgTemplates.length) { c.innerHTML = '<p style="color:#9ca3af;font-size:13px;margin-top:8px;">Noch keine Vorlagen vorhanden.</p>'; return; }
+  c.innerHTML = _msgTemplates.map(t => `
+    <div class="tpl-card" id="msg-card-${t.id}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <div><div class="tpl-name">${esc(t.name)}</div><div class="tpl-title">${esc(t.title)}</div></div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+          <button class="btn-icon edit" onclick="startEditMsg('${t.id}')">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
+            Bearbeiten
+          </button>
+          <button class="btn-icon del" onclick="deleteMsgTemplate('${t.id}','${esc(t.name)}')">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+            Löschen
+          </button>
+        </div>
+      </div>
+      <div id="msg-edit-${t.id}" class="section-hidden">
+        <div class="edit-form">
+          <div><label>Name</label><input type="text" id="msg-name-${t.id}" value="${esc(t.name)}"></div>
+          <div><label>Titel / Betreff</label><input type="text" id="msg-title-${t.id}" value="${esc(t.title)}"></div>
+          <div><label>Inhalt (Markdown)</label><textarea id="msg-content-${t.id}">${esc(t.content)}</textarea></div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-icon save" onclick="saveMsgTemplate('${t.id}')">Speichern</button>
+            <button class="btn-icon cancel" onclick="cancelEditMsg('${t.id}')">Abbrechen</button>
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function startEditMsg(id)  { document.getElementById(`msg-edit-${id}`).classList.remove('section-hidden'); document.getElementById(`msg-card-${id}`).classList.add('editing'); }
+function cancelEditMsg(id) { document.getElementById(`msg-edit-${id}`).classList.add('section-hidden'); document.getElementById(`msg-card-${id}`).classList.remove('editing'); }
+
+async function saveMsgTemplate(id) {
+  const name = document.getElementById(`msg-name-${id}`).value.trim();
+  const title = document.getElementById(`msg-title-${id}`).value.trim();
+  const content = document.getElementById(`msg-content-${id}`).value;
+  if (!name) { _stToast('err', 'Name ist Pflichtfeld.'); return; }
+  try {
+    const resp = await fetch(`/api/templates/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name,title,content}) });
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Fehler');
+    _stToast('ok', 'Vorlage gespeichert.'); await loadMsgTemplates();
+  } catch (e) { _stToast('err', 'Fehler: ' + e.message); }
+}
+
+async function deleteMsgTemplate(id, name) {
+  if (!confirm(`Vorlage "${name}" wirklich löschen?`)) return;
+  try {
+    const resp = await fetch(`/api/templates/${id}`, {method:'DELETE'});
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Fehler');
+    _stToast('ok', 'Vorlage gelöscht.'); await loadMsgTemplates();
+  } catch (e) { _stToast('err', 'Fehler: ' + e.message); }
+}
+
+function startNewMsgTemplate() { document.getElementById('new-msg-form').classList.remove('section-hidden'); document.getElementById('new-msg-name').focus(); }
+function cancelNewMsg() {
+  document.getElementById('new-msg-form').classList.add('section-hidden');
+  ['new-msg-name','new-msg-title','new-msg-content'].forEach(id => document.getElementById(id).value = '');
+}
+
+async function createMsgTemplate() {
+  const name = document.getElementById('new-msg-name').value.trim();
+  const title = document.getElementById('new-msg-title').value.trim();
+  const content = document.getElementById('new-msg-content').value;
+  if (!name) { _stToast('err', 'Name ist Pflichtfeld.'); return; }
+  try {
+    const resp = await fetch('/api/templates', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name,title,content}) });
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Fehler');
+    _stToast('ok', 'Vorlage erstellt.'); cancelNewMsg(); await loadMsgTemplates();
+  } catch (e) { _stToast('err', 'Fehler: ' + e.message); }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// ── E-Mail-Vorlagen ──
+// ═══════════════════════════════════════════════════════════════════
+let _emailTemplates = [];
+
+async function loadEmailTemplates() {
+  try {
+    const resp = await fetch('/api/email-templates');
+    _emailTemplates = await resp.json();
+    renderEmailList();
+  } catch (e) {
+    document.getElementById('email-list').innerHTML = '<p style="color:#dc2626;font-size:13px;">Fehler beim Laden.</p>';
+  }
+}
+
+function renderEmailList() {
+  const c = document.getElementById('email-list');
+  if (!_emailTemplates.length) { c.innerHTML = '<p style="color:#9ca3af;font-size:13px;margin-top:8px;">Noch keine E-Mail-Vorlagen vorhanden.</p>'; return; }
+  c.innerHTML = _emailTemplates.map(t => `
+    <div class="tpl-card" id="email-card-${t.id}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+        <div>
+          <div class="tpl-name">${esc(t.name)}${t.is_default ? '<span class="tpl-default-badge">Standard</span>' : ''}</div>
+          <div class="tpl-title">${esc(t.subject)}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;">
+          ${!t.is_default ? `<button class="btn-icon def" onclick="setDefaultEmailTemplate('${t.id}')">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z"/></svg>
+            Als Standard</button>` : ''}
+          <button class="btn-icon edit" onclick="startEditEmail('${t.id}')">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z"/></svg>
+            Bearbeiten
+          </button>
+          <button class="btn-icon del" onclick="deleteEmailTemplate('${t.id}','${esc(t.name)}')">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+            Löschen
+          </button>
+        </div>
+      </div>
+      <div id="email-edit-${t.id}" class="section-hidden">
+        <div class="edit-form">
+          <div><label>Name</label><input type="text" id="email-name-${t.id}" value="${esc(t.name)}"></div>
+          <div><label>Betreff</label><input type="text" id="email-subject-${t.id}" value="${esc(t.subject)}"></div>
+          <div><label>HTML-Body</label><textarea class="html-area" id="email-body-${t.id}">${esc(t.html_body)}</textarea></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <label style="display:flex;align-items:center;gap:6px;text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:#374151;cursor:pointer;">
+              <input type="checkbox" id="email-default-${t.id}" style="width:auto;" ${t.is_default ? 'checked' : ''}> Als Standard
+            </label>
+            <button class="btn-icon save" onclick="saveEmailTemplate('${t.id}')">Speichern</button>
+            <button class="btn-icon cancel" onclick="cancelEditEmail('${t.id}')">Abbrechen</button>
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function startEditEmail(id)  { document.getElementById(`email-edit-${id}`).classList.remove('section-hidden'); document.getElementById(`email-card-${id}`).classList.add('editing'); }
+function cancelEditEmail(id) { document.getElementById(`email-edit-${id}`).classList.add('section-hidden'); document.getElementById(`email-card-${id}`).classList.remove('editing'); }
+
+async function saveEmailTemplate(id) {
+  const name = document.getElementById(`email-name-${id}`).value.trim();
+  const subject = document.getElementById(`email-subject-${id}`).value.trim();
+  const html_body = document.getElementById(`email-body-${id}`).value;
+  const is_default = document.getElementById(`email-default-${id}`).checked ? 1 : 0;
+  if (!name) { _stToast('err', 'Name ist Pflichtfeld.'); return; }
+  try {
+    const resp = await fetch(`/api/email-templates/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name,subject,html_body,is_default}) });
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Fehler');
+    _stToast('ok', 'E-Mail-Vorlage gespeichert.'); await loadEmailTemplates();
+  } catch (e) { _stToast('err', 'Fehler: ' + e.message); }
+}
+
+async function setDefaultEmailTemplate(id) {
+  const tpl = _emailTemplates.find(t => t.id === id);
+  if (!tpl) return;
+  try {
+    const resp = await fetch(`/api/email-templates/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name:tpl.name,subject:tpl.subject,html_body:tpl.html_body,is_default:1}) });
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Fehler');
+    _stToast('ok', 'Als Standard-Vorlage gesetzt.'); await loadEmailTemplates();
+  } catch (e) { _stToast('err', 'Fehler: ' + e.message); }
+}
+
+async function deleteEmailTemplate(id, name) {
+  if (!confirm(`E-Mail-Vorlage "${name}" wirklich löschen?`)) return;
+  try {
+    const resp = await fetch(`/api/email-templates/${id}`, {method:'DELETE'});
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Fehler');
+    _stToast('ok', 'E-Mail-Vorlage gelöscht.'); await loadEmailTemplates();
+  } catch (e) { _stToast('err', 'Fehler: ' + e.message); }
+}
+
+function startNewEmailTemplate() { document.getElementById('new-email-form').classList.remove('section-hidden'); document.getElementById('new-email-name').focus(); }
+function cancelNewEmail() {
+  document.getElementById('new-email-form').classList.add('section-hidden');
+  ['new-email-name','new-email-subject','new-email-body'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('new-email-default').checked = false;
+}
+
+async function createEmailTemplate() {
+  const name = document.getElementById('new-email-name').value.trim();
+  const subject = document.getElementById('new-email-subject').value.trim();
+  const html_body = document.getElementById('new-email-body').value;
+  const is_default = document.getElementById('new-email-default').checked ? 1 : 0;
+  if (!name) { _stToast('err', 'Name ist Pflichtfeld.'); return; }
+  try {
+    const resp = await fetch('/api/email-templates', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({name,subject,html_body,is_default}) });
+    if (!resp.ok) throw new Error((await resp.json()).error || 'Fehler');
+    _stToast('ok', 'E-Mail-Vorlage erstellt.'); cancelNewEmail(); await loadEmailTemplates();
+  } catch (e) { _stToast('err', 'Fehler: ' + e.message); }
+}
 </script>
 {% endblock %}

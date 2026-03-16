@@ -19,13 +19,14 @@ import requests
 import msal
 import markdown as mdlib
 import xml.etree.ElementTree as ET
+import db
 from pathlib import Path
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.header import Header
 from email.utils import formataddr
 from datetime import datetime, timedelta, timezone
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 from urllib.parse import quote
 
@@ -106,12 +107,13 @@ def _apply_config():
     global SETTINGS_PASSWORD
     global MAIL_NOTIFY, MAIL_NOTIFY_ENABLED
     global SEND_AS_PDF
+    global SIGNATURE
 
     # OneDrive / Microsoft Graph
     AZURE_CLIENT_ID     = _get("AZURE_CLIENT_ID")
     AZURE_CLIENT_SECRET = _get("AZURE_CLIENT_SECRET")
     AZURE_TENANT_ID     = _get("AZURE_TENANT_ID")
-    ONEDRIVE_USER       = _get("ONEDRIVE_USER", "florian@beubl.de")
+    ONEDRIVE_USER       = _get("ONEDRIVE_USER", "")
     ONEDRIVE_FOLDER     = _get("ONEDRIVE_FOLDER", "SecureSend")
 
     # Nextcloud
@@ -126,13 +128,13 @@ def _apply_config():
     SIPGATE_SMS_ID      = _get("SIPGATE_SMS_ID", "s0")
 
     # SMTP
-    SMTP_HOST           = _get("SMTP_HOST", "192.168.10.14")
+    SMTP_HOST           = _get("SMTP_HOST", "")
     SMTP_PORT           = int(_get("SMTP_PORT", "25"))
     SMTP_MODE           = _get("SMTP_MODE", "none")   # none | starttls | ssl
     SMTP_USER           = _get("SMTP_USER", "")
     SMTP_PASSWORD       = _get("SMTP_PASSWORD", "")
-    MAIL_FROM           = _get("MAIL_FROM", "florian@beubl.de")
-    MAIL_FROM_NAME      = _get("MAIL_FROM_NAME", "Florian Beubl – Beseco IT")
+    MAIL_FROM           = _get("MAIL_FROM", "")
+    MAIL_FROM_NAME      = _get("MAIL_FROM_NAME", "")
 
     # App-Sicherheit
     SETTINGS_PASSWORD   = _get("SETTINGS_PASSWORD", "")
@@ -142,10 +144,19 @@ def _apply_config():
     MAIL_NOTIFY_ENABLED = _get("MAIL_NOTIFY_ENABLED", "false").lower() in ("true", "1")
 
     # Sicherheit: Nachrichten als verschlüsselte PDF senden
-    global SEND_AS_PDF
     SEND_AS_PDF = _get("SEND_AS_PDF", "false").lower() in ("true", "1")
 
+    # Signatur
+    SIGNATURE = _get("SIGNATURE", "")
+
 _apply_config()
+db.init_db()
+db.migrate_connections_from_config({
+    "NC_URL": NC_URL, "NC_USER": NC_USER, "NC_PASSWORD": NC_PASSWORD, "NC_FOLDER": NC_FOLDER,
+    "AZURE_CLIENT_ID": AZURE_CLIENT_ID, "AZURE_CLIENT_SECRET": AZURE_CLIENT_SECRET,
+    "AZURE_TENANT_ID": AZURE_TENANT_ID, "ONEDRIVE_USER": ONEDRIVE_USER, "ONEDRIVE_FOLDER": ONEDRIVE_FOLDER,
+    "SIPGATE_TOKEN_ID": SIPGATE_TOKEN_ID, "SIPGATE_TOKEN": SIPGATE_TOKEN, "SIPGATE_SMS_ID": SIPGATE_SMS_ID,
+})
 
 # ── Settings-Auth Decorator ──────────────────────────────────────────────────
 
@@ -326,7 +337,49 @@ def upload_and_share(provider: str, filename: str, content: bytes,
                      password: str, days: int,
                      content_type: str = "text/markdown; charset=utf-8",
                      subfolder: str = "") -> str:
-    """Lädt Datei hoch und gibt passwortgeschützten Link zurück."""
+    """Lädt Datei hoch und gibt passwortgeschützten Link zurück.
+    provider kann ein DB-UUID (enthält '-'), 'nextcloud' oder 'onedrive' sein."""
+
+    # UUID → aus DB laden
+    if "-" in provider:
+        db_prov = db.get_all_cloud_providers()
+        match = next((p for p in db_prov if p["id"] == provider), None)
+        if match:
+            cfg = json.loads(match["config_json"]) if isinstance(match["config_json"], str) else match["config_json"]
+            service = match["service"]
+            if service == "nextcloud":
+                # temporär globale NC-Vars für die Nextcloud-Hilfsfunktionen überschreiben
+                global NC_URL, NC_USER, NC_PASSWORD, NC_FOLDER, _nc_user_id_cache
+                _prev = (NC_URL, NC_USER, NC_PASSWORD, NC_FOLDER)
+                NC_URL = cfg.get("url", NC_URL)
+                NC_USER = cfg.get("user", NC_USER)
+                NC_PASSWORD = cfg.get("password", NC_PASSWORD)
+                NC_FOLDER = cfg.get("folder", NC_FOLDER)
+                _nc_user_id_cache = None
+                try:
+                    file_path = upload_to_nextcloud(filename, content,
+                                                    content_type=content_type, subfolder=subfolder)
+                    return create_nextcloud_share_link(file_path, password, days)
+                finally:
+                    NC_URL, NC_USER, NC_PASSWORD, NC_FOLDER = _prev
+                    _nc_user_id_cache = None
+            else:  # onedrive
+                global AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, ONEDRIVE_USER, ONEDRIVE_FOLDER
+                _prev_od = (AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, ONEDRIVE_USER, ONEDRIVE_FOLDER)
+                AZURE_CLIENT_ID     = cfg.get("client_id", AZURE_CLIENT_ID)
+                AZURE_CLIENT_SECRET = cfg.get("client_secret", AZURE_CLIENT_SECRET)
+                AZURE_TENANT_ID     = cfg.get("tenant_id", AZURE_TENANT_ID)
+                ONEDRIVE_USER       = cfg.get("user", ONEDRIVE_USER)
+                ONEDRIVE_FOLDER     = cfg.get("folder", ONEDRIVE_FOLDER)
+                try:
+                    token   = get_graph_token()
+                    item_id = upload_to_onedrive(token, filename, content,
+                                                 content_type=content_type, subfolder=subfolder)
+                    return create_onedrive_share_link(token, item_id, password, days)
+                finally:
+                    AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, ONEDRIVE_USER, ONEDRIVE_FOLDER = _prev_od
+
+    # Legacy string providers
     if provider == "nextcloud":
         file_path = upload_to_nextcloud(filename, content,
                                         content_type=content_type,
@@ -367,26 +420,39 @@ def send_email(to_email: str, subject: str, body_html: str):
 
 # ── SMS via sipgate ──────────────────────────────────────────────────────────
 
-def send_sms_sipgate(to_number: str, message: str):
-    """Sendet SMS über die sipgate REST API."""
-    # Nummer normalisieren → E.164 ohne +
-    number = to_number.strip().replace(" ", "").replace("-", "")
-    if number.startswith("0"):
-        number = "49" + number[1:]
-    elif number.startswith("+"):
-        number = number[1:]
+def send_sms_sipgate_with_config(cfg: dict, to_number: str, message: str):
+    """Sendet SMS über die sipgate REST API mit expliziter Konfiguration."""
+    # Unsichtbare Unicode-Zeichen entfernen, nur Ziffern und + behalten
+    cleaned = "".join(c for c in to_number if c.isdigit() or c == "+").strip()
+    if cleaned.startswith("00"):
+        number = "+" + cleaned[2:]
+    elif cleaned.startswith("0"):
+        number = "+49" + cleaned[1:]
+    elif cleaned.startswith("+"):
+        number = cleaned
+    else:
+        number = "+" + cleaned
 
     resp = requests.post(
         "https://api.sipgate.com/v2/sessions/sms",
-        auth=(SIPGATE_TOKEN_ID, SIPGATE_TOKEN),
+        auth=(cfg.get("token_id", ""), cfg.get("token", "")),
         json={
-            "smsId":     SIPGATE_SMS_ID,
+            "smsId":     cfg.get("sms_id", "s0"),
             "recipient": number,
             "message":   message,
         },
         timeout=15,
     )
     resp.raise_for_status()
+
+
+def send_sms_sipgate(to_number: str, message: str):
+    """Sendet SMS über die sipgate REST API (verwendet globale Vars als Fallback)."""
+    send_sms_sipgate_with_config(
+        {"token_id": SIPGATE_TOKEN_ID, "token": SIPGATE_TOKEN, "sms_id": SIPGATE_SMS_ID},
+        to_number,
+        message,
+    )
 
 # ── Passwort generieren ──────────────────────────────────────────────────────
 
@@ -507,7 +573,7 @@ def md_to_pdf_bytes(md_text: str, title: str = "Sichere Nachricht") -> bytes:
             continue
         if in_code_block:
             pdf.set_x(22)
-            pdf.multi_cell(166, 5, line, fill=True, new_x='LMARGIN', new_y='NEXT')
+            pdf.multi_cell(166, 5, _to_latin1(line), fill=True, new_x='LMARGIN', new_y='NEXT')
             continue
 
         # ── Überschriften ──
@@ -604,20 +670,15 @@ def index():
 
 @app.route("/api/providers")
 def api_providers():
-    """Gibt eine Liste der konfigurierten Storage-Provider zurück."""
-    providers = []
-    # Nextcloud: konfiguriert wenn NC_URL, NC_USER, NC_PASSWORD alle non-empty
-    if NC_URL and NC_USER and NC_PASSWORD:
-        providers.append({"id": "nextcloud", "name": "Nextcloud", "icon": "🟢"})
-    # OneDrive: konfiguriert wenn Azure-Credentials gesetzt und kein Placeholder
-    def _is_placeholder(val: str) -> bool:
-        return val.upper().startswith("DEIN")
-    if (AZURE_CLIENT_ID and AZURE_CLIENT_SECRET and AZURE_TENANT_ID
-            and not _is_placeholder(AZURE_CLIENT_ID)
-            and not _is_placeholder(AZURE_CLIENT_SECRET)
-            and not _is_placeholder(AZURE_TENANT_ID)):
-        providers.append({"id": "onedrive", "name": "OneDrive", "icon": "☁️"})
-    return jsonify(providers)
+    """Gibt eine Liste der konfigurierten Storage-Provider zurück (aus DB)."""
+    providers = db.get_all_cloud_providers()
+    return jsonify([{
+        "id":         p["id"],
+        "name":       p["name"],
+        "icon":       "🟢" if p["service"] == "nextcloud" else "☁️",
+        "service":    p["service"],
+        "is_default": bool(p["is_default"]),
+    } for p in providers if p["is_active"]])
 
 
 @app.route("/api/status")
@@ -625,27 +686,32 @@ def api_status():
     """Schnell-Check aller konfigurierten Dienste (für Status-Bar in der UI)."""
     result = {}
 
-    # ── Nextcloud ──
-    if NC_URL and NC_USER and NC_PASSWORD:
+    # ── Nextcloud (aus DB) ──
+    nc_prov = next((p for p in db.get_all_cloud_providers()
+                    if p["service"] == "nextcloud" and p["is_active"]), None)
+    if nc_prov:
+        cfg = json.loads(nc_prov["config_json"]) if isinstance(nc_prov["config_json"], str) else nc_prov["config_json"]
+        nc_url = cfg.get("url", "")
         try:
-            r = requests.get(
-                f"{NC_URL.rstrip('/')}/status.php",
-                timeout=4,
-            )
+            r = requests.get(f"{nc_url.rstrip('/')}/status.php", timeout=4)
             result["nextcloud"] = {"configured": True, "ok": r.status_code < 400,
-                                   "label": "Nextcloud"}
+                                   "label": f"Nextcloud ({nc_prov['name']})"}
         except Exception as exc:
             result["nextcloud"] = {"configured": True, "ok": False,
-                                   "label": "Nextcloud", "error": str(exc)[:80]}
+                                   "label": f"Nextcloud ({nc_prov['name']})", "error": str(exc)[:80]}
     else:
         result["nextcloud"] = {"configured": False, "ok": None, "label": "Nextcloud"}
 
-    # ── OneDrive (nur konfiguriert prüfen, kein Token-Request) ──
-    def _is_placeholder(v):
-        return (not v) or v.upper().startswith("DEIN")
-    od_ok = (AZURE_CLIENT_ID and AZURE_CLIENT_SECRET and AZURE_TENANT_ID
-             and not _is_placeholder(AZURE_CLIENT_ID))
-    result["onedrive"] = {"configured": bool(od_ok), "ok": None, "label": "OneDrive"}
+    # ── OneDrive (aus DB, nur konfiguriert prüfen) ──
+    od_prov = next((p for p in db.get_all_cloud_providers()
+                    if p["service"] == "onedrive" and p["is_active"]), None)
+    if od_prov:
+        cfg = json.loads(od_prov["config_json"]) if isinstance(od_prov["config_json"], str) else od_prov["config_json"]
+        od_configured = bool(cfg.get("client_id") and cfg.get("tenant_id"))
+        result["onedrive"] = {"configured": od_configured, "ok": None,
+                              "label": f"OneDrive ({od_prov['name']})"}
+    else:
+        result["onedrive"] = {"configured": False, "ok": None, "label": "OneDrive"}
 
     # ── SMTP (Socket-Connect-Test) ──
     if SMTP_HOST:
@@ -660,15 +726,44 @@ def api_status():
     else:
         result["smtp"] = {"configured": False, "ok": None, "label": "SMTP"}
 
-    # ── sipgate (nur konfiguriert prüfen) ──
-    sg_ok = bool(SIPGATE_TOKEN_ID and SIPGATE_TOKEN)
-    result["sipgate"] = {"configured": sg_ok, "ok": None, "label": "sipgate"}
+    # ── sipgate (aus DB, API-Verbindung testen) ──
+    sg_gw = db.get_default_sms_gateway()
+    if sg_gw:
+        cfg = json.loads(sg_gw["config_json"]) if isinstance(sg_gw["config_json"], str) else sg_gw["config_json"]
+        token_id = cfg.get("token_id", "")
+        token    = cfg.get("token", "")
+        if token_id and token:
+            try:
+                sg_resp = requests.get(
+                    "https://api.sipgate.com/v2/account",
+                    auth=(token_id, token),
+                    timeout=5,
+                )
+                sg_api_ok = sg_resp.status_code == 200
+                result["sipgate"] = {
+                    "configured": True,
+                    "ok": sg_api_ok,
+                    "label": f"sipgate ({sg_gw['name']})",
+                }
+                if not sg_api_ok:
+                    result["sipgate"]["error"] = f"HTTP {sg_resp.status_code}"
+            except Exception as exc:
+                result["sipgate"] = {
+                    "configured": True,
+                    "ok": False,
+                    "label": f"sipgate ({sg_gw['name']})",
+                    "error": str(exc)[:80],
+                }
+        else:
+            result["sipgate"] = {"configured": False, "ok": None, "label": "sipgate"}
+    else:
+        result["sipgate"] = {"configured": False, "ok": None, "label": "sipgate"}
 
-    # ── PDF-Verschlüsselung ──
+    # ── PDF-Bibliotheken (für Sicherheitsstufe "Erhöhte Sicherheit") ──
     result["pdf"] = {
-        "configured": SEND_AS_PDF,
-        "ok": _PDF_LIBS_AVAILABLE if SEND_AS_PDF else None,
-        "label": "PDF verschlüsselt",
+        "configured": _PDF_LIBS_AVAILABLE,
+        "ok": _PDF_LIBS_AVAILABLE,
+        "label": "PDF (Erhöhte Sicherheit)",
     }
 
     return jsonify(result)
@@ -683,7 +778,7 @@ def contacts():
 
 @app.route("/api/contacts", methods=["GET"])
 def api_contacts_get():
-    return jsonify(_load_ab())
+    return jsonify(db.get_all_contacts())
 
 
 @app.route("/api/contacts", methods=["POST"])
@@ -691,18 +786,7 @@ def api_contacts_post():
     data = request.get_json()
     if not data:
         return jsonify({"ok": False, "error": "Keine Daten empfangen."}), 400
-    entry = {
-        "id":         str(uuid.uuid4()),
-        "company":    data.get("company", "").strip(),
-        "last_name":  data.get("last_name", "").strip(),
-        "first_name": data.get("first_name", "").strip(),
-        "mobile":     data.get("mobile", "").strip(),
-        "email":      data.get("email", "").strip(),
-        "created_at": datetime.now().isoformat(),
-    }
-    ab = _load_ab()
-    ab.append(entry)
-    _save_ab(ab)
+    entry = db.save_contact(data)
     return jsonify(entry), 201
 
 
@@ -711,27 +795,280 @@ def api_contacts_put(contact_id):
     data = request.get_json()
     if not data:
         return jsonify({"ok": False, "error": "Keine Daten empfangen."}), 400
-    ab = _load_ab()
-    for i, entry in enumerate(ab):
-        if entry["id"] == contact_id:
-            ab[i]["company"]    = data.get("company", entry["company"]).strip()
-            ab[i]["last_name"]  = data.get("last_name", entry["last_name"]).strip()
-            ab[i]["first_name"] = data.get("first_name", entry["first_name"]).strip()
-            ab[i]["mobile"]     = data.get("mobile", entry["mobile"]).strip()
-            ab[i]["email"]      = data.get("email", entry["email"]).strip()
-            _save_ab(ab)
-            return jsonify(ab[i])
-    return jsonify({"ok": False, "error": "Kontakt nicht gefunden."}), 404
+    updated = db.update_contact(contact_id, data)
+    if updated is None:
+        return jsonify({"ok": False, "error": "Kontakt nicht gefunden."}), 404
+    return jsonify(updated)
 
 
 @app.route("/api/contacts/<contact_id>", methods=["DELETE"])
 def api_contacts_delete(contact_id):
-    ab = _load_ab()
-    new_ab = [e for e in ab if e["id"] != contact_id]
-    if len(new_ab) == len(ab):
-        return jsonify({"ok": False, "error": "Kontakt nicht gefunden."}), 404
-    _save_ab(new_ab)
-    return jsonify({"ok": True})
+    if db.delete_contact(contact_id):
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "Kontakt nicht gefunden."}), 404
+
+
+# ── vCard Hilfsfunktionen ────────────────────────────────────────────────────
+
+def _vcf_escape(value: str) -> str:
+    """Escape special characters per RFC 6350."""
+    return value.replace("\\", "\\\\").replace(",", "\\,").replace(";", "\\;").replace("\n", "\\n")
+
+
+def _contacts_to_vcf(contacts: list) -> str:
+    """Erzeugt einen vCard 3.0 String aus einer Liste von Kontakt-Dicts."""
+    blocks = []
+    for c in contacts:
+        fn = f"{c.get('first_name', '')} {c.get('last_name', '')}".strip()
+        blocks.append("\r\n".join([
+            "BEGIN:VCARD",
+            "VERSION:3.0",
+            f"FN:{_vcf_escape(fn)}",
+            f"N:{_vcf_escape(c.get('last_name', ''))};{_vcf_escape(c.get('first_name', ''))};; ;",
+            f"ORG:{_vcf_escape(c.get('company', ''))}",
+            f"TEL;TYPE=CELL:{c.get('mobile', '')}",
+            f"EMAIL:{c.get('email', '')}",
+            "END:VCARD",
+        ]))
+    return "\r\n\r\n".join(blocks)
+
+
+def _parse_vcf(text: str) -> list:
+    """Minimaler vCard 3.0/4.0 Parser. Gibt Liste von Kontakt-Dicts zurück."""
+    import quopri
+
+    def _unfold(lines):
+        """RFC 6350 line unfolding: continuation lines start with space or tab."""
+        result = []
+        for line in lines:
+            if line and line[0] in (" ", "\t") and result:
+                result[-1] += line[1:]
+            else:
+                result.append(line)
+        return result
+
+    contacts = []
+    # Split in einzelne vCard-Blöcke
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    blocks = []
+    in_card = False
+    current = []
+    for line in text.splitlines():
+        if line.strip().upper() == "BEGIN:VCARD":
+            in_card = True
+            current = []
+        elif line.strip().upper() == "END:VCARD":
+            if in_card:
+                blocks.append(current)
+            in_card = False
+        elif in_card:
+            current.append(line)
+
+    for block in blocks:
+        lines = _unfold(block)
+        contact = {"company": "", "last_name": "", "first_name": "", "mobile": "", "email": ""}
+        fn_fallback = ""
+        mobile_found = False
+
+        for line in lines:
+            # Quoted-Printable dekodieren
+            if "ENCODING=QUOTED-PRINTABLE" in line.upper():
+                parts = line.split(":", 1)
+                if len(parts) == 2:
+                    try:
+                        line = parts[0] + ":" + quopri.decodestring(parts[1].encode()).decode("utf-8", errors="replace")
+                    except Exception:
+                        pass
+
+            # Eigenschaft und Wert trennen
+            if ":" not in line:
+                continue
+            prop_full, value = line.split(":", 1)
+            value = value.strip()
+            prop_upper = prop_full.upper()
+
+            # FN (vollständiger Name als Fallback)
+            if prop_upper.startswith("FN"):
+                fn_fallback = value
+
+            # N: Nachname;Vorname;...
+            elif prop_upper.startswith("N;") or prop_upper == "N":
+                parts = value.split(";")
+                contact["last_name"]  = parts[0].strip() if len(parts) > 0 else ""
+                contact["first_name"] = parts[1].strip() if len(parts) > 1 else ""
+
+            # ORG: Firma;Abteilung → nur erste Komponente
+            elif prop_upper.startswith("ORG"):
+                contact["company"] = value.split(";")[0].strip()
+
+            # TEL: Mobilnummer bevorzugt
+            elif prop_upper.startswith("TEL"):
+                type_part = prop_upper
+                is_mobile = any(t in type_part for t in ("CELL", "MOBILE"))
+                if is_mobile:
+                    contact["mobile"] = value
+                    mobile_found = True
+                elif not mobile_found:
+                    contact["mobile"] = value
+
+            # EMAIL: erste gefundene
+            elif prop_upper.startswith("EMAIL") and not contact["email"]:
+                contact["email"] = value
+
+        # Fallback: FN nach letztem Leerzeichen aufteilen
+        if not contact["last_name"] and fn_fallback:
+            parts = fn_fallback.rsplit(" ", 1)
+            contact["first_name"] = parts[0] if len(parts) > 1 else ""
+            contact["last_name"]  = parts[-1]
+
+        # Nur hinzufügen wenn mindestens ein verwertbares Feld vorhanden
+        if any(contact.values()):
+            contacts.append(contact)
+
+    return contacts
+
+
+@app.route("/api/contacts/export.vcf")
+def api_contacts_export_vcf():
+    contacts = db.get_all_contacts()
+    vcf_text = _contacts_to_vcf(contacts)
+    return Response(
+        vcf_text,
+        mimetype="text/vcard; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=kontakte.vcf"},
+    )
+
+
+@app.route("/api/contacts/import", methods=["POST"])
+def api_contacts_import():
+    if "vcf_file" not in request.files:
+        return jsonify({"ok": False, "error": "Keine Datei empfangen."}), 400
+    f = request.files["vcf_file"]
+    raw = f.read()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        text = raw.decode("latin-1", errors="replace")
+
+    parsed = _parse_vcf(text)
+    imported = skipped = 0
+    for entry in parsed:
+        _, created = db.upsert_contact(entry)
+        if created:
+            imported += 1
+        else:
+            skipped += 1
+
+    return jsonify({
+        "ok": True,
+        "imported": imported,
+        "skipped": skipped,
+        "message": f"{imported} neue Kontakte importiert, {skipped} bereits vorhanden",
+    })
+
+
+@app.route("/api/contacts/sync-nextcloud", methods=["POST"])
+def api_contacts_sync_nextcloud():
+    import xml.etree.ElementTree as ET
+    body = request.get_json(silent=True) or {}
+    provider_id = body.get("provider_id")
+
+    # Provider laden
+    providers = db.get_all_cloud_providers()
+    nc_cfg = None
+    if provider_id:
+        for p in providers:
+            if p["id"] == provider_id and p["service"] == "nextcloud":
+                nc_cfg = json.loads(p.get("config_json") or "{}")
+                break
+    else:
+        for p in providers:
+            if p["service"] == "nextcloud" and p.get("is_default"):
+                nc_cfg = json.loads(p.get("config_json") or "{}")
+                break
+        if nc_cfg is None:
+            for p in providers:
+                if p["service"] == "nextcloud":
+                    nc_cfg = json.loads(p.get("config_json") or "{}")
+                    break
+
+    if not nc_cfg:
+        return jsonify({"ok": False, "error": "Kein Nextcloud-Provider konfiguriert."}), 400
+
+    nc_url  = nc_cfg.get("url", "").rstrip("/")
+    nc_user = nc_cfg.get("user", "")
+    nc_pass = nc_cfg.get("password", "")
+    if not nc_url or not nc_user:
+        return jsonify({"ok": False, "error": "Nextcloud-Zugangsdaten unvollständig."}), 400
+
+    # Interne User-ID per OCS ermitteln (LDAP-User haben oft UUID statt Login-Name)
+    try:
+        ocs_resp = requests.get(
+            f"{nc_url}/ocs/v2.php/cloud/user",
+            auth=(nc_user, nc_pass),
+            headers={"OCS-APIRequest": "true", "Accept": "application/json"},
+            timeout=10,
+        )
+        nc_user_id = ocs_resp.json()["ocs"]["data"]["id"]
+    except Exception:
+        nc_user_id = nc_user  # Fallback: Login-Name direkt verwenden
+
+    carddav_url = f"{nc_url}/remote.php/dav/addressbooks/users/{nc_user_id}/contacts/"
+    propfind_xml = '<?xml version="1.0" encoding="utf-8"?><propfind xmlns="DAV:"><prop><getcontenttype/><getetag/></prop></propfind>'
+
+    try:
+        resp = requests.request(
+            "PROPFIND", carddav_url,
+            auth=(nc_user, nc_pass),
+            headers={"Depth": "1", "Content-Type": "application/xml"},
+            data=propfind_xml,
+            timeout=20,
+        )
+    except requests.RequestException as e:
+        return jsonify({"ok": False, "error": f"Verbindungsfehler: {e}"}), 502
+
+    if resp.status_code not in (207, 200):
+        return jsonify({"ok": False, "error": f"CardDAV-Fehler: HTTP {resp.status_code}"}), 502
+
+    # hrefs mit .vcf extrahieren
+    try:
+        root = ET.fromstring(resp.content)
+    except ET.ParseError as e:
+        return jsonify({"ok": False, "error": f"XML-Fehler: {e}"}), 502
+
+    ns = {"d": "DAV:"}
+    hrefs = [
+        el.text.strip()
+        for el in root.findall(".//d:href", ns)
+        if el.text and el.text.strip().endswith(".vcf")
+    ]
+
+    imported = skipped = errors = 0
+    for href in hrefs:
+        url = f"{nc_url}{href}" if href.startswith("/") else href
+        try:
+            vresp = requests.get(url, auth=(nc_user, nc_pass), timeout=10)
+            if vresp.status_code != 200:
+                errors += 1
+                continue
+            try:
+                vtext = vresp.content.decode("utf-8")
+            except UnicodeDecodeError:
+                vtext = vresp.content.decode("latin-1", errors="replace")
+            for entry in _parse_vcf(vtext):
+                _, created = db.upsert_contact(entry)
+                if created:
+                    imported += 1
+                else:
+                    skipped += 1
+        except requests.RequestException:
+            errors += 1
+
+    result = {"ok": True, "imported": imported, "skipped": skipped,
+              "message": f"{imported} neue Kontakte importiert, {skipped} bereits vorhanden"}
+    if errors:
+        result["message"] += f", {errors} Fehler"
+    return jsonify(result)
 
 
 # ── History Routes ───────────────────────────────────────────────────────────
@@ -743,18 +1080,14 @@ def history():
 
 @app.route("/api/history", methods=["GET"])
 def api_history_get():
-    return jsonify(_load_history())
+    return jsonify(db.get_all_history())
 
 
 @app.route("/api/history/<entry_id>", methods=["DELETE"])
 def api_history_delete(entry_id):
-    hist = _load_history()
-    new_hist = [e for e in hist if e["id"] != entry_id]
-    if len(new_hist) == len(hist):
-        return jsonify({"ok": False, "error": "Eintrag nicht gefunden."}), 404
-    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(new_hist, f, indent=2, ensure_ascii=False)
-    return jsonify({"ok": True})
+    if db.delete_history_entry(entry_id):
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "Eintrag nicht gefunden."}), 404
 
 
 # ── Send Route ───────────────────────────────────────────────────────────────
@@ -787,19 +1120,33 @@ def send():
     md_content     = request.form.get("content", "").strip()
     filename_hint  = request.form.get("filename", "nachricht").strip()
 
+    security_level = request.form.get("security_level", "sicher").strip()
+    # normal   = Link ohne Passwort, keine SMS mit Code
+    # sicher   = Passwortgeschützter Link + Code per SMS  (Standard)
+    # erhoeht  = Verschlüsselte PDF + Code per SMS (erzwingt PDF)
+
     subfolder = _sanitize_subfolder(subfolder_raw)
 
     has_file    = ("file" in request.files and
                    bool(request.files["file"].filename))
     has_content = bool(md_content)
 
-    if not to_email or not to_phone:
-        return jsonify({"ok": False, "error": "E-Mail und Telefon sind Pflichtfelder."}), 400
+    if not to_email:
+        return jsonify({"ok": False, "error": "E-Mail ist ein Pflichtfeld."}), 400
+    if security_level != "normal" and not to_phone:
+        return jsonify({"ok": False, "error": "Mobilnummer ist für den SMS-Code erforderlich."}), 400
     if not has_file and not has_content:
         return jsonify({"ok": False, "error": "Bitte Nachricht eingeben oder Datei auswählen."}), 400
 
     try:
-        password = generate_password()
+        password = generate_password() if security_level != "normal" else ""
+
+        # Standard-E-Mail-Vorlage aus DB laden (für Betreff)
+        _email_tpl = db.get_default_email_template()
+        _default_subject_file = (_email_tpl["subject"] if _email_tpl
+                                 else "Sichere Datei von Beseco IT – *dateiname*")
+        _default_subject_msg  = (_email_tpl["subject"] if _email_tpl
+                                 else "Sichere Nachricht von Beseco IT – *dateiname*")
 
         if has_file:
             # ── Datei hochladen ──
@@ -837,23 +1184,33 @@ def send():
                         f"<hr style='border:none;border-top:1px solid #e5e7eb;margin:12px 0;'>"
                         + rendered_md
                     )
-                email_body = build_email_html(
+                email_body = _render_email_template(
                     share_url=share_url,
                     expiry_days=expiry_days,
                     custom_message=combined,
+                    password=password,
+                    recipient_name=recipient_name,
+                    filename=full_filename,
                 )
             else:
-                email_body = build_email_html(
+                email_body = _render_email_template(
                     share_url=share_url,
                     expiry_days=expiry_days,
                     custom_message=custom_msg,
+                    password=password,
+                    recipient_name=recipient_name,
+                    filename=full_filename,
                 )
 
-            send_email(to_email, f"Sichere Datei von Beseco IT – {safe_base}{ext}", email_body)
-            sms_text = (
-                f"Beseco IT: Ihr Zugangscode für die sichere Datei lautet: {password}\n"
-                f"(Gültig {expiry_days} Tage)"
-            )
+            email_subject = _render_email_subject(_default_subject_file, filename=f"{safe_base}{ext}")
+            send_email(to_email, email_subject, email_body)
+            if password:
+                sms_text = (
+                    f"Beseco IT: Ihr Zugangscode für die sichere Datei lautet: {password}\n"
+                    f"(Gültig {expiry_days} Tage)"
+                )
+            else:
+                sms_text = f"Beseco IT: Ihre sichere Datei ist verfügbar. (Gültig {expiry_days} Tage)"
 
         else:
             # ── Nur Text → verschlüsselte PDF oder Markdown hochladen ──
@@ -862,7 +1219,8 @@ def send():
                 safe_name = "nachricht"
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-            if SEND_AS_PDF and _PDF_LIBS_AVAILABLE:
+            use_pdf = (security_level == "erhoeht" and _PDF_LIBS_AVAILABLE)
+            if use_pdf and password:
                 full_filename = f"{ts}_{safe_name}.pdf"
                 raw_pdf       = md_to_pdf_bytes(md_content, title=safe_name)
                 upload_bytes  = encrypt_pdf_bytes(raw_pdf, password)
@@ -877,18 +1235,31 @@ def send():
                 content_type=ct, subfolder=subfolder
             )
 
-            email_body = build_email_html(
+            email_body = _render_email_template(
                 share_url=share_url,
                 expiry_days=expiry_days,
                 custom_message=custom_msg,
+                password=password,
+                recipient_name=recipient_name,
+                filename=full_filename,
             )
-            send_email(to_email, f"Sichere Nachricht von Beseco IT – {safe_name}", email_body)
-            sms_text = (
-                f"Beseco IT: Ihr Zugangscode für die sichere Nachricht lautet: {password}\n"
-                f"(Gültig {expiry_days} Tage)"
-            )
+            email_subject = _render_email_subject(_default_subject_msg, filename=safe_name)
+            send_email(to_email, email_subject, email_body)
+            if password:
+                sms_text = (
+                    f"Beseco IT: Ihr Zugangscode für die sichere Nachricht lautet: {password}\n"
+                    f"(Gültig {expiry_days} Tage)"
+                )
+            else:
+                sms_text = f"Beseco IT: Ihre sichere Nachricht ist verfügbar. (Gültig {expiry_days} Tage)"
 
-        send_sms_sipgate(to_phone, sms_text)
+        if security_level != "normal" and to_phone:
+            default_gw = db.get_default_sms_gateway()
+            if default_gw:
+                gw_cfg = json.loads(default_gw["config_json"]) if isinstance(default_gw["config_json"], str) else default_gw["config_json"]
+                send_sms_sipgate_with_config(gw_cfg, to_phone, sms_text)
+            else:
+                send_sms_sipgate(to_phone, sms_text)
 
         if MAIL_NOTIFY_ENABLED and MAIL_NOTIFY:
             try:
@@ -899,15 +1270,17 @@ def send():
             except Exception:
                 pass
 
-        _append_history({
+        db.append_history({
             "id":              str(uuid.uuid4()),
-            "timestamp":       datetime.now().isoformat(),
+            "created_at":      datetime.now().isoformat(),
             "provider":        provider,
             "filename":        full_filename,
             "share_url":       share_url,
-            "recipient_email": to_email,
+            "to_email":        to_email,
+            "to_phone":        to_phone,
             "recipient_name":  recipient_name,
             "expiry_days":     expiry_days,
+            "security_level":  security_level,
         })
 
         return jsonify({
@@ -921,171 +1294,167 @@ def send():
         return jsonify({"ok": False, "error": str(e)}), 500
 
 
-def build_email_html(share_url: str, expiry_days: int, custom_message: str) -> str:
-    custom_block = ""
-    if custom_message:
-        custom_block = f"""
-        <div style="background:#f4f7fb;border-left:4px solid #1a56db;
-                    padding:12px 18px;margin:20px 0;border-radius:4px;
-                    color:#374151;font-size:15px;line-height:1.6;">
-          {custom_message}
-        </div>"""
+def _render_email_template(share_url: str, expiry_days: int, custom_message: str,
+                            password: str = "", recipient_name: str = "",
+                            filename: str = "") -> str:
+    """Lädt Standard-E-Mail-Vorlage aus DB und ersetzt Variablen.
+    Fällt auf build_email_html() zurück wenn keine DB-Vorlage gefunden."""
+    tpl = db.get_default_email_template()
+    if not tpl:
+        return build_email_html(share_url, expiry_days, custom_message)
 
-    return f"""<!DOCTYPE html>
-<html lang="de">
-<head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f0f4f8;font-family:'Segoe UI',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0">
-    <tr><td align="center" style="padding:40px 20px;">
-      <table width="580" cellpadding="0" cellspacing="0"
-             style="background:#ffffff;border-radius:12px;
-                    box-shadow:0 4px 24px rgba(0,0,0,.08);overflow:hidden;">
-        <!-- Header -->
-        <tr>
-          <td style="background:#1a56db;padding:28px 36px;">
-            <p style="margin:0;color:#ffffff;font-size:13px;
-                      letter-spacing:2px;text-transform:uppercase;
-                      font-weight:600;">Beseco IT Systems · Freising</p>
-            <h1 style="margin:8px 0 0;color:#ffffff;font-size:22px;
-                       font-weight:700;">🔒 Sichere Nachricht für Sie</h1>
-          </td>
-        </tr>
-        <!-- Body -->
-        <tr>
-          <td style="padding:32px 36px;">
-            <p style="margin:0 0 16px;color:#374151;font-size:15px;line-height:1.7;">
-              Guten Tag,<br><br>
-              ich habe Ihnen eine vertrauliche Nachricht bzw. Datei bereitgestellt.
-              Sie können diese über den folgenden Link abrufen:
-            </p>
-            {custom_block}
-            <div style="text-align:center;margin:28px 0;">
-              <a href="{share_url}"
-                 style="background:#1a56db;color:#ffffff;text-decoration:none;
-                        padding:14px 32px;border-radius:8px;font-size:15px;
-                        font-weight:600;display:inline-block;
-                        letter-spacing:.3px;">
-                Nachricht öffnen →
-              </a>
-            </div>
-            <table width="100%" cellpadding="0" cellspacing="0"
-                   style="background:#fef9c3;border-radius:8px;margin:20px 0;">
-              <tr>
-                <td style="padding:14px 18px;color:#713f12;font-size:14px;line-height:1.6;">
-                  <strong>🔑 Passwort:</strong>
-                  Sie erhalten das Passwort zum Öffnen dieser Nachricht
-                  per SMS auf Ihre hinterlegte Mobilnummer.<br>
-                  <strong>⏱ Gültigkeit:</strong> {expiry_days} Tage
-                </td>
-              </tr>
-            </table>
-            <p style="margin:20px 0 0;color:#6b7280;font-size:13px;line-height:1.6;">
-              Sollten Sie Fragen haben, antworten Sie einfach auf diese E-Mail
-              oder rufen Sie mich an.
-            </p>
-          </td>
-        </tr>
-        <!-- Footer -->
-        <tr>
-          <td style="background:#f9fafb;padding:18px 36px;
-                     border-top:1px solid #e5e7eb;">
-            <p style="margin:0;color:#9ca3af;font-size:12px;">
-              Florian Beubl · Beseco IT Systems · Freising<br>
-              florian@beubl.de
-            </p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
+    # Empfängername aufteilen
+    name_parts = recipient_name.strip().split(" ", 1) if recipient_name else []
+    vorname  = name_parts[0] if len(name_parts) > 0 else ""
+    nachname = name_parts[1] if len(name_parts) > 1 else ""
+
+    # custom_message Block bauen
+    if custom_message:
+        custom_block = (
+            f"<div style=\"background:#f4f7fb;border-left:4px solid #1a56db;"
+            f"padding:12px 18px;margin:20px 0;border-radius:4px;"
+            f"color:#374151;font-size:15px;line-height:1.6;\">"
+            f"{custom_message}</div>"
+        )
+    else:
+        custom_block = ""
+
+    datum     = datetime.now().strftime("%d.%m.%Y")
+    signature = SIGNATURE or ""
+
+    html = tpl["html_body"]
+    html = html.replace("*vorname*",        vorname)
+    html = html.replace("*nachname*",       nachname)
+    html = html.replace("*firma*",          "")
+    html = html.replace("*link*",           share_url)
+    html = html.replace("*ablauf*",         str(expiry_days))
+    html = html.replace("*passcode*",       password)
+    html = html.replace("*datum*",          datum)
+    html = html.replace("*signatur*",       signature)
+    html = html.replace("*custom_message*", custom_block)
+    html = html.replace("*dateiname*",      filename)
+    return html
+
+
+def _render_email_subject(tpl_subject: str, filename: str = "", safe_name: str = "") -> str:
+    """Ersetzt Variablen im E-Mail-Betreff."""
+    name = filename or safe_name
+    subject = tpl_subject.replace("*dateiname*", name)
+    subject = subject.replace("*datum*", datetime.now().strftime("%d.%m.%Y"))
+    return subject
+
+
+def build_email_html(share_url: str, expiry_days: int, custom_message: str) -> str:
+    return render_template(
+        "email_send.html",
+        share_url=share_url,
+        expiry_days=expiry_days,
+        custom_message=custom_message,
+        sender_name=MAIL_FROM_NAME or MAIL_FROM or "SecureSend",
+    )
 
 
 def build_notify_email_html(to_email: str, filename: str, provider: str, share_url: str, expiry_days: int) -> str:
-    provider_name = "OneDrive" if provider == "onedrive" else "Nextcloud"
-    timestamp = datetime.now().strftime("%d.%m.%Y %H:%M:%S")
-    return f"""<!DOCTYPE html>
-<html lang="de">
-<head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f0f4f8;font-family:'Segoe UI',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0">
-    <tr><td align="center" style="padding:40px 20px;">
-      <table width="580" cellpadding="0" cellspacing="0"
-             style="background:#ffffff;border-radius:12px;
-                    box-shadow:0 4px 24px rgba(0,0,0,.08);overflow:hidden;">
-        <!-- Header -->
-        <tr>
-          <td style="background:#16a34a;padding:28px 36px;">
-            <p style="margin:0;color:#ffffff;font-size:13px;
-                      letter-spacing:2px;text-transform:uppercase;
-                      font-weight:600;">Beseco IT Systems · SecureSend</p>
-            <h1 style="margin:8px 0 0;color:#ffffff;font-size:22px;
-                       font-weight:700;">✅ Nachricht erfolgreich versendet</h1>
-          </td>
-        </tr>
-        <!-- Body -->
-        <tr>
-          <td style="padding:32px 36px;">
-            <table width="100%" cellpadding="0" cellspacing="0"
-                   style="border-collapse:collapse;font-size:14px;">
-              <tr>
-                <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                           color:#6b7280;width:140px;font-weight:600;">Empfänger</td>
-                <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                           color:#111827;">{to_email}</td>
-              </tr>
-              <tr>
-                <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                           color:#6b7280;font-weight:600;">Datei</td>
-                <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                           color:#111827;font-family:monospace;font-size:13px;">{filename}</td>
-              </tr>
-              <tr>
-                <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                           color:#6b7280;font-weight:600;">Provider</td>
-                <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                           color:#111827;">{provider_name}</td>
-              </tr>
-              <tr>
-                <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                           color:#6b7280;font-weight:600;">Gültigkeit</td>
-                <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                           color:#111827;">{expiry_days} Tage</td>
-              </tr>
-              <tr>
-                <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                           color:#6b7280;font-weight:600;">Zeitstempel</td>
-                <td style="padding:10px 0;border-bottom:1px solid #e5e7eb;
-                           color:#111827;">{timestamp}</td>
-              </tr>
-              <tr>
-                <td style="padding:10px 0;color:#6b7280;font-weight:600;">Link</td>
-                <td style="padding:10px 0;">
-                  <a href="{share_url}" style="color:#1a56db;word-break:break-all;">{share_url}</a>
-                </td>
-              </tr>
-            </table>
-            <p style="margin:20px 0 0;color:#6b7280;font-size:12px;line-height:1.6;">
-              Diese Benachrichtigung enthält keinen PIN und keine Nachrichteninhalte.
-            </p>
-          </td>
-        </tr>
-        <!-- Footer -->
-        <tr>
-          <td style="background:#f9fafb;padding:18px 36px;
-                     border-top:1px solid #e5e7eb;">
-            <p style="margin:0;color:#9ca3af;font-size:12px;">
-              Florian Beubl · Beseco IT Systems · Freising<br>
-              florian@beubl.de
-            </p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>"""
+    return render_template(
+        "email_notify.html",
+        to_email=to_email,
+        filename=filename,
+        provider_name="OneDrive" if provider == "onedrive" else "Nextcloud",
+        share_url=share_url,
+        expiry_days=expiry_days,
+        timestamp=datetime.now().strftime("%d.%m.%Y %H:%M:%S"),
+        sender_name=MAIL_FROM_NAME or MAIL_FROM or "SecureSend",
+    )
+
+
+# ── Cloud Providers API ───────────────────────────────────────────────────────
+
+@app.route("/api/cloud-providers", methods=["GET"])
+@require_settings_auth
+def api_cloud_providers_get():
+    return jsonify(db.get_all_cloud_providers())
+
+
+@app.route("/api/cloud-providers", methods=["POST"])
+@require_settings_auth
+def api_cloud_providers_post():
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Keine Daten empfangen."}), 400
+    entry = db.save_cloud_provider(data)
+    return jsonify(entry), 201
+
+
+@app.route("/api/cloud-providers/<provider_id>", methods=["PUT"])
+@require_settings_auth
+def api_cloud_providers_put(provider_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Keine Daten empfangen."}), 400
+    updated = db.update_cloud_provider(provider_id, data)
+    if updated is None:
+        return jsonify({"ok": False, "error": "Provider nicht gefunden."}), 404
+    return jsonify(updated)
+
+
+@app.route("/api/cloud-providers/<provider_id>", methods=["DELETE"])
+@require_settings_auth
+def api_cloud_providers_delete(provider_id):
+    if db.delete_cloud_provider(provider_id):
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "Provider nicht gefunden."}), 404
+
+
+@app.route("/api/cloud-providers/<provider_id>/set-default", methods=["POST"])
+@require_settings_auth
+def api_cloud_providers_set_default(provider_id):
+    db.set_default_cloud_provider(provider_id)
+    return jsonify({"ok": True})
+
+
+# ── SMS Gateways API ──────────────────────────────────────────────────────────
+
+@app.route("/api/sms-gateways", methods=["GET"])
+@require_settings_auth
+def api_sms_gateways_get():
+    return jsonify(db.get_all_sms_gateways())
+
+
+@app.route("/api/sms-gateways", methods=["POST"])
+@require_settings_auth
+def api_sms_gateways_post():
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Keine Daten empfangen."}), 400
+    entry = db.save_sms_gateway(data)
+    return jsonify(entry), 201
+
+
+@app.route("/api/sms-gateways/<gateway_id>", methods=["PUT"])
+@require_settings_auth
+def api_sms_gateways_put(gateway_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Keine Daten empfangen."}), 400
+    updated = db.update_sms_gateway(gateway_id, data)
+    if updated is None:
+        return jsonify({"ok": False, "error": "Gateway nicht gefunden."}), 404
+    return jsonify(updated)
+
+
+@app.route("/api/sms-gateways/<gateway_id>", methods=["DELETE"])
+@require_settings_auth
+def api_sms_gateways_delete(gateway_id):
+    if db.delete_sms_gateway(gateway_id):
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "Gateway nicht gefunden."}), 404
+
+
+@app.route("/api/sms-gateways/<gateway_id>/set-default", methods=["POST"])
+@require_settings_auth
+def api_sms_gateways_set_default(gateway_id):
+    db.set_default_sms_gateway(gateway_id)
+    return jsonify({"ok": True})
 
 
 @app.route("/settings")
@@ -1098,7 +1467,7 @@ def settings():
         "AZURE_CLIENT_ID":      v("AZURE_CLIENT_ID"),
         "AZURE_CLIENT_SECRET":  v("AZURE_CLIENT_SECRET"),
         "AZURE_TENANT_ID":      v("AZURE_TENANT_ID"),
-        "ONEDRIVE_USER":        v("ONEDRIVE_USER", "florian@beubl.de"),
+        "ONEDRIVE_USER":        v("ONEDRIVE_USER", ""),
         "ONEDRIVE_FOLDER":      v("ONEDRIVE_FOLDER", "SecureSend"),
         "NC_URL":               v("NC_URL"),
         "NC_USER":              v("NC_USER"),
@@ -1107,13 +1476,13 @@ def settings():
         "SIPGATE_TOKEN_ID":     v("SIPGATE_TOKEN_ID"),
         "SIPGATE_TOKEN":        v("SIPGATE_TOKEN"),
         "SIPGATE_SMS_ID":       v("SIPGATE_SMS_ID", "s0"),
-        "SMTP_HOST":            v("SMTP_HOST", "192.168.10.14"),
+        "SMTP_HOST":            v("SMTP_HOST", ""),
         "SMTP_PORT":            v("SMTP_PORT", "25"),
         "SMTP_MODE":            v("SMTP_MODE", "none"),
         "SMTP_USER":            v("SMTP_USER", ""),
         "SMTP_PASSWORD":        v("SMTP_PASSWORD", ""),
-        "MAIL_FROM":            v("MAIL_FROM", "florian@beubl.de"),
-        "MAIL_FROM_NAME":       v("MAIL_FROM_NAME", "Florian Beubl – Beseco IT"),
+        "MAIL_FROM":            v("MAIL_FROM", ""),
+        "MAIL_FROM_NAME":       v("MAIL_FROM_NAME", ""),
         "SECRET_KEY":           v("SECRET_KEY"),
         "FLASK_PORT":           v("FLASK_PORT", "5001"),
         "SETTINGS_PASSWORD_SET": bool(SETTINGS_PASSWORD),
@@ -1121,6 +1490,7 @@ def settings():
         "MAIL_NOTIFY_ENABLED":  v("MAIL_NOTIFY_ENABLED", "false"),
         "SEND_AS_PDF":          v("SEND_AS_PDF", "false"),
         "PDF_LIBS_AVAILABLE":   _PDF_LIBS_AVAILABLE,
+        "SIGNATURE":            v("SIGNATURE", ""),
     })
 
 
@@ -1185,6 +1555,91 @@ def settings_save():
     _nc_user_id_cache = None
 
     return jsonify({"ok": True})
+
+
+@app.route("/api/config/signature")
+def api_signature():
+    return jsonify({"signature": SIGNATURE})
+
+
+# ── Vorlagen Routes ───────────────────────────────────────────────────────────
+
+@app.route("/vorlagen")
+@require_settings_auth
+def vorlagen():
+    return render_template("vorlagen.html")
+
+
+@app.route("/api/templates", methods=["GET"])
+def api_templates_get():
+    return jsonify(db.get_all_msg_templates())
+
+
+@app.route("/api/templates", methods=["POST"])
+def api_templates_post():
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Keine Daten empfangen."}), 400
+    entry = db.save_msg_template(data)
+    return jsonify(entry), 201
+
+
+@app.route("/api/templates/<template_id>", methods=["PUT"])
+def api_templates_put(template_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Keine Daten empfangen."}), 400
+    updated = db.update_msg_template(template_id, data)
+    if updated is None:
+        return jsonify({"ok": False, "error": "Vorlage nicht gefunden."}), 404
+    return jsonify(updated)
+
+
+@app.route("/api/templates/<template_id>", methods=["DELETE"])
+def api_templates_delete(template_id):
+    if db.delete_msg_template(template_id):
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "Vorlage nicht gefunden."}), 404
+
+
+@app.route("/api/email-templates", methods=["GET"])
+def api_email_templates_get():
+    return jsonify(db.get_all_email_templates())
+
+
+@app.route("/api/email-templates/default", methods=["GET"])
+def api_email_templates_default():
+    tpl = db.get_default_email_template()
+    if tpl is None:
+        return jsonify({"ok": False, "error": "Keine Standard-Vorlage gefunden."}), 404
+    return jsonify(tpl)
+
+
+@app.route("/api/email-templates", methods=["POST"])
+def api_email_templates_post():
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Keine Daten empfangen."}), 400
+    entry = db.save_email_template(data)
+    return jsonify(entry), 201
+
+
+@app.route("/api/email-templates/<template_id>", methods=["PUT"])
+def api_email_templates_put(template_id):
+    data = request.get_json()
+    if not data:
+        return jsonify({"ok": False, "error": "Keine Daten empfangen."}), 400
+    updated = db.update_email_template(template_id, data)
+    if updated is None:
+        return jsonify({"ok": False, "error": "E-Mail-Vorlage nicht gefunden."}), 404
+    return jsonify(updated)
+
+
+@app.route("/api/email-templates/<template_id>", methods=["DELETE"])
+def api_email_templates_delete(template_id):
+    if db.delete_email_template(template_id):
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "E-Mail-Vorlage nicht gefunden."}), 404
 
 
 @app.route("/settings/test-smtp", methods=["POST"])

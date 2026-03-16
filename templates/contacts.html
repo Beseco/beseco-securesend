@@ -97,6 +97,23 @@
              oninput="filterTable()"
              class="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent shadow-sm">
     </div>
+    <!-- Import/Export -->
+    <a href="/api/contacts/export.vcf"
+       class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:border-slate-400 text-slate-600 text-sm font-semibold rounded-xl shadow-sm transition-colors whitespace-nowrap">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"/>
+      </svg>
+      Exportieren (.vcf)
+    </a>
+    <button onclick="document.getElementById('vcf-import-input').click()"
+            class="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 hover:border-slate-400 text-slate-600 text-sm font-semibold rounded-xl shadow-sm transition-colors whitespace-nowrap">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 7.5m0 0L7.5 12m4.5-4.5V21"/>
+      </svg>
+      Importieren (.vcf)
+    </button>
+    <input type="file" id="vcf-import-input" accept=".vcf,text/vcard" class="hidden" onchange="importVcf(this)">
+    <!-- Neuer Kontakt -->
     <button onclick="openModal()"
             class="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors whitespace-nowrap">
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -176,6 +193,27 @@
 <script>
   let contacts = [];
   let editingId = null;
+
+  // ── vCard Import ──
+  async function importVcf(input) {
+    const file = input.files[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('vcf_file', file);
+    input.value = '';
+    try {
+      const resp = await fetch('/api/contacts/import', { method: 'POST', body: formData });
+      const data = await resp.json();
+      if (data.ok) {
+        showToast('ok', data.message);
+        await loadContacts();
+      } else {
+        showToast('err', data.error || 'Import fehlgeschlagen.');
+      }
+    } catch(e) {
+      showToast('err', 'Netzwerkfehler beim Import.');
+    }
+  }
 
   // ── Init ──
   async function loadContacts() {
