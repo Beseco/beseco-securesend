@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% block title %}Kontakte – SecureSend Cloud{% endblock %}
+{% block page_title %}Kontakte{% endblock %}
+
+{% block topbar_actions %}
+  <label for="vcfImport" class="btn-secondary" style="display:inline-flex;align-items:center;gap:0.375rem;cursor:pointer;font-size:0.875rem;font-weight:600;padding:0.5rem 1rem;border-radius:0.5rem;border:1px solid #e2e8f0;background:#f1f5f9;color:#334155;">
+    <svg style="width:0.875rem;height:0.875rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+    </svg>
+    VCF importieren
+    <input type="file" id="vcfImport" accept=".vcf" style="display:none;" onchange="importVcf(this)"/>
+  </label>
+  <a href="/contacts/export.vcf" class="btn-secondary" style="display:inline-flex;align-items:center;gap:0.375rem;font-size:0.875rem;text-decoration:none;">
+    <svg style="width:0.875rem;height:0.875rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+    </svg>
+    VCF exportieren
+  </a>
+  <button onclick="openContactModal()" class="btn-primary" style="display:inline-flex;align-items:center;gap:0.375rem;">
+    <svg style="width:0.875rem;height:0.875rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+    </svg>
+    Kontakt hinzufügen
+  </button>
+{% endblock %}
+
+{% block content %}
+<div class="card" style="overflow:hidden;">
+  <!-- Table toolbar -->
+  <div style="padding:1rem 1.25rem;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+    <div style="position:relative;flex:1;max-width:20rem;">
+      <svg style="position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);width:0.875rem;height:0.875rem;color:#94a3b8;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      <input type="text" id="searchInput" placeholder="Kontakt suchen…" oninput="filterContacts()" style="width:100%;padding:0.5rem 0.75rem 0.5rem 2.25rem;border:1px solid #e2e8f0;border-radius:0.5rem;font-size:0.875rem;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#1a56db'" onblur="this.style.borderColor='#e2e8f0'"/>
+    </div>
+    <div id="contactCount" style="font-size:0.8125rem;color:#64748b;white-space:nowrap;"></div>
+  </div>
+
+  <!-- Table -->
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;" id="contactsTable">
+      <thead>
+        <tr class="table-header">
+          <th style="padding:0.625rem 1.25rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Firma</th>
+          <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Nachname</th>
+          <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Vorname</th>
+          <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Mobil</th>
+          <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">E-Mail</th>
+          <th style="padding:0.625rem 1.25rem;text-align:right;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Aktionen</th>
+        </tr>
+      </thead>
+      <tbody id="contactsBody">
+        <tr>
+          <td colspan="6" style="padding:3rem;text-align:center;color:#94a3b8;">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:0.75rem;">
+              <svg style="width:2.5rem;height:2.5rem;opacity:0.4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+              </svg>
+              <span>Lade Kontakte…</span>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Contact Modal -->
+<div id="contactModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-box">
+    <h3 id="modalTitle" style="font-size:1.0625rem;font-weight:700;color:#1e293b;margin-bottom:1.25rem;">Kontakt hinzufügen</h3>
+    <form id="contactForm">
+      <input type="hidden" id="contactId" />
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
+        <div>
+          <label class="form-label" for="cFirstName">Vorname</label>
+          <input type="text" id="cFirstName" class="form-input" />
+        </div>
+        <div>
+          <label class="form-label" for="cLastName">Nachname</label>
+          <input type="text" id="cLastName" class="form-input" />
+        </div>
+      </div>
+      <div style="margin-bottom:0.875rem;">
+        <label class="form-label" for="cCompany">Firma</label>
+        <input type="text" id="cCompany" class="form-input" />
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:1.5rem;">
+        <div>
+          <label class="form-label" for="cMobile">Mobilnummer</label>
+          <input type="tel" id="cMobile" class="form-input" placeholder="+49 170 1234567" />
+        </div>
+        <div>
+          <label class="form-label" for="cEmail">E-Mail</label>
+          <input type="email" id="cEmail" class="form-input" />
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
+        <button type="button" onclick="closeModal('contactModal')" class="btn-secondary">Abbrechen</button>
+        <button type="submit" id="saveContactBtn" class="btn-primary">Speichern</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Delete confirmation -->
+<div id="deleteModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-box" style="max-width:22rem;text-align:center;">
+    <div style="display:flex;justify-content:center;margin-bottom:1rem;">
+      <div style="background:#fee2e2;border-radius:50%;padding:0.875rem;">
+        <svg style="width:1.5rem;height:1.5rem;color:#dc2626" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+        </svg>
+      </div>
+    </div>
+    <h3 style="font-size:1rem;font-weight:700;color:#1e293b;margin-bottom:0.5rem;">Kontakt löschen?</h3>
+    <p style="font-size:0.875rem;color:#64748b;margin-bottom:1.5rem;">
+      <strong id="deleteContactName"></strong><br/>Diese Aktion kann nicht rückgängig gemacht werden.
+    </p>
+    <div style="display:flex;gap:0.75rem;justify-content:center;">
+      <button onclick="closeModal('deleteModal')" class="btn-secondary">Abbrechen</button>
+      <button id="confirmDeleteBtn" onclick="executeDelete()" class="btn-danger">Löschen</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let allContacts = [];
+  let deleteTarget = null;
+
+  async function loadContacts() {
+    try {
+      const res = await apiFetch('/contacts');
+      if (res.ok) {
+        allContacts = await res.json();
+        renderContacts(allContacts);
+        document.getElementById('contactCount').textContent = allContacts.length + ' Kontakt(e)';
+      } else {
+        showToast('Fehler beim Laden der Kontakte', 'error');
+      }
+    } catch(e) {
+      showToast('Netzwerkfehler', 'error');
+    }
+  }
+
+  function renderContacts(contacts) {
+    const tbody = document.getElementById('contactsBody');
+    if (contacts.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="padding:3rem;text-align:center;color:#94a3b8;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:0.75rem;">
+          <svg style="width:2.5rem;height:2.5rem;opacity:0.4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+          </svg>
+          <span>Keine Kontakte vorhanden</span>
+        </div>
+      </td></tr>`;
+      return;
+    }
+    tbody.innerHTML = contacts.map(c => `
+      <tr class="table-row" style="border-top:1px solid #f1f5f9;">
+        <td style="padding:0.75rem 1.25rem;font-size:0.875rem;color:#475569;">${esc(c.company)}</td>
+        <td style="padding:0.75rem 1rem;font-size:0.875rem;font-weight:600;color:#1e293b;">${esc(c.last_name)}</td>
+        <td style="padding:0.75rem 1rem;font-size:0.875rem;color:#475569;">${esc(c.first_name)}</td>
+        <td style="padding:0.75rem 1rem;font-size:0.875rem;color:#475569;">
+          ${c.mobile ? `<a href="tel:${esc(c.mobile)}" style="color:#1a56db;text-decoration:none;">${esc(c.mobile)}</a>` : '<span style="color:#cbd5e1;">—</span>'}
+        </td>
+        <td style="padding:0.75rem 1rem;font-size:0.875rem;color:#475569;">
+          ${c.email ? `<a href="mailto:${esc(c.email)}" style="color:#1a56db;text-decoration:none;">${esc(c.email)}</a>` : '<span style="color:#cbd5e1;">—</span>'}
+        </td>
+        <td style="padding:0.75rem 1.25rem;text-align:right;white-space:nowrap;">
+          <button onclick='sendToContact(${JSON.stringify(c)})' title="Senden" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:0.25rem;border-radius:0.25rem;transition:color 0.15s;" onmouseover="this.style.color='#1a56db'" onmouseout="this.style.color='#94a3b8'">
+            <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+          </button>
+          <button onclick='editContact(${JSON.stringify(c)})' title="Bearbeiten" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:0.25rem;border-radius:0.25rem;transition:color 0.15s;" onmouseover="this.style.color='#1a56db'" onmouseout="this.style.color='#94a3b8'">
+            <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          </button>
+          <button onclick='confirmDelete("${c.id}", "${esc(c.first_name)} ${esc(c.last_name)}")' title="Löschen" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:0.25rem;border-radius:0.25rem;transition:color 0.15s;" onmouseover="this.style.color='#ef4444'" onmouseout="this.style.color='#94a3b8'">
+            <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  function esc(str) {
+    return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function filterContacts() {
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    const filtered = allContacts.filter(c =>
+      (c.company + c.last_name + c.first_name + c.mobile + c.email).toLowerCase().includes(q)
+    );
+    renderContacts(filtered);
+    document.getElementById('contactCount').textContent = filtered.length + ' / ' + allContacts.length + ' Kontakt(e)';
+  }
+
+  function openContactModal(contact = null) {
+    document.getElementById('contactId').value = contact ? contact.id : '';
+    document.getElementById('cFirstName').value = contact ? contact.first_name : '';
+    document.getElementById('cLastName').value = contact ? contact.last_name : '';
+    document.getElementById('cCompany').value = contact ? contact.company : '';
+    document.getElementById('cMobile').value = contact ? contact.mobile : '';
+    document.getElementById('cEmail').value = contact ? contact.email : '';
+    document.getElementById('modalTitle').textContent = contact ? 'Kontakt bearbeiten' : 'Kontakt hinzufügen';
+    openModal('contactModal');
+  }
+
+  function editContact(c) { openContactModal(c); }
+
+  function sendToContact(c) {
+    // Navigate to send page with prefill via URL params
+    const params = new URLSearchParams();
+    if (c.email) params.set('to_email', c.email);
+    if (c.mobile) params.set('to_phone', c.mobile);
+    window.location.href = '/ui/send?' + params.toString();
+  }
+
+  document.getElementById('contactForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('contactId').value;
+    const body = {
+      first_name: document.getElementById('cFirstName').value,
+      last_name: document.getElementById('cLastName').value,
+      company: document.getElementById('cCompany').value,
+      mobile: document.getElementById('cMobile').value,
+      email: document.getElementById('cEmail').value,
+    };
+    const btn = document.getElementById('saveContactBtn');
+    btn.disabled = true;
+    btn.textContent = 'Speichern…';
+    try {
+      let res;
+      if (id) {
+        res = await apiFetch('/contacts/' + id, { method: 'PUT', body: JSON.stringify(body) });
+      } else {
+        res = await apiFetch('/contacts', { method: 'POST', body: JSON.stringify(body) });
+      }
+      if (res.ok) {
+        closeModal('contactModal');
+        showToast(id ? 'Kontakt aktualisiert' : 'Kontakt hinzugefügt', 'success');
+        await loadContacts();
+      } else {
+        const err = await res.json();
+        showToast(err.detail || 'Fehler', 'error');
+      }
+    } catch(err) {
+      showToast('Netzwerkfehler', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Speichern';
+    }
+  });
+
+  function confirmDelete(id, name) {
+    deleteTarget = id;
+    document.getElementById('deleteContactName').textContent = name;
+    openModal('deleteModal');
+  }
+
+  async function executeDelete() {
+    if (!deleteTarget) return;
+    const btn = document.getElementById('confirmDeleteBtn');
+    btn.disabled = true;
+    btn.textContent = 'Löschen…';
+    try {
+      const res = await apiFetch('/contacts/' + deleteTarget, { method: 'DELETE' });
+      if (res.ok || res.status === 204) {
+        closeModal('deleteModal');
+        showToast('Kontakt gelöscht', 'success');
+        await loadContacts();
+      } else {
+        showToast('Fehler beim Löschen', 'error');
+      }
+    } catch(e) {
+      showToast('Netzwerkfehler', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Löschen';
+      deleteTarget = null;
+    }
+  }
+
+  async function importVcf(input) {
+    if (!input.files || !input.files[0]) return;
+    const fd = new FormData();
+    fd.append('file', input.files[0]);
+    try {
+      const res = await apiFetch('/contacts/import', { method: 'POST', body: fd });
+      if (res.ok) {
+        const imported = await res.json();
+        showToast(imported.length + ' Kontakt(e) importiert', 'success');
+        await loadContacts();
+      } else {
+        const err = await res.json();
+        showToast(err.detail || 'Import fehlgeschlagen', 'error');
+      }
+    } catch(e) {
+      showToast('Netzwerkfehler', 'error');
+    }
+    input.value = '';
+  }
+
+  // Handle send page pre-fill from URL params
+  const urlParams = new URLSearchParams(window.location.search);
+
+  loadContacts();
+</script>
+{% endblock %}

@@ -26,6 +26,7 @@ if str(_ROOT) not in sys.path:
 # ── Imports ───────────────────────────────────────────────────────────────────
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from config import settings
 from database import Base, engine
@@ -34,6 +35,7 @@ from routers.contacts import router as contacts_router
 from routers.send import router as send_router
 from routers.admin_org import router as admin_org_router
 from routers.admin_reseller import router as admin_reseller_router
+from routers.ui import router as ui_router
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("securesend")
@@ -82,6 +84,15 @@ app.include_router(send_router)
 app.include_router(contacts_router)
 app.include_router(admin_org_router)
 app.include_router(admin_reseller_router)
+app.include_router(ui_router)
+
+
+# ── Root redirect ─────────────────────────────────────────────────────────────
+
+@app.get("/", include_in_schema=False)
+async def root_redirect() -> RedirectResponse:
+    """Redirect browser root to the UI login page."""
+    return RedirectResponse(url="/ui/login", status_code=302)
 
 
 # ── Health check ─────────────────────────────────────────────────────────────

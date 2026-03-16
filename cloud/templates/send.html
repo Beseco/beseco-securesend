@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+{% block title %}Senden – SecureSend Cloud{% endblock %}
+{% block page_title %}Sicher Senden{% endblock %}
+
+{% block content %}
+<div style="max-width:48rem;margin:0 auto;">
+  <div class="card">
+    <!-- Mode toggle -->
+    <div style="display:flex;gap:0;background:#f1f5f9;border-radius:0.625rem;padding:0.25rem;margin-bottom:1.5rem;">
+      <button id="btnFile" onclick="setMode('file')" style="flex:1;padding:0.5rem;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;transition:all 0.15s;background:#1a56db;color:#fff;">
+        <span style="display:flex;align-items:center;justify-content:center;gap:0.375rem;">
+          <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/>
+          </svg>
+          Datei-Upload
+        </span>
+      </button>
+      <button id="btnText" onclick="setMode('text')" style="flex:1;padding:0.5rem;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;transition:all 0.15s;background:transparent;color:#64748b;">
+        <span style="display:flex;align-items:center;justify-content:center;gap:0.375rem;">
+          <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h7"/>
+          </svg>
+          Textnachricht
+        </span>
+      </button>
+    </div>
+
+    <form id="sendForm" enctype="multipart/form-data">
+      <!-- File section -->
+      <div id="fileSection" style="margin-bottom:1.25rem;">
+        <label class="form-label">Datei auswählen</label>
+        <div id="dropzone" style="border:2px dashed #cbd5e1;border-radius:0.625rem;padding:2rem;text-align:center;transition:border-color 0.15s,background 0.15s;cursor:pointer;" onclick="document.getElementById('fileInput').click()" ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+          <svg style="width:2.5rem;height:2.5rem;color:#94a3b8;margin:0 auto 0.75rem;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+          <p style="font-size:0.9375rem;font-weight:600;color:#374151;" id="dropzoneText">Datei hier ablegen oder klicken</p>
+          <p style="font-size:0.8125rem;color:#94a3b8;margin-top:0.25rem;">Alle Dateitypen bis 100 MB</p>
+          <input type="file" id="fileInput" name="file" style="display:none;" onchange="onFileSelected(this)"/>
+        </div>
+      </div>
+
+      <!-- Text section -->
+      <div id="textSection" style="display:none;margin-bottom:1.25rem;">
+        <label class="form-label" for="message">Nachricht</label>
+        <textarea id="message" name="message" rows="6" class="form-input" style="resize:vertical;font-family:inherit;" placeholder="Geben Sie Ihre sichere Nachricht ein…"></textarea>
+        <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.25rem;">Wird als Markdown-Datei verschlüsselt hochgeladen.</p>
+      </div>
+
+      <!-- Subject -->
+      <div style="margin-bottom:1.25rem;">
+        <label class="form-label" for="subject">Betreff</label>
+        <input type="text" id="subject" name="subject" class="form-input" value="Ihr sicheres Dokument" />
+      </div>
+
+      <!-- Recipient row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.25rem;">
+        <div>
+          <label class="form-label" for="to_email">E-Mail Empfänger</label>
+          <input type="email" id="to_email" name="to_email" class="form-input" placeholder="empfaenger@beispiel.de" />
+        </div>
+        <div>
+          <label class="form-label" for="to_phone">Mobilnummer (SMS)</label>
+          <input type="tel" id="to_phone" name="to_phone" class="form-input" placeholder="+49 170 1234567" />
+        </div>
+      </div>
+
+      <!-- Provider + settings row -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;margin-bottom:1.25rem;">
+        <div>
+          <label class="form-label" for="provider_id">Cloud-Anbieter</label>
+          <select id="provider_id" name="provider_id" class="form-input">
+            <option value="">Standard (Organisation)</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="expiry_days">Ablauf</label>
+          <select id="expiry_days" name="expiry_days" class="form-input">
+            <option value="1">1 Tag</option>
+            <option value="3">3 Tage</option>
+            <option value="7" selected>7 Tage</option>
+            <option value="14">14 Tage</option>
+            <option value="30">30 Tage</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="security_level">Sicherheitsstufe</label>
+          <select id="security_level" name="security_level" class="form-input">
+            <option value="standard">Normal</option>
+            <option value="high">Erhöhte Sicherheit</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Notification checkboxes -->
+      <div style="display:flex;gap:1.5rem;margin-bottom:1.5rem;">
+        <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem;font-weight:500;color:#374151;cursor:pointer;">
+          <input type="checkbox" name="send_email" value="true" id="chkEmail" checked style="accent-color:#1a56db;width:1rem;height:1rem;" />
+          E-Mail versenden
+        </label>
+        <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem;font-weight:500;color:#374151;cursor:pointer;">
+          <input type="checkbox" name="send_sms" value="true" id="chkSms" style="accent-color:#1a56db;width:1rem;height:1rem;" />
+          SMS versenden
+        </label>
+      </div>
+
+      <!-- Submit -->
+      <button type="submit" id="submitBtn" class="btn-primary" style="width:100%;padding:0.75rem;font-size:0.9375rem;">
+        <span id="btnContent" style="display:flex;align-items:center;justify-content:center;gap:0.5rem;">
+          <svg style="width:1.125rem;height:1.125rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+          </svg>
+          Sicher senden
+        </span>
+      </button>
+    </form>
+  </div>
+
+  <!-- Result panel -->
+  <div id="resultPanel" style="display:none;" class="card" style="border-color:#86efac;">
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
+      <div style="background:#dcfce7;border-radius:50%;padding:0.625rem;">
+        <svg style="width:1.25rem;height:1.25rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+        </svg>
+      </div>
+      <div>
+        <div style="font-size:1rem;font-weight:700;color:#166534;">Erfolgreich gesendet!</div>
+        <div style="font-size:0.8125rem;color:#4ade80;" id="resultFilename"></div>
+      </div>
+    </div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:0.5rem;padding:1rem;">
+      <div style="font-size:0.8125rem;color:#64748b;margin-bottom:0.375rem;font-weight:600;">Download-Link</div>
+      <a id="resultUrl" href="#" target="_blank" style="font-size:0.875rem;color:#1a56db;word-break:break-all;font-weight:600;text-decoration:none;"></a>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-top:1rem;">
+      <div style="background:#f8fafc;border-radius:0.5rem;padding:0.75rem;">
+        <div style="font-size:0.75rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Anbieter</div>
+        <div id="resultProvider" style="font-size:0.875rem;font-weight:700;color:#1e293b;margin-top:0.25rem;"></div>
+      </div>
+      <div style="background:#f8fafc;border-radius:0.5rem;padding:0.75rem;">
+        <div style="font-size:0.75rem;color:#94a3b8;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;">Gültig für</div>
+        <div id="resultExpiry" style="font-size:0.875rem;font-weight:700;color:#1e293b;margin-top:0.25rem;"></div>
+      </div>
+    </div>
+    <button onclick="resetForm()" class="btn-secondary" style="width:100%;margin-top:1rem;">Weiteres Dokument senden</button>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let currentMode = 'file';
+
+  function setMode(mode) {
+    currentMode = mode;
+    document.getElementById('fileSection').style.display = mode === 'file' ? 'block' : 'none';
+    document.getElementById('textSection').style.display = mode === 'text' ? 'block' : 'none';
+    document.getElementById('btnFile').style.background = mode === 'file' ? '#1a56db' : 'transparent';
+    document.getElementById('btnFile').style.color = mode === 'file' ? '#fff' : '#64748b';
+    document.getElementById('btnText').style.background = mode === 'text' ? '#1a56db' : 'transparent';
+    document.getElementById('btnText').style.color = mode === 'text' ? '#fff' : '#64748b';
+  }
+
+  function onFileSelected(input) {
+    if (input.files && input.files[0]) {
+      const f = input.files[0];
+      document.getElementById('dropzoneText').textContent = f.name;
+      document.getElementById('dropzone').style.borderColor = '#1a56db';
+      document.getElementById('dropzone').style.background = '#eff6ff';
+    }
+  }
+
+  function handleDragOver(e) {
+    e.preventDefault();
+    document.getElementById('dropzone').style.borderColor = '#1a56db';
+    document.getElementById('dropzone').style.background = '#eff6ff';
+  }
+
+  function handleDragLeave(e) {
+    document.getElementById('dropzone').style.borderColor = '#cbd5e1';
+    document.getElementById('dropzone').style.background = '';
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    handleDragLeave(e);
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      document.getElementById('fileInput').files = files;
+      onFileSelected(document.getElementById('fileInput'));
+    }
+  }
+
+  // Load providers
+  async function loadProviders() {
+    try {
+      const res = await apiFetch('/admin/org/providers');
+      if (res.ok) {
+        const providers = await res.json();
+        const sel = document.getElementById('provider_id');
+        providers.forEach(p => {
+          const opt = document.createElement('option');
+          opt.value = p.id;
+          opt.textContent = `${p.name} (${p.service})${p.is_default ? ' ★' : ''}`;
+          sel.appendChild(opt);
+        });
+      }
+    } catch(e) { /* silent — will use org default */ }
+  }
+  loadProviders();
+
+  document.getElementById('sendForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    document.getElementById('btnContent').innerHTML = '<svg style="width:1rem;height:1rem;animation:spin 1s linear infinite" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" fill="currentColor"/></svg> Wird gesendet…';
+
+    const fd = new FormData(this);
+
+    // Ensure correct checkbox values
+    fd.set('send_email', document.getElementById('chkEmail').checked ? 'true' : 'false');
+    fd.set('send_sms', document.getElementById('chkSms').checked ? 'true' : 'false');
+
+    if (currentMode === 'text') {
+      fd.delete('file');
+    } else {
+      fd.delete('message');
+    }
+
+    try {
+      const res = await apiFetch('/send', { method: 'POST', body: fd });
+      if (res.ok) {
+        const data = await res.json();
+        document.getElementById('sendForm').style.display = 'none';
+        document.getElementById('resultPanel').style.display = 'block';
+        document.getElementById('resultFilename').textContent = data.filename;
+        document.getElementById('resultUrl').href = data.share_url;
+        document.getElementById('resultUrl').textContent = data.share_url;
+        document.getElementById('resultProvider').textContent = data.provider;
+        document.getElementById('resultExpiry').textContent = data.expiry_days + ' Tag(e)';
+        showToast('Erfolgreich gesendet!', 'success');
+      } else {
+        const err = await res.json();
+        showToast(err.detail || 'Fehler beim Senden', 'error');
+      }
+    } catch(err) {
+      showToast('Netzwerkfehler: ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      document.getElementById('btnContent').innerHTML = '<svg style="width:1.125rem;height:1.125rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg> Sicher senden';
+    }
+  });
+
+  // Pre-fill from URL params (e.g. when navigating from contacts page)
+  (function prefillFromUrl() {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get('to_email')) document.getElementById('to_email').value = p.get('to_email');
+    if (p.get('to_phone')) document.getElementById('to_phone').value = p.get('to_phone');
+  })();
+
+  function resetForm() {
+    document.getElementById('sendForm').reset();
+    document.getElementById('sendForm').style.display = 'block';
+    document.getElementById('resultPanel').style.display = 'none';
+    document.getElementById('dropzoneText').textContent = 'Datei hier ablegen oder klicken';
+    document.getElementById('dropzone').style.borderColor = '#cbd5e1';
+    document.getElementById('dropzone').style.background = '';
+    setMode('file');
+  }
+</script>
+<style>
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}

@@ -1,0 +1,256 @@
+{% extends "base.html" %}
+{% block title %}Super Admin – SecureSend Cloud{% endblock %}
+{% block page_title %}Super Admin – Reseller{% endblock %}
+
+{% block topbar_actions %}
+  <button onclick="openResellerModal()" class="btn-primary" style="display:inline-flex;align-items:center;gap:0.375rem;">
+    <svg style="width:0.875rem;height:0.875rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+    </svg>
+    Reseller hinzufügen
+  </button>
+{% endblock %}
+
+{% block content %}
+<!-- Stats row -->
+<div id="statsRow" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem;">
+  <div class="card" style="display:flex;align-items:center;gap:0.875rem;">
+    <div style="background:#eff6ff;border-radius:0.625rem;padding:0.75rem;flex-shrink:0;">
+      <svg style="width:1.375rem;height:1.375rem;color:#1a56db" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>
+    </div>
+    <div>
+      <div id="statTotal" style="font-size:1.5rem;font-weight:800;color:#1e293b;">–</div>
+      <div style="font-size:0.8125rem;color:#64748b;">Reseller gesamt</div>
+    </div>
+  </div>
+  <div class="card" style="display:flex;align-items:center;gap:0.875rem;">
+    <div style="background:#f0fdf4;border-radius:0.625rem;padding:0.75rem;flex-shrink:0;">
+      <svg style="width:1.375rem;height:1.375rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+    </div>
+    <div>
+      <div id="statActive" style="font-size:1.5rem;font-weight:800;color:#1e293b;">–</div>
+      <div style="font-size:0.8125rem;color:#64748b;">Aktive Reseller</div>
+    </div>
+  </div>
+  <div class="card" style="display:flex;align-items:center;gap:0.875rem;">
+    <div style="background:#fef2f2;border-radius:0.625rem;padding:0.75rem;flex-shrink:0;">
+      <svg style="width:1.375rem;height:1.375rem;color:#dc2626" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>
+    </div>
+    <div>
+      <div id="statInactive" style="font-size:1.5rem;font-weight:800;color:#1e293b;">–</div>
+      <div style="font-size:0.8125rem;color:#64748b;">Inaktive Reseller</div>
+    </div>
+  </div>
+</div>
+
+<!-- Table card -->
+<div class="card" style="overflow:hidden;">
+  <div style="padding:1rem 1.25rem;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+    <div style="position:relative;flex:1;max-width:22rem;">
+      <svg style="position:absolute;left:0.75rem;top:50%;transform:translateY(-50%);width:0.875rem;height:0.875rem;color:#94a3b8;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      <input type="text" id="searchInput" placeholder="Reseller suchen…" oninput="filterResellers()" style="width:100%;padding:0.5rem 0.75rem 0.5rem 2.25rem;border:1px solid #e2e8f0;border-radius:0.5rem;font-size:0.875rem;outline:none;box-sizing:border-box;" onfocus="this.style.borderColor='#1a56db'" onblur="this.style.borderColor='#e2e8f0'"/>
+    </div>
+    <div id="resellerCount" style="font-size:0.8125rem;color:#64748b;white-space:nowrap;"></div>
+  </div>
+
+  <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr class="table-header">
+          <th style="padding:0.625rem 1.25rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Name</th>
+          <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Slug</th>
+          <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Kontakt-E-Mail</th>
+          <th style="padding:0.625rem 1rem;text-align:center;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Status</th>
+          <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Erstellt</th>
+          <th style="padding:0.625rem 1.25rem;text-align:right;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Aktionen</th>
+        </tr>
+      </thead>
+      <tbody id="resellersBody">
+        <tr><td colspan="6" style="padding:3rem;text-align:center;color:#94a3b8;">Lade…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Reseller Modal -->
+<div id="resellerModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-box">
+    <h3 id="resellerModalTitle" style="font-size:1.0625rem;font-weight:700;color:#1e293b;margin-bottom:1.25rem;">Reseller hinzufügen</h3>
+    <form id="resellerForm">
+      <input type="hidden" id="resellerId" />
+      <div style="margin-bottom:0.875rem;">
+        <label class="form-label">Name</label>
+        <input type="text" id="rName" class="form-input" required />
+      </div>
+      <div style="margin-bottom:0.875rem;">
+        <label class="form-label">Slug <span style="font-weight:400;color:#94a3b8;">(URL-freundlich, eindeutig)</span></label>
+        <input type="text" id="rSlug" class="form-input" required placeholder="reseller-gmbh" pattern="[a-z0-9\-]+" oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9\-]/g,'-')" />
+      </div>
+      <div style="margin-bottom:0.875rem;">
+        <label class="form-label">Kontakt-E-Mail</label>
+        <input type="email" id="rEmail" class="form-input" required placeholder="kontakt@reseller.de" />
+      </div>
+      <div style="margin-bottom:1.5rem;">
+        <label class="form-label">Status</label>
+        <select id="rActive" class="form-input">
+          <option value="true">Aktiv</option>
+          <option value="false">Inaktiv</option>
+        </select>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
+        <button type="button" onclick="closeModal('resellerModal')" class="btn-secondary">Abbrechen</button>
+        <button type="submit" id="saveResellerBtn" class="btn-primary">Speichern</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Deactivate confirmation -->
+<div id="deactivateModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-box" style="max-width:22rem;text-align:center;">
+    <div style="display:flex;justify-content:center;margin-bottom:1rem;">
+      <div style="background:#fef3c7;border-radius:50%;padding:0.875rem;">
+        <svg style="width:1.5rem;height:1.5rem;color:#d97706" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+      </div>
+    </div>
+    <h3 style="font-size:1rem;font-weight:700;color:#1e293b;margin-bottom:0.5rem;">Reseller deaktivieren?</h3>
+    <p style="font-size:0.875rem;color:#64748b;margin-bottom:1.5rem;"><strong id="deactivateResellerName"></strong> und alle zugehörigen Organisationen werden deaktiviert.</p>
+    <div style="display:flex;gap:0.75rem;justify-content:center;">
+      <button onclick="closeModal('deactivateModal')" class="btn-secondary">Abbrechen</button>
+      <button id="confirmDeactivateBtn" onclick="executeDeactivate()" style="background:#d97706;" class="btn-primary">Deaktivieren</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let allResellers = [];
+  let deactivateTarget = null;
+
+  async function loadResellers() {
+    try {
+      const res = await apiFetch('/admin/resellers');
+      if (res.ok) {
+        allResellers = await res.json();
+        renderResellers(allResellers);
+        updateStats(allResellers);
+        document.getElementById('resellerCount').textContent = allResellers.length + ' Reseller';
+      } else {
+        document.getElementById('resellersBody').innerHTML = '<tr><td colspan="6" style="padding:2rem;text-align:center;color:#ef4444;">Fehler beim Laden (unzureichende Berechtigungen?)</td></tr>';
+      }
+    } catch(e) {
+      document.getElementById('resellersBody').innerHTML = '<tr><td colspan="6" style="padding:2rem;text-align:center;color:#ef4444;">Netzwerkfehler</td></tr>';
+    }
+  }
+
+  function updateStats(resellers) {
+    document.getElementById('statTotal').textContent = resellers.length;
+    document.getElementById('statActive').textContent = resellers.filter(r => r.is_active).length;
+    document.getElementById('statInactive').textContent = resellers.filter(r => !r.is_active).length;
+  }
+
+  function renderResellers(resellers) {
+    if (!resellers.length) {
+      document.getElementById('resellersBody').innerHTML = `<tr><td colspan="6" style="padding:3rem;text-align:center;color:#94a3b8;">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:0.75rem;">
+          <svg style="width:2.5rem;height:2.5rem;opacity:0.4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>
+          <span>Keine Reseller vorhanden</span>
+        </div>
+      </td></tr>`;
+      return;
+    }
+    document.getElementById('resellersBody').innerHTML = resellers.map(r => {
+      const dt = new Date(r.created_at);
+      const dateStr = dt.toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'});
+      return `<tr class="table-row" style="border-top:1px solid #f1f5f9;">
+        <td style="padding:0.75rem 1.25rem;font-size:0.9375rem;font-weight:700;color:#1e293b;">${esc(r.name)}</td>
+        <td style="padding:0.75rem 1rem;"><code style="background:#f1f5f9;padding:0.125rem 0.5rem;border-radius:0.25rem;font-size:0.8125rem;color:#475569;">${esc(r.slug)}</code></td>
+        <td style="padding:0.75rem 1rem;font-size:0.875rem;color:#475569;">
+          <a href="mailto:${esc(r.contact_email)}" style="color:#1a56db;text-decoration:none;">${esc(r.contact_email)}</a>
+        </td>
+        <td style="padding:0.75rem 1rem;text-align:center;">${r.is_active ? '<span class="badge-active">Aktiv</span>' : '<span class="badge-inactive">Inaktiv</span>'}</td>
+        <td style="padding:0.75rem 1rem;font-size:0.875rem;color:#64748b;">${dateStr}</td>
+        <td style="padding:0.75rem 1.25rem;text-align:right;white-space:nowrap;">
+          <button onclick='editReseller(${JSON.stringify(r)})' class="btn-secondary btn-sm" style="margin-right:0.375rem;">Bearbeiten</button>
+          ${r.is_active
+            ? `<button onclick='confirmDeactivate("${r.id}", "${esc(r.name)}")' style="background:#fef3c7;color:#92400e;font-weight:600;font-size:0.75rem;padding:0.25rem 0.75rem;border-radius:0.5rem;border:1px solid #fde68a;cursor:pointer;">Deaktivieren</button>`
+            : `<button onclick='reactivateReseller("${r.id}")' class="btn-secondary btn-sm">Aktivieren</button>`}
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  function filterResellers() {
+    const q = document.getElementById('searchInput').value.toLowerCase();
+    const filtered = allResellers.filter(r => (r.name + r.slug + r.contact_email).toLowerCase().includes(q));
+    renderResellers(filtered);
+    document.getElementById('resellerCount').textContent = filtered.length + ' / ' + allResellers.length + ' Reseller';
+  }
+
+  function openResellerModal(reseller = null) {
+    document.getElementById('resellerId').value = reseller ? reseller.id : '';
+    document.getElementById('rName').value = reseller ? reseller.name : '';
+    document.getElementById('rSlug').value = reseller ? reseller.slug : '';
+    document.getElementById('rEmail').value = reseller ? reseller.contact_email : '';
+    document.getElementById('rActive').value = reseller ? String(reseller.is_active) : 'true';
+    document.getElementById('resellerModalTitle').textContent = reseller ? 'Reseller bearbeiten' : 'Reseller hinzufügen';
+    openModal('resellerModal');
+  }
+
+  function editReseller(r) { openResellerModal(r); }
+
+  document.getElementById('resellerForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('resellerId').value;
+    const body = {
+      name: document.getElementById('rName').value,
+      slug: document.getElementById('rSlug').value,
+      contact_email: document.getElementById('rEmail').value,
+      is_active: document.getElementById('rActive').value === 'true',
+    };
+    const btn = document.getElementById('saveResellerBtn');
+    btn.disabled = true; btn.textContent = 'Speichern…';
+    try {
+      const res = id
+        ? await apiFetch('/admin/resellers/' + id, { method: 'PUT', body: JSON.stringify(body) })
+        : await apiFetch('/admin/resellers', { method: 'POST', body: JSON.stringify(body) });
+      if (res.ok) { closeModal('resellerModal'); showToast('Gespeichert', 'success'); loadResellers(); }
+      else { const err = await res.json(); showToast(err.detail || 'Fehler', 'error'); }
+    } catch(e) { showToast('Netzwerkfehler', 'error'); }
+    finally { btn.disabled = false; btn.textContent = 'Speichern'; }
+  });
+
+  function confirmDeactivate(id, name) {
+    deactivateTarget = id;
+    document.getElementById('deactivateResellerName').textContent = name;
+    openModal('deactivateModal');
+  }
+
+  async function executeDeactivate() {
+    if (!deactivateTarget) return;
+    const btn = document.getElementById('confirmDeactivateBtn');
+    btn.disabled = true; btn.textContent = 'Deaktivieren…';
+    try {
+      const res = await apiFetch('/admin/resellers/' + deactivateTarget, { method: 'DELETE' });
+      if (res.ok) { closeModal('deactivateModal'); showToast('Reseller deaktiviert', 'success'); loadResellers(); }
+      else showToast('Fehler', 'error');
+    } catch(e) { showToast('Netzwerkfehler', 'error'); }
+    finally { btn.disabled = false; btn.textContent = 'Deaktivieren'; deactivateTarget = null; }
+  }
+
+  async function reactivateReseller(id) {
+    const res = await apiFetch('/admin/resellers/' + id, { method: 'PUT', body: JSON.stringify({ is_active: true }) });
+    if (res.ok) { showToast('Reseller aktiviert', 'success'); loadResellers(); }
+    else showToast('Fehler', 'error');
+  }
+
+  loadResellers();
+</script>
+{% endblock %}

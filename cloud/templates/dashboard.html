@@ -1,0 +1,160 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – SecureSend Cloud{% endblock %}
+{% block page_title %}Dashboard{% endblock %}
+
+{% block content %}
+<div style="max-width:64rem;margin:0 auto;">
+  <!-- Welcome banner -->
+  <div style="background:linear-gradient(135deg,#1a56db 0%,#1e40af 100%);border-radius:1rem;padding:1.75rem 2rem;color:#fff;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+    <div>
+      <h2 style="font-size:1.375rem;font-weight:800;letter-spacing:-0.02em;margin-bottom:0.25rem;">
+        Willkommen, {{ current_user.email.split('@')[0] }}!
+      </h2>
+      <p style="font-size:0.9375rem;opacity:0.85;">
+        Sie sind angemeldet als <strong>{{ current_user.role }}</strong>
+        {% if current_user.org_id %} in Ihrer Organisation{% endif %}.
+      </p>
+    </div>
+    <div style="background:rgba(255,255,255,0.15);border-radius:50%;padding:1rem;flex-shrink:0;">
+      <svg style="width:2rem;height:2rem;color:#fff" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Quick actions -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(15rem,1fr));gap:1rem;margin-bottom:1.5rem;">
+    {% if current_user.org_id %}
+    <a href="/ui/send" style="text-decoration:none;">
+      <div class="card" style="cursor:pointer;transition:box-shadow 0.15s,border-color 0.15s;" onmouseover="this.style.borderColor='#1a56db';this.style.boxShadow='0 4px 20px rgba(26,86,219,0.12)'" onmouseout="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
+        <div style="display:flex;align-items:center;gap:0.875rem;">
+          <div style="background:#eff6ff;border-radius:0.625rem;padding:0.75rem;flex-shrink:0;">
+            <svg style="width:1.375rem;height:1.375rem;color:#1a56db" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+            </svg>
+          </div>
+          <div>
+            <div style="font-size:0.9375rem;font-weight:700;color:#1e293b;">Sicher Senden</div>
+            <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">Datei oder Nachricht versenden</div>
+          </div>
+        </div>
+      </div>
+    </a>
+
+    <a href="/ui/contacts" style="text-decoration:none;">
+      <div class="card" style="cursor:pointer;transition:box-shadow 0.15s,border-color 0.15s;" onmouseover="this.style.borderColor='#1a56db';this.style.boxShadow='0 4px 20px rgba(26,86,219,0.12)'" onmouseout="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
+        <div style="display:flex;align-items:center;gap:0.875rem;">
+          <div style="background:#f0fdf4;border-radius:0.625rem;padding:0.75rem;flex-shrink:0;">
+            <svg style="width:1.375rem;height:1.375rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </div>
+          <div>
+            <div style="font-size:0.9375rem;font-weight:700;color:#1e293b;">Kontakte</div>
+            <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">Adressbuch verwalten</div>
+          </div>
+        </div>
+      </div>
+    </a>
+
+    <a href="/ui/history" style="text-decoration:none;">
+      <div class="card" style="cursor:pointer;transition:box-shadow 0.15s,border-color 0.15s;" onmouseover="this.style.borderColor='#1a56db';this.style.boxShadow='0 4px 20px rgba(26,86,219,0.12)'" onmouseout="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
+        <div style="display:flex;align-items:center;gap:0.875rem;">
+          <div style="background:#fefce8;border-radius:0.625rem;padding:0.75rem;flex-shrink:0;">
+            <svg style="width:1.375rem;height:1.375rem;color:#ca8a04" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+          </div>
+          <div>
+            <div style="font-size:0.9375rem;font-weight:700;color:#1e293b;">Verlauf</div>
+            <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">Gesendete Elemente</div>
+          </div>
+        </div>
+      </div>
+    </a>
+    {% endif %}
+
+    {% set role = current_user.role %}
+    {% if role in ['org_admin', 'reseller_admin', 'superadmin'] %}
+    <a href="/ui/admin/org" style="text-decoration:none;">
+      <div class="card" style="cursor:pointer;transition:box-shadow 0.15s,border-color 0.15s;" onmouseover="this.style.borderColor='#1a56db';this.style.boxShadow='0 4px 20px rgba(26,86,219,0.12)'" onmouseout="this.style.borderColor='#e2e8f0';this.style.boxShadow='none'">
+        <div style="display:flex;align-items:center;gap:0.875rem;">
+          <div style="background:#f5f3ff;border-radius:0.625rem;padding:0.75rem;flex-shrink:0;">
+            <svg style="width:1.375rem;height:1.375rem;color:#7c3aed" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </div>
+          <div>
+            <div style="font-size:0.9375rem;font-weight:700;color:#1e293b;">Organisation</div>
+            <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">Benutzer &amp; Einstellungen</div>
+          </div>
+        </div>
+      </div>
+    </a>
+    {% endif %}
+  </div>
+
+  <!-- Info cards -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+    <!-- Account info -->
+    <div class="card">
+      <h3 style="font-size:0.9375rem;font-weight:700;color:#1e293b;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem;">
+        <svg style="width:1rem;height:1rem;color:#1a56db" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+        </svg>
+        Konto-Informationen
+      </h3>
+      <dl style="display:flex;flex-direction:column;gap:0.625rem;">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid #f1f5f9;">
+          <dt style="font-size:0.8125rem;color:#64748b;">E-Mail</dt>
+          <dd style="font-size:0.8125rem;font-weight:600;color:#1e293b;">{{ current_user.email }}</dd>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid #f1f5f9;">
+          <dt style="font-size:0.8125rem;color:#64748b;">Rolle</dt>
+          <dd><span class="badge-role">{{ current_user.role }}</span></dd>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid #f1f5f9;">
+          <dt style="font-size:0.8125rem;color:#64748b;">Status</dt>
+          <dd><span class="badge-active">Aktiv</span></dd>
+        </div>
+        {% if current_user.org_id %}
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;">
+          <dt style="font-size:0.8125rem;color:#64748b;">Organisations-ID</dt>
+          <dd style="font-size:0.75rem;font-family:monospace;color:#64748b;">{{ current_user.org_id[:8] }}…</dd>
+        </div>
+        {% endif %}
+      </dl>
+    </div>
+
+    <!-- API info -->
+    <div class="card">
+      <h3 style="font-size:0.9375rem;font-weight:700;color:#1e293b;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem;">
+        <svg style="width:1rem;height:1rem;color:#1a56db" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+        </svg>
+        API &amp; Dokumentation
+      </h3>
+      <p style="font-size:0.875rem;color:#64748b;margin-bottom:1rem;">Die SecureSend Cloud REST API steht unter <code style="background:#f1f5f9;padding:0.125rem 0.375rem;border-radius:0.25rem;font-size:0.8125rem;">/docs</code> zur Verfügung.</p>
+      <div style="display:flex;flex-direction:column;gap:0.5rem;">
+        <a href="/docs" target="_blank" style="text-decoration:none;">
+          <div style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.5rem;font-size:0.8125rem;color:#1a56db;font-weight:600;transition:background 0.15s;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='#f8fafc'">
+            <svg style="width:0.875rem;height:0.875rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+            </svg>
+            Swagger UI öffnen
+          </div>
+        </a>
+        <a href="/redoc" target="_blank" style="text-decoration:none;">
+          <div style="display:flex;align-items:center;gap:0.5rem;padding:0.5rem 0.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.5rem;font-size:0.8125rem;color:#475569;font-weight:600;transition:background 0.15s;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
+            <svg style="width:0.875rem;height:0.875rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+            </svg>
+            ReDoc öffnen
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
