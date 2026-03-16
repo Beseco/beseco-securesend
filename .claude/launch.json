@@ -4,7 +4,7 @@
     {
       "name": "Beseco SecureSend (Flask)",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["app.py"],
+      "runtimeArgs": ["local/app.py"],
       "port": 5001
     }
   ]

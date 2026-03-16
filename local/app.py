@@ -5,7 +5,6 @@ Unterstützte Storage-Provider: OneDrive (Microsoft Graph) | Nextcloud (WebDAV +
 """
 
 import os
-import io
 import json
 import uuid
 import re
@@ -16,27 +15,27 @@ import string
 import smtplib
 import functools
 import requests
-import msal
 import markdown as mdlib
 import xml.etree.ElementTree as ET
 import db
+import sys
 from pathlib import Path
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.header import Header
-from email.utils import formataddr
 from datetime import datetime, timedelta, timezone
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for, Response
 from werkzeug.security import generate_password_hash, check_password_hash
-from urllib.parse import quote
 
-# PDF-Bibliotheken (optional – nur geladen wenn SEND_AS_PDF aktiv)
-try:
-    from fpdf import FPDF as _FPDF
-    from pypdf import PdfWriter as _PdfWriter, PdfReader as _PdfReader
-    _PDF_LIBS_AVAILABLE = True
-except ImportError:
-    _PDF_LIBS_AVAILABLE = False
+# Projekt-Root zu sys.path hinzufügen, damit core.* importierbar ist
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from core.storage import upload_and_share as _core_upload_and_share
+from core.sms import send_sms_sipgate as _core_send_sms
+from core.email import send_email as _core_send_email
+from core.pdf import (
+    md_to_pdf_bytes as _core_md_to_pdf_bytes,
+    encrypt_pdf_bytes,
+    _PDF_LIBS_AVAILABLE,
+)
+from core.vcf import parse_vcf as _parse_vcf, contacts_to_vcf as _contacts_to_vcf
 
 CONFIG_FILE      = Path(__file__).parent / "config.json"
 ADDRESSBOOK_FILE = Path(__file__).parent / "addressbook.json"
@@ -171,167 +170,7 @@ def require_settings_auth(f):
         return f(*args, **kwargs)
     return decorated
 
-# ── Microsoft Graph Token ────────────────────────────────────────────────────
-
-def get_graph_token() -> str:
-    authority = f"https://login.microsoftonline.com/{AZURE_TENANT_ID}"
-    app_msal = msal.ConfidentialClientApplication(
-        AZURE_CLIENT_ID,
-        authority=authority,
-        client_credential=AZURE_CLIENT_SECRET,
-    )
-    result = app_msal.acquire_token_for_client(
-        scopes=["https://graph.microsoft.com/.default"]
-    )
-    if "access_token" not in result:
-        raise RuntimeError(f"MSAL Token-Fehler: {result.get('error_description')}")
-    return result["access_token"]
-
-# ── OneDrive: Datei hochladen ────────────────────────────────────────────────
-
-def upload_to_onedrive(token: str, filename: str, content: bytes,
-                       content_type: str = "text/markdown; charset=utf-8",
-                       subfolder: str = "") -> str:
-    if subfolder:
-        path = f"{ONEDRIVE_FOLDER}/{subfolder}/{filename}"
-    else:
-        path = f"{ONEDRIVE_FOLDER}/{filename}"
-    url = (
-        f"https://graph.microsoft.com/v1.0/users/{ONEDRIVE_USER}"
-        f"/drive/root:/{path}:/content"
-    )
-    headers = {
-        "Authorization": f"Bearer {token}",
-        "Content-Type": content_type,
-    }
-    resp = requests.put(url, headers=headers, data=content, timeout=30)
-    resp.raise_for_status()
-    return resp.json()["id"]
-
-# ── OneDrive: Passwortgeschützter Freigabe-Link ──────────────────────────────
-
-def create_onedrive_share_link(token: str, item_id: str, password: str, days: int) -> str:
-    expiry = (datetime.now(timezone.utc) + timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    url = (
-        f"https://graph.microsoft.com/v1.0/users/{ONEDRIVE_USER}"
-        f"/drive/items/{item_id}/createLink"
-    )
-    payload = {
-        "type": "view",
-        "scope": "anonymous",
-        "password": password,
-        "expirationDateTime": expiry,
-    }
-    resp = requests.post(
-        url,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-        json=payload,
-        timeout=30,
-    )
-    resp.raise_for_status()
-    return resp.json()["link"]["webUrl"]
-
-# ── Nextcloud: Internen User-ID auflösen (kann UUID sein) ───────────────────
-
-_nc_user_id_cache = None
-
-def _nc_user_id() -> str:
-    """Gibt die interne Nextcloud-User-ID zurück (per OCS-API, wird gecacht)."""
-    global _nc_user_id_cache
-    if _nc_user_id_cache:
-        return _nc_user_id_cache
-    try:
-        resp = requests.get(
-            f"{NC_URL.rstrip('/')}/ocs/v2.php/cloud/user",
-            auth=(NC_USER, NC_PASSWORD),
-            headers={"OCS-APIRequest": "true", "Accept": "application/json"},
-            timeout=10,
-        )
-        resp.raise_for_status()
-        uid = resp.json()["ocs"]["data"]["id"]
-        _nc_user_id_cache = uid
-        return uid
-    except Exception:
-        # Fallback: NC_USER direkt verwenden
-        return quote(NC_USER, safe="")
-
-# ── Nextcloud: Ordner sicherstellen (WebDAV MKCOL) ───────────────────────────
-
-def _nc_webdav_url(path: str) -> str:
-    base = NC_URL.rstrip("/")
-    return f"{base}/remote.php/dav/files/{_nc_user_id()}/{path.lstrip('/')}"
-
-def _nc_auth():
-    return (NC_USER, NC_PASSWORD)
-
-def nc_ensure_folder(folder_path: str = None):
-    """Stellt sicher dass der Ordner (und ggf. Unterordner) existiert."""
-    if folder_path is None:
-        folder_path = NC_FOLDER
-    # Für verschachtelte Pfade: jede Ebene einzeln anlegen
-    parts = folder_path.strip("/").split("/")
-    current = ""
-    for part in parts:
-        current = f"{current}/{part}" if current else part
-        url = _nc_webdav_url(current)
-        resp = requests.request("MKCOL", url, auth=_nc_auth(), timeout=15)
-        # 201 = erstellt, 405/409 = existiert schon → beides OK
-        if resp.status_code not in (201, 405, 409):
-            resp.raise_for_status()
-
-# ── Nextcloud: Datei hochladen (WebDAV PUT) ──────────────────────────────────
-
-def upload_to_nextcloud(filename: str, content: bytes,
-                        content_type: str = "text/markdown; charset=utf-8",
-                        subfolder: str = "") -> str:
-    """Lädt Datei hoch, gibt den Datei-Pfad zurück."""
-    if subfolder:
-        folder_path = f"{NC_FOLDER}/{subfolder}"
-    else:
-        folder_path = NC_FOLDER
-    nc_ensure_folder(folder_path)
-    path = f"{folder_path}/{filename}"
-    url  = _nc_webdav_url(path)
-    resp = requests.put(
-        url,
-        auth=_nc_auth(),
-        data=content,
-        headers={"Content-Type": content_type},
-        timeout=30,
-    )
-    resp.raise_for_status()
-    return path
-
-# ── Nextcloud: Passwortgeschützter Freigabe-Link (OCS Share API) ─────────────
-
-def create_nextcloud_share_link(file_path: str, password: str, days: int) -> str:
-    """Erstellt Share via OCS API, gibt die öffentliche URL zurück."""
-    base    = NC_URL.rstrip("/")
-    api_url = f"{base}/ocs/v2.php/apps/files_sharing/api/v1/shares"
-
-    expiry_str = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
-
-    resp = requests.post(
-        api_url,
-        auth=_nc_auth(),
-        headers={"OCS-APIRequest": "true", "Accept": "application/json"},
-        data={
-            "path":        f"/{file_path}",
-            "shareType":   3,           # 3 = öffentlicher Link
-            "permissions": 1,           # 1 = nur lesen
-            "password":    password,
-            "expireDate":  expiry_str,
-        },
-        timeout=30,
-    )
-    resp.raise_for_status()
-    data = resp.json()
-    try:
-        return data["ocs"]["data"]["url"]
-    except (KeyError, TypeError):
-        raise RuntimeError(f"Nextcloud Share-URL nicht gefunden: {data}")
-
-# ── Einheitlicher Upload-Dispatcher ─────────────────────────────────────────
+# ── Upload-Dispatcher (Wrapper um core.storage) ──────────────────────────────
 
 def upload_and_share(provider: str, filename: str, content: bytes,
                      password: str, days: int,
@@ -340,118 +179,51 @@ def upload_and_share(provider: str, filename: str, content: bytes,
     """Lädt Datei hoch und gibt passwortgeschützten Link zurück.
     provider kann ein DB-UUID (enthält '-'), 'nextcloud' oder 'onedrive' sein."""
 
-    # UUID → aus DB laden
+    # UUID → cfg aus DB aufbauen
     if "-" in provider:
         db_prov = db.get_all_cloud_providers()
         match = next((p for p in db_prov if p["id"] == provider), None)
         if match:
             cfg = json.loads(match["config_json"]) if isinstance(match["config_json"], str) else match["config_json"]
-            service = match["service"]
-            if service == "nextcloud":
-                # temporär globale NC-Vars für die Nextcloud-Hilfsfunktionen überschreiben
-                global NC_URL, NC_USER, NC_PASSWORD, NC_FOLDER, _nc_user_id_cache
-                _prev = (NC_URL, NC_USER, NC_PASSWORD, NC_FOLDER)
-                NC_URL = cfg.get("url", NC_URL)
-                NC_USER = cfg.get("user", NC_USER)
-                NC_PASSWORD = cfg.get("password", NC_PASSWORD)
-                NC_FOLDER = cfg.get("folder", NC_FOLDER)
-                _nc_user_id_cache = None
-                try:
-                    file_path = upload_to_nextcloud(filename, content,
-                                                    content_type=content_type, subfolder=subfolder)
-                    return create_nextcloud_share_link(file_path, password, days)
-                finally:
-                    NC_URL, NC_USER, NC_PASSWORD, NC_FOLDER = _prev
-                    _nc_user_id_cache = None
-            else:  # onedrive
-                global AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, ONEDRIVE_USER, ONEDRIVE_FOLDER
-                _prev_od = (AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, ONEDRIVE_USER, ONEDRIVE_FOLDER)
-                AZURE_CLIENT_ID     = cfg.get("client_id", AZURE_CLIENT_ID)
-                AZURE_CLIENT_SECRET = cfg.get("client_secret", AZURE_CLIENT_SECRET)
-                AZURE_TENANT_ID     = cfg.get("tenant_id", AZURE_TENANT_ID)
-                ONEDRIVE_USER       = cfg.get("user", ONEDRIVE_USER)
-                ONEDRIVE_FOLDER     = cfg.get("folder", ONEDRIVE_FOLDER)
-                try:
-                    token   = get_graph_token()
-                    item_id = upload_to_onedrive(token, filename, content,
-                                                 content_type=content_type, subfolder=subfolder)
-                    return create_onedrive_share_link(token, item_id, password, days)
-                finally:
-                    AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID, ONEDRIVE_USER, ONEDRIVE_FOLDER = _prev_od
+            cfg = dict(cfg)
+            cfg["service"] = match["service"]
+            return _core_upload_and_share(cfg, filename, content, password, days,
+                                          content_type=content_type, subfolder=subfolder)
 
-    # Legacy string providers
+    # Legacy string providers → cfg aus Globals
     if provider == "nextcloud":
-        file_path = upload_to_nextcloud(filename, content,
-                                        content_type=content_type,
-                                        subfolder=subfolder)
-        return create_nextcloud_share_link(file_path, password, days)
+        cfg = {"service": "nextcloud", "url": NC_URL, "user": NC_USER,
+               "password": NC_PASSWORD, "folder": NC_FOLDER}
     else:  # onedrive
-        token   = get_graph_token()
-        item_id = upload_to_onedrive(token, filename, content,
-                                     content_type=content_type,
-                                     subfolder=subfolder)
-        return create_onedrive_share_link(token, item_id, password, days)
+        cfg = {"service": "onedrive", "client_id": AZURE_CLIENT_ID,
+               "client_secret": AZURE_CLIENT_SECRET, "tenant_id": AZURE_TENANT_ID,
+               "user": ONEDRIVE_USER, "folder": ONEDRIVE_FOLDER}
+    return _core_upload_and_share(cfg, filename, content, password, days,
+                                  content_type=content_type, subfolder=subfolder)
 
-# ── E-Mail senden ────────────────────────────────────────────────────────────
-
-def _smtp_connect():
-    """Öffnet SMTP-Verbindung je nach SMTP_MODE (none/starttls/ssl)."""
-    if SMTP_MODE == "ssl":
-        s = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=15)
-    else:
-        s = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=15)
-        if SMTP_MODE == "starttls":
-            s.starttls()
-    if SMTP_USER and SMTP_PASSWORD:
-        s.login(SMTP_USER, SMTP_PASSWORD)
-    return s
+# ── E-Mail senden (Wrapper um core.email) ────────────────────────────────────
 
 def send_email(to_email: str, subject: str, body_html: str):
     """Sendet HTML-E-Mail via SMTP."""
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    # Absendername korrekt nach RFC 2047 enkodieren (UTF-8), damit Umlaute etc. korrekt angezeigt werden
-    msg["From"]    = formataddr((str(Header(MAIL_FROM_NAME, "utf-8")), MAIL_FROM))
-    msg["To"]      = to_email
-    msg.attach(MIMEText(body_html, "html", "utf-8"))
+    cfg = {
+        "host": SMTP_HOST, "port": SMTP_PORT, "mode": SMTP_MODE,
+        "user": SMTP_USER, "password": SMTP_PASSWORD,
+        "from_addr": MAIL_FROM, "from_name": MAIL_FROM_NAME,
+    }
+    _core_send_email(cfg, to_email, subject, body_html)
 
-    with _smtp_connect() as s:
-        s.sendmail(MAIL_FROM, [to_email], msg.as_string())
-
-# ── SMS via sipgate ──────────────────────────────────────────────────────────
+# ── SMS via sipgate (Wrapper um core.sms) ────────────────────────────────────
 
 def send_sms_sipgate_with_config(cfg: dict, to_number: str, message: str):
     """Sendet SMS über die sipgate REST API mit expliziter Konfiguration."""
-    # Unsichtbare Unicode-Zeichen entfernen, nur Ziffern und + behalten
-    cleaned = "".join(c for c in to_number if c.isdigit() or c == "+").strip()
-    if cleaned.startswith("00"):
-        number = "+" + cleaned[2:]
-    elif cleaned.startswith("0"):
-        number = "+49" + cleaned[1:]
-    elif cleaned.startswith("+"):
-        number = cleaned
-    else:
-        number = "+" + cleaned
-
-    resp = requests.post(
-        "https://api.sipgate.com/v2/sessions/sms",
-        auth=(cfg.get("token_id", ""), cfg.get("token", "")),
-        json={
-            "smsId":     cfg.get("sms_id", "s0"),
-            "recipient": number,
-            "message":   message,
-        },
-        timeout=15,
-    )
-    resp.raise_for_status()
+    _core_send_sms(cfg, to_number, message)
 
 
 def send_sms_sipgate(to_number: str, message: str):
     """Sendet SMS über die sipgate REST API (verwendet globale Vars als Fallback)."""
-    send_sms_sipgate_with_config(
+    _core_send_sms(
         {"token_id": SIPGATE_TOKEN_ID, "token": SIPGATE_TOKEN, "sms_id": SIPGATE_SMS_ID},
-        to_number,
-        message,
+        to_number, message,
     )
 
 # ── Passwort generieren ──────────────────────────────────────────────────────
@@ -460,205 +232,12 @@ def generate_password(length: int = 12) -> str:
     alphabet = string.ascii_letters + string.digits + "!@#$%"
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
-# ── PDF-Erstellung & Verschlüsselung ────────────────────────────────────────
-
-_UNICODE_REPLACE = {
-    '\u2013': '-',    # en dash  –
-    '\u2014': '--',   # em dash  —
-    '\u2015': '--',   # horizontal bar
-    '\u2018': "'",    # left single quotation mark
-    '\u2019': "'",    # right single quotation mark
-    '\u201a': ',',    # single low-9 quotation mark
-    '\u201b': "'",    # single high-reversed-9 quotation mark
-    '\u201c': '"',    # left double quotation mark
-    '\u201d': '"',    # right double quotation mark
-    '\u201e': '"',    # double low-9 quotation mark
-    '\u2026': '...',  # horizontal ellipsis
-    '\u2022': '-',    # bullet (we use chr(149) separately, but just in case)
-    '\u2023': '>',    # triangular bullet
-    '\u2039': '<',    # single left angle quotation
-    '\u203a': '>',    # single right angle quotation
-    '\u00ab': '"',    # left-pointing double angle quotation
-    '\u00bb': '"',    # right-pointing double angle quotation
-    '\u2032': "'",    # prime
-    '\u2033': '"',    # double prime
-    '\u00b7': '.',    # middle dot
-    '\u2212': '-',    # minus sign
-    '\u00d7': 'x',    # multiplication sign
-    '\u00f7': '/',    # division sign
-    '\u2192': '->',   # rightwards arrow
-    '\u2190': '<-',   # leftwards arrow
-    '\u2194': '<->',  # left right arrow
-    '\u21d2': '=>',   # rightwards double arrow
-    '\u2713': 'OK',   # check mark
-    '\u2714': 'OK',   # heavy check mark
-    '\u2717': 'X',    # ballot x
-    '\u2718': 'X',    # heavy ballot x
-}
-
-def _to_latin1(text: str) -> str:
-    """Ersetzt bekannte Unicode-Sonderzeichen durch Latin-1-kompatible Äquivalente.
-    Restliche Nicht-Latin-1-Zeichen werden durch '?' ersetzt, damit fpdf2
-    (Helvetica/built-in) keinen Encoding-Fehler wirft."""
-    for ch, repl in _UNICODE_REPLACE.items():
-        text = text.replace(ch, repl)
-    # Alles, was immer noch außerhalb Latin-1 liegt, durch '?' ersetzen
-    return text.encode('latin-1', errors='replace').decode('latin-1')
-
-
-def _md_plain(text: str) -> str:
-    """Entfernt Markdown-Inline-Syntax für Plain-Text-Ausgabe (z.B. im PDF)."""
-    text = re.sub(r'\*\*(.*?)\*\*', r'\1', text)   # **bold**
-    text = re.sub(r'__(.*?)__',     r'\1', text)    # __bold__
-    text = re.sub(r'\*(.*?)\*',     r'\1', text)    # *italic*
-    text = re.sub(r'_(.*?)_',       r'\1', text)    # _italic_
-    text = re.sub(r'`(.*?)`',       r'\1', text)    # `code`
-    text = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', text)  # [link](url)
-    return _to_latin1(text)
-
+# ── PDF-Erstellung (Wrapper um core.pdf) ─────────────────────────────────────
 
 def md_to_pdf_bytes(md_text: str, title: str = "Sichere Nachricht") -> bytes:
-    """
-    Konvertiert Markdown-Text zu einem professionell gestalteten PDF (fpdf2).
-    Unterstützte Elemente: H1/H2/H3, Bullet-/Nummerierte Listen,
-    Blockquotes, Trennlinien, Codeblöcke, normaler Fließtext.
-    """
-    if not _PDF_LIBS_AVAILABLE:
-        raise RuntimeError("fpdf2 ist nicht installiert. Bitte 'pip install fpdf2' ausführen.")
-
-    sender_name  = MAIL_FROM_NAME
-    sender_email = MAIL_FROM
-
-    class PDF(_FPDF):
-        def header(self):
-            self.set_fill_color(26, 86, 219)          # #1a56db
-            self.rect(0, 0, 210, 24, 'F')
-            self.set_y(5)
-            self.set_font('Helvetica', 'B', 13)
-            self.set_text_color(255, 255, 255)
-            self.cell(0, 7, 'Beseco IT Systems  Sichere Nachricht', align='L',
-                      new_x='LMARGIN', new_y='NEXT')
-            self.set_font('Helvetica', '', 9)
-            self.set_text_color(180, 210, 255)
-            self.cell(0, 5, _to_latin1(title), align='L')
-            self.ln(10)
-
-        def footer(self):
-            self.set_y(-14)
-            self.set_font('Helvetica', 'I', 8)
-            self.set_text_color(156, 163, 175)
-            txt = _to_latin1(f'{sender_name}  {sender_email}  Seite {self.page_no()}')
-            self.cell(0, 8, txt, align='C')
-
-    pdf = PDF()
-    pdf.set_margins(20, 35, 20)
-    pdf.set_auto_page_break(auto=True, margin=20)
-    pdf.add_page()
-
-    in_code_block = False
-
-    for raw_line in md_text.split('\n'):
-        line = raw_line.rstrip()
-
-        # ── Code-Block (``` ... ```) ──
-        if line.strip().startswith('```'):
-            in_code_block = not in_code_block
-            if in_code_block:
-                pdf.set_fill_color(30, 41, 59)
-                pdf.set_font('Courier', '', 10)
-                pdf.set_text_color(226, 232, 240)
-            else:
-                pdf.ln(2)
-                pdf.set_text_color(55, 65, 81)
-            continue
-        if in_code_block:
-            pdf.set_x(22)
-            pdf.multi_cell(166, 5, _to_latin1(line), fill=True, new_x='LMARGIN', new_y='NEXT')
-            continue
-
-        # ── Überschriften ──
-        if line.startswith('# '):
-            pdf.set_font('Helvetica', 'B', 17)
-            pdf.set_text_color(17, 24, 39)
-            pdf.multi_cell(0, 8, _md_plain(line[2:]))
-            pdf.ln(2)
-        elif line.startswith('## '):
-            pdf.set_font('Helvetica', 'B', 13)
-            pdf.set_text_color(26, 86, 219)
-            pdf.multi_cell(0, 7, _md_plain(line[3:]))
-            pdf.set_draw_color(229, 231, 235)
-            pdf.line(20, pdf.get_y(), 190, pdf.get_y())
-            pdf.ln(3)
-        elif line.startswith('### '):
-            pdf.set_font('Helvetica', 'B', 11)
-            pdf.set_text_color(55, 65, 81)
-            pdf.multi_cell(0, 6, _md_plain(line[4:]))
-            pdf.ln(1)
-
-        # ── Blockquote ──
-        elif line.startswith('> '):
-            y = pdf.get_y()
-            pdf.set_fill_color(26, 86, 219)
-            pdf.rect(20, y, 2.5, 6.5, 'F')
-            pdf.set_x(25)
-            pdf.set_font('Helvetica', 'I', 10)
-            pdf.set_text_color(55, 65, 81)
-            pdf.set_fill_color(239, 246, 255)
-            pdf.multi_cell(165, 6, _md_plain(line[2:]))
-            pdf.ln(1)
-
-        # ── Bullet-Liste ──
-        elif re.match(r'^[-*+] ', line):
-            pdf.set_font('Helvetica', '', 10.5)
-            pdf.set_text_color(55, 65, 81)
-            pdf.set_x(25)
-            pdf.cell(5, 5.5, chr(149))    # •
-            pdf.set_x(30)
-            pdf.multi_cell(160, 5.5, _md_plain(line[2:]), new_x='LMARGIN', new_y='NEXT')
-
-        # ── Nummerierte Liste ──
-        elif re.match(r'^\d+\. ', line):
-            m = re.match(r'^(\d+)\. (.*)', line)
-            if m:
-                pdf.set_font('Helvetica', '', 10.5)
-                pdf.set_text_color(55, 65, 81)
-                pdf.set_x(25)
-                pdf.cell(6, 5.5, f'{m.group(1)}.')
-                pdf.set_x(31)
-                pdf.multi_cell(159, 5.5, _md_plain(m.group(2)), new_x='LMARGIN', new_y='NEXT')
-
-        # ── Trennlinie ──
-        elif re.match(r'^[-*_]{3,}$', line.strip()):
-            pdf.set_draw_color(229, 231, 235)
-            pdf.line(20, pdf.get_y() + 2, 190, pdf.get_y() + 2)
-            pdf.ln(5)
-
-        # ── Leerzeile ──
-        elif line.strip() == '':
-            pdf.ln(3)
-
-        # ── Normaler Text ──
-        else:
-            pdf.set_font('Helvetica', '', 10.5)
-            pdf.set_text_color(55, 65, 81)
-            pdf.multi_cell(0, 5.5, _md_plain(line))
-            pdf.ln(0.5)
-
-    return bytes(pdf.output())
-
-
-def encrypt_pdf_bytes(pdf_bytes: bytes, password: str) -> bytes:
-    """Verschlüsselt PDF-Bytes mit AES-256 (pypdf)."""
-    if not _PDF_LIBS_AVAILABLE:
-        raise RuntimeError("pypdf ist nicht installiert. Bitte 'pip install pypdf' ausführen.")
-    reader = _PdfReader(io.BytesIO(pdf_bytes))
-    writer = _PdfWriter()
-    for page in reader.pages:
-        writer.add_page(page)
-    writer.encrypt(password)
-    out = io.BytesIO()
-    writer.write(out)
-    return out.getvalue()
+    """Konvertiert Markdown-Text zu PDF (via core.pdf, mit Absender-Infos aus Globals)."""
+    return _core_md_to_pdf_bytes(md_text, title=title,
+                                 sender_name=MAIL_FROM_NAME, sender_email=MAIL_FROM)
 
 
 # ── Flask Routes ─────────────────────────────────────────────────────────────
@@ -808,124 +387,6 @@ def api_contacts_delete(contact_id):
     return jsonify({"ok": False, "error": "Kontakt nicht gefunden."}), 404
 
 
-# ── vCard Hilfsfunktionen ────────────────────────────────────────────────────
-
-def _vcf_escape(value: str) -> str:
-    """Escape special characters per RFC 6350."""
-    return value.replace("\\", "\\\\").replace(",", "\\,").replace(";", "\\;").replace("\n", "\\n")
-
-
-def _contacts_to_vcf(contacts: list) -> str:
-    """Erzeugt einen vCard 3.0 String aus einer Liste von Kontakt-Dicts."""
-    blocks = []
-    for c in contacts:
-        fn = f"{c.get('first_name', '')} {c.get('last_name', '')}".strip()
-        blocks.append("\r\n".join([
-            "BEGIN:VCARD",
-            "VERSION:3.0",
-            f"FN:{_vcf_escape(fn)}",
-            f"N:{_vcf_escape(c.get('last_name', ''))};{_vcf_escape(c.get('first_name', ''))};; ;",
-            f"ORG:{_vcf_escape(c.get('company', ''))}",
-            f"TEL;TYPE=CELL:{c.get('mobile', '')}",
-            f"EMAIL:{c.get('email', '')}",
-            "END:VCARD",
-        ]))
-    return "\r\n\r\n".join(blocks)
-
-
-def _parse_vcf(text: str) -> list:
-    """Minimaler vCard 3.0/4.0 Parser. Gibt Liste von Kontakt-Dicts zurück."""
-    import quopri
-
-    def _unfold(lines):
-        """RFC 6350 line unfolding: continuation lines start with space or tab."""
-        result = []
-        for line in lines:
-            if line and line[0] in (" ", "\t") and result:
-                result[-1] += line[1:]
-            else:
-                result.append(line)
-        return result
-
-    contacts = []
-    # Split in einzelne vCard-Blöcke
-    text = text.replace("\r\n", "\n").replace("\r", "\n")
-    blocks = []
-    in_card = False
-    current = []
-    for line in text.splitlines():
-        if line.strip().upper() == "BEGIN:VCARD":
-            in_card = True
-            current = []
-        elif line.strip().upper() == "END:VCARD":
-            if in_card:
-                blocks.append(current)
-            in_card = False
-        elif in_card:
-            current.append(line)
-
-    for block in blocks:
-        lines = _unfold(block)
-        contact = {"company": "", "last_name": "", "first_name": "", "mobile": "", "email": ""}
-        fn_fallback = ""
-        mobile_found = False
-
-        for line in lines:
-            # Quoted-Printable dekodieren
-            if "ENCODING=QUOTED-PRINTABLE" in line.upper():
-                parts = line.split(":", 1)
-                if len(parts) == 2:
-                    try:
-                        line = parts[0] + ":" + quopri.decodestring(parts[1].encode()).decode("utf-8", errors="replace")
-                    except Exception:
-                        pass
-
-            # Eigenschaft und Wert trennen
-            if ":" not in line:
-                continue
-            prop_full, value = line.split(":", 1)
-            value = value.strip()
-            prop_upper = prop_full.upper()
-
-            # FN (vollständiger Name als Fallback)
-            if prop_upper.startswith("FN"):
-                fn_fallback = value
-
-            # N: Nachname;Vorname;...
-            elif prop_upper.startswith("N;") or prop_upper == "N":
-                parts = value.split(";")
-                contact["last_name"]  = parts[0].strip() if len(parts) > 0 else ""
-                contact["first_name"] = parts[1].strip() if len(parts) > 1 else ""
-
-            # ORG: Firma;Abteilung → nur erste Komponente
-            elif prop_upper.startswith("ORG"):
-                contact["company"] = value.split(";")[0].strip()
-
-            # TEL: Mobilnummer bevorzugt
-            elif prop_upper.startswith("TEL"):
-                type_part = prop_upper
-                is_mobile = any(t in type_part for t in ("CELL", "MOBILE"))
-                if is_mobile:
-                    contact["mobile"] = value
-                    mobile_found = True
-                elif not mobile_found:
-                    contact["mobile"] = value
-
-            # EMAIL: erste gefundene
-            elif prop_upper.startswith("EMAIL") and not contact["email"]:
-                contact["email"] = value
-
-        # Fallback: FN nach letztem Leerzeichen aufteilen
-        if not contact["last_name"] and fn_fallback:
-            parts = fn_fallback.rsplit(" ", 1)
-            contact["first_name"] = parts[0] if len(parts) > 1 else ""
-            contact["last_name"]  = parts[-1]
-
-        # Nur hinzufügen wenn mindestens ein verwertbares Feld vorhanden
-        if any(contact.values()):
-            contacts.append(contact)
-
-    return contacts
 
 
 @app.route("/api/contacts/export.vcf")
