@@ -4,8 +4,18 @@
     {
       "name": "Beseco SecureSend (Flask)",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["local/app.py"],
+      "runtimeArgs": [
+        "local/app.py"
+      ],
       "port": 5001
+    },
+    {
+      "name": "Beseco SecureSend (Cloud)",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "run_cloud.py"
+      ],
+      "port": 8001
     }
   ]
 }

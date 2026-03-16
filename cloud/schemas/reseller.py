@@ -17,10 +17,10 @@ class ResellerCreate(BaseModel):
 
 
 class ResellerUpdate(BaseModel):
-    name: str | None = None
-    slug: str | None = None
-    contact_email: EmailStr | None = None
-    is_active: bool | None = None
+    name: Optional[str] = None
+    slug: Optional[str] = None
+    contact_email: Optional[EmailStr] = None
+    is_active: Optional[bool] = None
 
 
 class ResellerRead(BaseModel):

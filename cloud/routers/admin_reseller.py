@@ -16,6 +16,8 @@ Reseller management (superadmin only):
 
 from __future__ import annotations
 
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,7 +26,7 @@ from database import get_db
 from dependencies import reseller_admin_required, superadmin_required
 from models.organization import Organization
 from models.reseller import Reseller
-from models.user import User
+from models.user import User, UserRole
 from schemas.organization import OrgCreate, OrgRead, OrgUpdate
 from schemas.reseller import ResellerCreate, ResellerRead, ResellerUpdate
 
@@ -33,18 +35,9 @@ router = APIRouter(tags=["admin-reseller"])
 
 # ── Helper ─────────────────────────────────────────────────────────────────────
 
-def _get_reseller_id(current_user: User) -> str:
-    """
-    For reseller_admin: the reseller_id comes from their org's reseller.
-    For superadmin: they may operate across resellers; require explicit
-    reseller context via their organisation.
-    """
-    if current_user.reseller_id:
-        return current_user.reseller_id
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="No reseller context found for this user",
-    )
+def _get_reseller_id(current_user: User) -> Optional[str]:
+    """Returns reseller_id for reseller_admin, None for superadmin (all-access)."""
+    return current_user.reseller_id if current_user.reseller_id else None
 
 
 # ── Organisations ──────────────────────────────────────────────────────────────
@@ -55,11 +48,10 @@ async def list_reseller_orgs(
     db: AsyncSession = Depends(get_db),
 ) -> list[OrgRead]:
     reseller_id = _get_reseller_id(current_user)
-    result = await db.execute(
-        select(Organization)
-        .where(Organization.reseller_id == reseller_id)
-        .order_by(Organization.name)
-    )
+    q = select(Organization).order_by(Organization.name)
+    if reseller_id:
+        q = q.where(Organization.reseller_id == reseller_id)
+    result = await db.execute(q)
     orgs = result.scalars().all()
     return [OrgRead.model_validate(o) for o in orgs]
 
@@ -75,6 +67,11 @@ async def create_reseller_org(
     db: AsyncSession = Depends(get_db),
 ) -> OrgRead:
     reseller_id = _get_reseller_id(current_user)
+    # Superadmin must supply reseller_id in the request body
+    if not reseller_id:
+        if not body.reseller_id:
+            raise HTTPException(status_code=400, detail="reseller_id required for superadmin")
+        reseller_id = body.reseller_id
 
     # Slug uniqueness
     existing = await db.execute(select(Organization).where(Organization.slug == body.slug))

@@ -31,6 +31,6 @@ class MeResponse(BaseModel):
     id: str
     email: str
     role: str
-    org_id: str | None
-    reseller_id: str | None
+    org_id: Optional[str]
+    reseller_id: Optional[str]
     is_active: bool

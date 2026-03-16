@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -23,27 +24,27 @@ class CloudProvider(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     # Either org-level or user-level (both nullable for flexibility)
-    org_id: Mapped[str | None] = mapped_column(
+    org_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True, index=True
     )
-    user_id: Mapped[str | None] = mapped_column(
+    user_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     service: Mapped[str] = mapped_column(String(50), nullable=False)  # "nextcloud" | "onedrive"
-    config_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    config_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
 
-    organization: Mapped["Organization | None"] = relationship(  # noqa: F821
+    organization: Mapped["Optional[Organization]"] = relationship(  # noqa: F821
         "Organization",
         primaryjoin="CloudProvider.org_id == Organization.id",
         back_populates="cloud_providers",
     )
-    owner_user: Mapped["User | None"] = relationship(  # noqa: F821
+    owner_user: Mapped["Optional[User]"] = relationship(  # noqa: F821
         "User",
         primaryjoin="CloudProvider.user_id == User.id",
         back_populates="cloud_providers",
@@ -66,7 +67,7 @@ class SmsGateway(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     service: Mapped[str] = mapped_column(String(50), nullable=False, default="sipgate")
-    config_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    config_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -147,10 +148,10 @@ class MsgTemplate(Base):
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
-    org_id: Mapped[str | None] = mapped_column(
+    org_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True, index=True
     )
-    user_id: Mapped[str | None] = mapped_column(
+    user_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -159,12 +160,12 @@ class MsgTemplate(Base):
         DateTime, server_default=func.now(), nullable=False
     )
 
-    organization: Mapped["Organization | None"] = relationship(  # noqa: F821
+    organization: Mapped["Optional[Organization]"] = relationship(  # noqa: F821
         "Organization",
         primaryjoin="MsgTemplate.org_id == Organization.id",
         back_populates="msg_templates",
     )
-    owner_user: Mapped["User | None"] = relationship(  # noqa: F821
+    owner_user: Mapped["Optional[User]"] = relationship(  # noqa: F821
         "User",
         primaryjoin="MsgTemplate.user_id == User.id",
         back_populates="msg_templates",

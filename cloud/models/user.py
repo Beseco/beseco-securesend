@@ -7,6 +7,7 @@ from __future__ import annotations
 import enum
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -27,7 +28,7 @@ class User(Base):
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
-    org_id: Mapped[str | None] = mapped_column(
+    org_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True, index=True
     )
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
@@ -41,7 +42,7 @@ class User(Base):
     )
 
     # relationships
-    organization: Mapped["Organization | None"] = relationship(  # noqa: F821
+    organization: Mapped["Optional[Organization]"] = relationship(  # noqa: F821
         "Organization", back_populates="users"
     )
     contacts: Mapped[list["Contact"]] = relationship(  # noqa: F821
@@ -62,7 +63,7 @@ class User(Base):
     )
 
     @property
-    def reseller_id(self) -> str | None:
+    def reseller_id(self) -> Optional[str]:
         """Convenience accessor — resolved via the organization relationship."""
         if self.organization:
             return self.organization.reseller_id

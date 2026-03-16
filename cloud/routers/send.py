@@ -41,7 +41,7 @@ def _random_password(length: int = 10) -> str:
 
 
 async def _get_provider(
-    db: AsyncSession, org_id: str, provider_id: str | None
+    db: AsyncSession, org_id: str, provider_id: Optional[str]
 ) -> CloudProvider:
     """Load the requested or default cloud provider for the org."""
     if provider_id:
@@ -74,7 +74,7 @@ async def _get_provider(
     return provider
 
 
-async def _get_sms_gateway(db: AsyncSession, org_id: str) -> SmsGateway | None:
+async def _get_sms_gateway(db: AsyncSession, org_id: str) -> Optional[SmsGateway]:
     result = await db.execute(
         select(SmsGateway).where(
             SmsGateway.org_id == org_id,
@@ -89,7 +89,7 @@ async def _get_sms_gateway(db: AsyncSession, org_id: str) -> SmsGateway | None:
 async def send_secure(
     request: Request,
     # ---- File upload (optional) ----
-    file: UploadFile | None = File(default=None),
+    file: Optional[UploadFile] = File(default=None),
     # ---- Form / JSON fields ----
     to_email: str = Form(default=""),
     to_phone: str = Form(default=""),
@@ -99,7 +99,7 @@ async def send_secure(
     security_level: str = Form(default="standard"),
     send_sms: bool = Form(default=False),
     send_email_flag: bool = Form(default=True, alias="send_email"),
-    provider_id: str | None = Form(default=None),
+    provider_id: Optional[str] = Form(default=None),
     # ---- Auth ----
     current_user: User = Depends(org_user_required()),
     db: AsyncSession = Depends(get_db),
@@ -167,7 +167,7 @@ async def send_secure(
     if current_user.organization and current_user.organization.settings_json:
         org_settings = current_user.organization.settings_json
 
-    smtp_cfg: dict | None = org_settings.get("smtp")
+    smtp_cfg: Optional[dict] = org_settings.get("smtp")
 
     # ── Send email ─────────────────────────────────────────────────────────
     if send_email_flag and to_email and smtp_cfg:

@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -36,6 +36,7 @@ from sqlalchemy.orm import selectinload
 
 from config import settings
 from database import get_db
+from models.reseller import Reseller
 from models.shared import History
 from models.user import User, UserRole
 
@@ -43,8 +44,18 @@ router = APIRouter(prefix="/ui", tags=["ui"])
 
 # ── Template engine ───────────────────────────────────────────────────────────
 
+_ROLE_LABELS = {
+    "superadmin": "Superadmin",
+    "reseller_admin": "Reseller-Admin",
+    "org_admin": "Org-Admin",
+    "org_user": "Benutzer",
+}
+
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+templates.env.filters["role_label"] = lambda r: _ROLE_LABELS.get(
+    getattr(r, "value", str(r)), str(r)
+)
 
 # ── Role ordering ─────────────────────────────────────────────────────────────
 
@@ -80,7 +91,7 @@ def _clear_auth_cookie(response: RedirectResponse) -> None:
 
 async def _get_user_from_cookie(
     request: Request, db: AsyncSession
-) -> User | None:
+) -> Optional[User]:
     """
     Try to extract and validate the JWT from the `access_token` cookie.
     Returns the User ORM object, or None on any failure.
@@ -96,7 +107,7 @@ async def _get_user_from_cookie(
     if payload.get("type") != "access":
         return None
 
-    user_id: str | None = payload.get("sub")
+    user_id: Optional[str] = payload.get("sub")
     if not user_id:
         return None
 
@@ -111,7 +122,7 @@ async def _get_user_from_cookie(
     return user
 
 
-def _require_role_rank(user: User | None, min_rank: int) -> bool:
+def _require_role_rank(user: Optional[User], min_rank: int) -> bool:
     """Return True if the user has at least the given role rank."""
     if user is None:
         return False
@@ -138,7 +149,7 @@ def _login_redirect(next_url: str = "/ui/") -> RedirectResponse:
     return RedirectResponse(url=f"/ui/login?next={next_url}", status_code=303)
 
 
-def _ctx(request: Request, current_user: User | None, active_page: str, **extra: Any) -> dict:
+def _ctx(request: Request, current_user: Optional[User], active_page: str, **extra: Any) -> dict:
     """Build common template context dict."""
     return {
         "request": request,
@@ -384,9 +395,14 @@ async def admin_reseller_page(
                 flash_type="error",
             ),
         )
+    # Superadmin sees a reseller dropdown in the org creation modal
+    resellers = []
+    if user.role == UserRole.superadmin:
+        result = await db.execute(select(Reseller).where(Reseller.is_active == True).order_by(Reseller.name))  # noqa: E712
+        resellers = [{"id": r.id, "name": r.name} for r in result.scalars().all()]
     return templates.TemplateResponse(
         "admin_reseller.html",
-        _ctx(request, user, "admin_reseller"),
+        _ctx(request, user, "admin_reseller", resellers=resellers),
     )
 
 

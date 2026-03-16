@@ -5,10 +5,10 @@ role-based access control.
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import Callable, Optional
 
 import bcrypt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
 from sqlalchemy import select
@@ -19,7 +19,7 @@ from config import settings
 from database import get_db
 from models.user import User, UserRole
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 # Role ordering for hierarchical checks
 _ROLE_RANK: dict[str, int] = {
@@ -59,39 +59,51 @@ def decode_token(token: str) -> dict:
 
 # ── Core auth dependency ──────────────────────────────────────────────────────
 
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db),
-) -> User:
-    """
-    Validate the Bearer token and return the active User ORM object.
-    The organization (and therefore reseller_id) is eagerly loaded.
-    """
-    payload = decode_token(token)
-
-    # Reject refresh tokens used as access tokens
+async def _load_user_from_token(token: str, db: AsyncSession) -> Optional[User]:
+    """Decode token and return User, or None on failure."""
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    except JWTError:
+        return None
     if payload.get("type") != "access":
-        raise CREDENTIALS_EXCEPTION
-
-    user_id: str | None = payload.get("sub")
+        return None
+    user_id: Optional[str] = payload.get("sub")
     if not user_id:
-        raise CREDENTIALS_EXCEPTION
-
+        return None
     result = await db.execute(
         select(User)
         .options(selectinload(User.organization))
         .where(User.id == user_id)
     )
     user = result.scalar_one_or_none()
-
-    if user is None:
-        raise CREDENTIALS_EXCEPTION
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is disabled",
-        )
+    if user is None or not user.is_active:
+        return None
     return user
+
+
+async def get_current_user(
+    request: Request,
+    token: Optional[str] = Depends(oauth2_scheme),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """
+    Validate Bearer token OR HttpOnly cookie and return the active User.
+    Tries Authorization header first, falls back to access_token cookie.
+    """
+    # 1. Bearer token from Authorization header
+    if token:
+        user = await _load_user_from_token(token, db)
+        if user:
+            return user
+
+    # 2. Fallback: HttpOnly cookie (used by UI pages)
+    cookie_token = request.cookies.get("access_token")
+    if cookie_token:
+        user = await _load_user_from_token(cookie_token, db)
+        if user:
+            return user
+
+    raise CREDENTIALS_EXCEPTION
 
 
 # ── Role-based access control ─────────────────────────────────────────────────

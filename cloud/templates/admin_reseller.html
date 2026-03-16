@@ -49,6 +49,15 @@
     <h3 id="orgModalTitle" style="font-size:1.0625rem;font-weight:700;color:#1e293b;margin-bottom:1.25rem;">Organisation hinzufügen</h3>
     <form id="orgForm">
       <input type="hidden" id="orgId" />
+      {% if resellers %}
+      <div style="margin-bottom:0.875rem;">
+        <label class="form-label">Reseller</label>
+        <select id="oReseller" class="form-input">
+          <option value="">— Reseller wählen —</option>
+          {% for r in resellers %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}
+        </select>
+      </div>
+      {% endif %}
       <div style="margin-bottom:0.875rem;">
         <label class="form-label">Name</label>
         <input type="text" id="oName" class="form-input" required />
@@ -163,7 +172,8 @@
   document.getElementById('orgForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const id = document.getElementById('orgId').value;
-    const body = { name: document.getElementById('oName').value, slug: document.getElementById('oSlug').value, is_active: document.getElementById('oActive').value === 'true' };
+    const resellerEl = document.getElementById('oReseller');
+    const body = { name: document.getElementById('oName').value, slug: document.getElementById('oSlug').value, is_active: document.getElementById('oActive').value === 'true', ...(resellerEl && resellerEl.value ? {reseller_id: resellerEl.value} : {}) };
     const btn = document.getElementById('saveOrgBtn');
     btn.disabled = true; btn.textContent = 'Speichern…';
     try {

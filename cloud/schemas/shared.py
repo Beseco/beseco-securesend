@@ -6,7 +6,7 @@ History, MsgTemplate, EmailTemplate.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel
 
@@ -16,24 +16,24 @@ from pydantic import BaseModel
 class CloudProviderCreate(BaseModel):
     name: str
     service: str                        # "nextcloud" | "onedrive"
-    config_json: dict[str, Any] | None = None
+    config_json: Optional[dict[str, Any]] = None
     is_default: bool = False
     is_active: bool = True
-    user_id: str | None = None          # omit for org-level
+    user_id: Optional[str] = None          # omit for org-level
 
 
 class CloudProviderUpdate(BaseModel):
-    name: str | None = None
-    service: str | None = None
-    config_json: dict[str, Any] | None = None
-    is_default: bool | None = None
-    is_active: bool | None = None
+    name: Optional[str] = None
+    service: Optional[str] = None
+    config_json: Optional[dict[str, Any]] = None
+    is_default: Optional[bool] = None
+    is_active: Optional[bool] = None
 
 
 class CloudProviderRead(BaseModel):
     id: str
-    org_id: str | None
-    user_id: str | None
+    org_id: Optional[str]
+    user_id: Optional[str]
     name: str
     service: str
     is_default: bool
@@ -48,17 +48,17 @@ class CloudProviderRead(BaseModel):
 class SmsGatewayCreate(BaseModel):
     name: str
     service: str = "sipgate"
-    config_json: dict[str, Any] | None = None
+    config_json: Optional[dict[str, Any]] = None
     is_default: bool = False
     is_active: bool = True
 
 
 class SmsGatewayUpdate(BaseModel):
-    name: str | None = None
-    service: str | None = None
-    config_json: dict[str, Any] | None = None
-    is_default: bool | None = None
-    is_active: bool | None = None
+    name: Optional[str] = None
+    service: Optional[str] = None
+    config_json: Optional[dict[str, Any]] = None
+    is_default: Optional[bool] = None
+    is_active: Optional[bool] = None
 
 
 class SmsGatewayRead(BaseModel):
@@ -84,11 +84,11 @@ class ContactCreate(BaseModel):
 
 
 class ContactUpdate(BaseModel):
-    company: str | None = None
-    last_name: str | None = None
-    first_name: str | None = None
-    mobile: str | None = None
-    email: str | None = None
+    company: Optional[str] = None
+    last_name: Optional[str] = None
+    first_name: Optional[str] = None
+    mobile: Optional[str] = None
+    email: Optional[str] = None
 
 
 class ContactRead(BaseModel):
@@ -128,19 +128,19 @@ class HistoryRead(BaseModel):
 class MsgTemplateCreate(BaseModel):
     name: str
     content: str
-    org_id: str | None = None
-    user_id: str | None = None
+    org_id: Optional[str] = None
+    user_id: Optional[str] = None
 
 
 class MsgTemplateUpdate(BaseModel):
-    name: str | None = None
-    content: str | None = None
+    name: Optional[str] = None
+    content: Optional[str] = None
 
 
 class MsgTemplateRead(BaseModel):
     id: str
-    org_id: str | None
-    user_id: str | None
+    org_id: Optional[str]
+    user_id: Optional[str]
     name: str
     content: str
     created_at: datetime
@@ -157,9 +157,9 @@ class EmailTemplateCreate(BaseModel):
 
 
 class EmailTemplateUpdate(BaseModel):
-    name: str | None = None
-    html_body: str | None = None
-    is_default: bool | None = None
+    name: Optional[str] = None
+    html_body: Optional[str] = None
+    is_default: Optional[bool] = None
 
 
 class EmailTemplateRead(BaseModel):
@@ -185,7 +185,7 @@ class SendRequest(BaseModel):
     security_level: str = "standard"
     send_sms: bool = False
     send_email: bool = True
-    provider_id: str | None = None      # override default org provider
+    provider_id: Optional[str] = None      # override default org provider
 
 
 class SendResponse(BaseModel):

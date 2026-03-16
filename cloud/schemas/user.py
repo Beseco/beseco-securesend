@@ -19,15 +19,15 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
-    email: EmailStr | None = None
-    password: str | None = None
-    role: UserRole | None = None
-    is_active: bool | None = None
+    email: Optional[EmailStr] = None
+    password: Optional[str] = None
+    role: Optional[UserRole] = None
+    is_active: Optional[bool] = None
 
 
 class UserRead(BaseModel):
     id: str
-    org_id: str | None
+    org_id: Optional[str]
     email: str
     role: UserRole
     is_active: bool

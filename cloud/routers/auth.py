@@ -108,7 +108,7 @@ async def refresh_token(
     if payload.get("type") != "refresh":
         raise CREDENTIALS_EXCEPTION
 
-    user_id: str | None = payload.get("sub")
+    user_id: Optional[str] = payload.get("sub")
     if not user_id:
         raise CREDENTIALS_EXCEPTION
 

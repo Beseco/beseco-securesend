@@ -11,7 +11,7 @@
         Willkommen, {{ current_user.email.split('@')[0] }}!
       </h2>
       <p style="font-size:0.9375rem;opacity:0.85;">
-        Sie sind angemeldet als <strong>{{ current_user.role }}</strong>
+        Sie sind angemeldet als <strong>{{ current_user.role | role_label }}</strong>
         {% if current_user.org_id %} in Ihrer Organisation{% endif %}.
       </p>
     </div>
@@ -112,7 +112,7 @@
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid #f1f5f9;">
           <dt style="font-size:0.8125rem;color:#64748b;">Rolle</dt>
-          <dd><span class="badge-role">{{ current_user.role }}</span></dd>
+          <dd><span class="badge-role">{{ current_user.role | role_label }}</span></dd>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0;border-bottom:1px solid #f1f5f9;">
           <dt style="font-size:0.8125rem;color:#64748b;">Status</dt>
