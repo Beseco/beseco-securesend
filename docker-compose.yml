@@ -4,7 +4,7 @@ services:
     container_name: securesend
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8001:8001"   # nur lokal — nginx/proxy macht SSL nach außen
+      - "8001:8001"
     volumes:
       - securesend_data:/data
     env_file:
