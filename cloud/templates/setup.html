@@ -114,10 +114,6 @@
       </div>
     </div>
 
-    <!-- Hidden: org_name + org_slug = same as reseller -->
-    <input type="hidden" name="org_name" id="orgName" />
-    <input type="hidden" name="org_slug" id="orgSlug" />
-
     <button type="submit" class="btn" id="submitBtn">✓ Einrichten</button>
   </form>
 
@@ -143,11 +139,6 @@
     const pw = document.getElementById('pw1').value;
     const pw2 = document.getElementById('pw2').value;
     if (pw !== pw2) { e.preventDefault(); alert('Die Passwörter stimmen nicht überein.'); return; }
-    // Org = gleicher Name/Slug wie Reseller
-    const name = document.getElementById('companyName').value;
-    const slug = document.getElementById('companySlug').value;
-    document.getElementById('orgName').value = name;
-    document.getElementById('orgSlug').value = slug;
     document.getElementById('submitBtn').disabled = true;
     document.getElementById('submitBtn').textContent = 'Wird eingerichtet…';
   });

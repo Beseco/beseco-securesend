@@ -68,24 +68,23 @@ async def setup_page(request: Request, db: AsyncSession = Depends(get_db)) -> HT
 @router.post("/setup")
 async def setup_submit(
     request: Request,
-    # Schritt 1 – Administrator
     first_name: str = Form(...),
     last_name: str = Form(...),
     email: str = Form(...),
     password: str = Form(...),
     password2: str = Form(...),
-    # Schritt 2 – Reseller
     reseller_name: str = Form(...),
     reseller_slug: str = Form(...),
-    # Schritt 3 – Organisation
-    org_name: str = Form(...),
-    org_slug: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     import uuid
     from dependencies import hash_password
     from models.reseller import Reseller
     from models.organization import Organization
+
+    # Organisation bekommt denselben Namen/Slug wie der Reseller
+    org_name = reseller_name
+    org_slug = reseller_slug
 
     def _err(msg: str):
         return templates.TemplateResponse("setup.html", {
@@ -94,7 +93,6 @@ async def setup_submit(
             "error": msg,
             "first_name": first_name, "last_name": last_name, "email": email,
             "reseller_name": reseller_name, "reseller_slug": reseller_slug,
-            "org_name": org_name, "org_slug": org_slug,
         }, status_code=422)
 
     if not await _needs_setup(db):
