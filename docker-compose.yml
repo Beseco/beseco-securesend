@@ -4,7 +4,7 @@ services:
     container_name: securesend
     restart: unless-stopped
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"   # nur lokal — nginx/proxy macht SSL nach außen
     volumes:
       - securesend_data:/data
     env_file:
@@ -12,6 +12,7 @@ services:
     environment:
       DATABASE_URL: sqlite+aiosqlite:////data/securesend.db
       UVICORN_HOST: "0.0.0.0"
+      PUBLIC_BASE_URL: "https://securesend.cloud-fs.de"
 
 volumes:
   securesend_data:
