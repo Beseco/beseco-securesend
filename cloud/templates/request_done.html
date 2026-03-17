@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="de" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vielen Dank – SecureSend Cloud</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f2057 100%); min-height: 100vh; }
+    .card { background: #fff; border-radius: 1rem; padding: 2.5rem; width: 100%; max-width: 26rem; box-shadow: 0 25px 60px rgba(0,0,0,0.35); }
+  </style>
+</head>
+<body class="h-full flex items-center justify-center px-4">
+
+  <div class="card" style="text-align:center;">
+    <!-- Logo -->
+    <div style="margin-bottom:1.75rem;">
+      <div style="display:inline-flex;align-items:center;justify-content:center;background:#1a56db;border-radius:0.875rem;padding:0.875rem;margin-bottom:1rem;">
+        <svg style="width:2rem;height:2rem;color:#fff" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        </svg>
+      </div>
+      <h1 style="font-size:1.5rem;font-weight:800;color:#1e293b;letter-spacing:-0.02em;">SecureSend Cloud</h1>
+    </div>
+
+    <!-- Success icon -->
+    <div style="display:flex;justify-content:center;margin-bottom:1.25rem;">
+      <div style="background:#dcfce7;border-radius:50%;padding:1.25rem;">
+        <svg style="width:2.5rem;height:2.5rem;color:#16a34a;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+    </div>
+
+    <h2 style="font-size:1.5rem;font-weight:800;color:#1e293b;margin-bottom:0.5rem;">Vielen Dank!</h2>
+
+    {% if type == "upload" %}
+    <p style="font-size:0.9375rem;color:#475569;margin-bottom:0.25rem;">
+      Ihre Dateien wurden sicher übermittelt.
+    </p>
+    <p style="font-size:0.875rem;color:#64748b;">
+      Der Absender wird benachrichtigt und kann die Dateien nun sicher abrufen.
+    </p>
+    {% else %}
+    <p style="font-size:0.9375rem;color:#475569;margin-bottom:0.25rem;">
+      Ihre Mobilnummer wurde sicher übermittelt.
+    </p>
+    <p style="font-size:0.875rem;color:#64748b;">
+      Der Absender wurde benachrichtigt.
+    </p>
+    {% endif %}
+
+    <p style="text-align:center;margin-top:2rem;font-size:0.75rem;color:#cbd5e1;">
+      SecureSend Cloud &mdash; Sicheres Senden
+    </p>
+  </div>
+
+</body>
+</html>

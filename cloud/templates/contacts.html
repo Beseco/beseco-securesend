@@ -22,6 +22,9 @@
     </svg>
     Kontakt hinzufügen
   </button>
+  <button onclick="openModal('uploadReqModal')" class="btn-secondary" style="display:inline-flex;align-items:center;gap:0.375rem;font-size:0.875rem;font-weight:600;padding:0.5rem 1rem;border-radius:0.5rem;border:1px solid #e2e8f0;background:#f1f5f9;color:#334155;">
+    📤 Upload-Link senden
+  </button>
 {% endblock %}
 
 {% block content %}
@@ -124,6 +127,51 @@
     </div>
   </div>
 </div>
+
+<!-- Phone Request Modal -->
+<div id="phoneReqModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-box" style="max-width:24rem;">
+    <h3 style="font-size:1.0625rem;font-weight:700;color:#1e293b;margin-bottom:0.5rem;">📱 Handynummer anfragen</h3>
+    <p style="font-size:0.875rem;color:#64748b;margin-bottom:1.25rem;">
+      Eine E-Mail wird an <strong id="phoneReqContactName"></strong> gesendet, in der um die Mobilnummer gebeten wird.
+    </p>
+    <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
+      <button onclick="closeModal('phoneReqModal')" class="btn-secondary">Abbrechen</button>
+      <button id="confirmPhoneReqBtn" onclick="confirmPhoneRequest()" class="btn-primary">Anfrage senden</button>
+    </div>
+  </div>
+</div>
+
+<!-- Upload Request Modal -->
+<div id="uploadReqModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-box" style="max-width:28rem;">
+    <h3 style="font-size:1.0625rem;font-weight:700;color:#1e293b;margin-bottom:1.25rem;">📤 Upload-Link senden</h3>
+    <div style="margin-bottom:0.875rem;">
+      <label class="form-label" for="urEmail">Empfänger E-Mail *</label>
+      <input type="email" id="urEmail" class="form-input" placeholder="empfaenger@beispiel.de" />
+    </div>
+    <div style="margin-bottom:0.875rem;">
+      <label class="form-label" for="urName">Empfänger Name (optional)</label>
+      <input type="text" id="urName" class="form-input" placeholder="Max Mustermann" />
+    </div>
+    <div style="margin-bottom:0.875rem;">
+      <label class="form-label" for="urMessage">Nachricht (optional)</label>
+      <textarea id="urMessage" class="form-input" rows="3" placeholder="Bitte laden Sie die angeforderten Dokumente hoch…" style="resize:vertical;"></textarea>
+    </div>
+    <div style="margin-bottom:1.5rem;">
+      <label class="form-label" for="urDays">Link gültig für</label>
+      <select id="urDays" class="form-input">
+        <option value="7">7 Tage</option>
+        <option value="14" selected>14 Tage</option>
+        <option value="30">30 Tage</option>
+      </select>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
+      <button onclick="closeModal('uploadReqModal')" class="btn-secondary">Abbrechen</button>
+      <button id="confirmUploadReqBtn" onclick="confirmUploadRequest()" class="btn-primary">Link senden</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -171,6 +219,7 @@
           ${c.email ? `<a href="mailto:${esc(c.email)}" style="color:#1a56db;text-decoration:none;">${esc(c.email)}</a>` : '<span style="color:#cbd5e1;">—</span>'}
         </td>
         <td style="padding:0.75rem 1.25rem;text-align:right;white-space:nowrap;">
+          ${!c.mobile ? `<button onclick='requestPhone("${c.id}", "${esc(c.first_name)} ${esc(c.last_name)}")' title="Handynummer anfragen" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:0.25rem;border-radius:0.25rem;transition:color 0.15s;font-size:0.875rem;" onmouseover="this.style.color='#7c3aed'" onmouseout="this.style.color='#94a3b8'">📱</button>` : ''}
           <button onclick='sendToContact(${JSON.stringify(c)})' title="Senden" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:0.25rem;border-radius:0.25rem;transition:color 0.15s;" onmouseover="this.style.color='#1a56db'" onmouseout="this.style.color='#94a3b8'">
             <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
           </button>
@@ -308,5 +357,79 @@
   const urlParams = new URLSearchParams(window.location.search);
 
   loadContacts();
+
+  // ── Phone Request ──────────────────────────────────────────────────────────
+  let phoneReqContactId = null;
+
+  function requestPhone(contactId, name) {
+    phoneReqContactId = contactId;
+    document.getElementById('phoneReqContactName').textContent = name;
+    openModal('phoneReqModal');
+  }
+
+  async function confirmPhoneRequest() {
+    if (!phoneReqContactId) return;
+    const btn = document.getElementById('confirmPhoneReqBtn');
+    btn.disabled = true;
+    btn.textContent = 'Senden…';
+    try {
+      const res = await apiFetch('/requests/phone', {
+        method: 'POST',
+        body: JSON.stringify({ contact_id: phoneReqContactId }),
+      });
+      if (res.ok) {
+        closeModal('phoneReqModal');
+        showToast('Anfrage gesendet', 'success');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || 'Fehler beim Senden', 'error');
+      }
+    } catch (e) {
+      showToast('Netzwerkfehler', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Anfrage senden';
+      phoneReqContactId = null;
+    }
+  }
+
+  // ── Upload Request ─────────────────────────────────────────────────────────
+  async function confirmUploadRequest() {
+    const email = document.getElementById('urEmail').value.trim();
+    if (!email) {
+      showToast('Bitte E-Mail-Adresse angeben', 'error');
+      return;
+    }
+    const btn = document.getElementById('confirmUploadReqBtn');
+    btn.disabled = true;
+    btn.textContent = 'Senden…';
+    try {
+      const res = await apiFetch('/requests/upload', {
+        method: 'POST',
+        body: JSON.stringify({
+          recipient_email: email,
+          recipient_name: document.getElementById('urName').value.trim() || null,
+          message: document.getElementById('urMessage').value.trim() || null,
+          days: parseInt(document.getElementById('urDays').value, 10),
+        }),
+      });
+      if (res.ok) {
+        closeModal('uploadReqModal');
+        showToast('Upload-Link gesendet', 'success');
+        document.getElementById('urEmail').value = '';
+        document.getElementById('urName').value = '';
+        document.getElementById('urMessage').value = '';
+        document.getElementById('urDays').value = '14';
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || 'Fehler beim Senden', 'error');
+      }
+    } catch (e) {
+      showToast('Netzwerkfehler', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Link senden';
+    }
+  }
 </script>
 {% endblock %}

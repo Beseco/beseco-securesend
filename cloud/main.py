@@ -40,6 +40,8 @@ from routers.admin_org import router as admin_org_router
 from routers.admin_reseller import router as admin_reseller_router
 from routers.register import router as register_router
 from routers.ui import router as ui_router
+from routers.requests_router import router as requests_router
+from routers.public import router as public_router
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("securesend")
@@ -106,6 +108,8 @@ app.include_router(admin_org_router)
 app.include_router(admin_reseller_router)
 app.include_router(register_router)
 app.include_router(ui_router)
+app.include_router(requests_router)
+app.include_router(public_router)
 
 
 # ── Root redirect ─────────────────────────────────────────────────────────────

@@ -223,3 +223,67 @@ class EmailVerification(Base):
 
     def __repr__(self) -> str:
         return f"<EmailVerification user_id={self.user_id!r}>"
+
+
+class PhoneRequest(Base):
+    """Request to a contact to submit their mobile phone number."""
+
+    __tablename__ = "phone_requests"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    sender_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    contact_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    # pending | fulfilled | expired
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    sender: Mapped["User"] = relationship(  # noqa: F821
+        "User", foreign_keys="PhoneRequest.sender_id"
+    )
+    contact: Mapped["Contact"] = relationship(  # noqa: F821
+        "Contact", foreign_keys="PhoneRequest.contact_id"
+    )
+
+    def __repr__(self) -> str:
+        return f"<PhoneRequest id={self.id!r} status={self.status!r}>"
+
+
+class UploadRequest(Base):
+    """Request to a recipient to upload files securely (dropbox)."""
+
+    __tablename__ = "upload_requests"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    sender_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    recipient_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    recipient_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    # pending | fulfilled | expired
+    result_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+    sender: Mapped["User"] = relationship(  # noqa: F821
+        "User", foreign_keys="UploadRequest.sender_id"
+    )
+
+    def __repr__(self) -> str:
+        return f"<UploadRequest id={self.id!r} status={self.status!r}>"
