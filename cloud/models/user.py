@@ -32,6 +32,8 @@ class User(Base):
         String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True, index=True
     )
     email: Mapped[str] = mapped_column(String(320), unique=True, nullable=False, index=True)
+    first_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    last_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(
         Enum(UserRole), nullable=False, default=UserRole.org_user

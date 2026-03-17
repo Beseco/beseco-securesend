@@ -43,6 +43,75 @@ from models.user import User, UserRole
 
 router = APIRouter(prefix="/ui", tags=["ui"])
 
+
+# ── Setup-Assistent ────────────────────────────────────────────────────────────
+
+async def _needs_setup(db: AsyncSession) -> bool:
+    """Gibt True zurück wenn noch kein Superadmin existiert."""
+    res = await db.execute(
+        select(User).where(User.role == UserRole.superadmin).limit(1)
+    )
+    return res.scalar_one_or_none() is None
+
+
+@router.get("/setup", response_class=HTMLResponse)
+async def setup_page(request: Request, db: AsyncSession = Depends(get_db)) -> HTMLResponse:
+    if not await _needs_setup(db):
+        return RedirectResponse(url="/ui/login", status_code=303)
+    return templates.TemplateResponse("setup.html", {
+        "request": request,
+        "current_year": datetime.now().year,
+        "error": "",
+    })
+
+
+@router.post("/setup")
+async def setup_submit(
+    request: Request,
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    password2: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+) -> HTMLResponse:
+    from dependencies import hash_password
+
+    def _err(msg: str):
+        return templates.TemplateResponse("setup.html", {
+            "request": request,
+            "current_year": datetime.now().year,
+            "error": msg,
+            "first_name": first_name,
+            "last_name": last_name,
+            "email": email,
+        }, status_code=422)
+
+    if not await _needs_setup(db):
+        return RedirectResponse(url="/ui/login", status_code=303)
+    if not first_name.strip() or not last_name.strip():
+        return _err("Bitte Vor- und Nachname eingeben.")
+    if "@" not in email:
+        return _err("Ungültige E-Mail-Adresse.")
+    if len(password) < 8:
+        return _err("Passwort muss mindestens 8 Zeichen haben.")
+    if password != password2:
+        return _err("Die Passwörter stimmen nicht überein.")
+
+    import uuid
+    admin = User(
+        id=str(uuid.uuid4()),
+        email=email.lower().strip(),
+        first_name=first_name.strip(),
+        last_name=last_name.strip(),
+        password_hash=hash_password(password),
+        role=UserRole.superadmin,
+        is_active=True,
+    )
+    db.add(admin)
+    await db.commit()
+    return RedirectResponse(url="/ui/login?setup=1", status_code=303)
+
 # ── Template engine ───────────────────────────────────────────────────────────
 
 _ROLE_LABELS = {
@@ -172,6 +241,10 @@ async def login_page(
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     """Show login form. Redirect to dashboard if already authenticated."""
+    # Noch kein Superadmin → Setup-Assistent
+    if await _needs_setup(db):
+        return RedirectResponse(url="/ui/setup", status_code=303)
+
     user = await _get_user_from_cookie(request, db)
     if user:
         return RedirectResponse(url="/ui/", status_code=303)
