@@ -28,6 +28,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
+from sqlalchemy import text
+
 from config import settings
 from database import Base, engine
 from routers.auth import router as auth_router
@@ -45,13 +47,28 @@ log = logging.getLogger("securesend")
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 
+async def _run_migrations(conn) -> None:
+    """Lightweight inline migrations for new columns (idempotent)."""
+    migrations = [
+        "ALTER TABLE users ADD COLUMN first_name VARCHAR(100)",
+        "ALTER TABLE users ADD COLUMN last_name VARCHAR(100)",
+    ]
+    for sql in migrations:
+        try:
+            await conn.execute(text(sql))
+            log.info("Migration OK: %s", sql)
+        except Exception:
+            pass  # Spalte existiert bereits → ignorieren
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Create all tables on startup (use Alembic for production migrations)."""
+    """Create all tables on startup + run inline column migrations."""
     async with engine.begin() as conn:
         # Import all models so Base.metadata is populated
         import models  # noqa: F401 — triggers __init__.py imports
         await conn.run_sync(Base.metadata.create_all)
+        await _run_migrations(conn)
     log.info("SecureSend Cloud API ready.")
     yield
     await engine.dispose()
