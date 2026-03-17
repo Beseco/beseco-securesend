@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +33,11 @@ log = logging.getLogger("securesend")
 
 router = APIRouter(prefix="/requests", tags=["requests"])
 
-_PUBLIC_BASE_URL = settings.PUBLIC_BASE_URL or "http://localhost:8001"
+def _base_url(request: Request) -> str:
+    """Return PUBLIC_BASE_URL from settings, or derive from the incoming request."""
+    if settings.PUBLIC_BASE_URL:
+        return settings.PUBLIC_BASE_URL.rstrip("/")
+    return str(request.base_url).rstrip("/")
 
 
 # ── Pydantic bodies ───────────────────────────────────────────────────────────
@@ -84,6 +88,7 @@ async def _send_email_async(cfg: dict, to_email: str, subject: str, body_html: s
 
 @router.post("/phone", status_code=status.HTTP_201_CREATED)
 async def create_phone_request(
+    request: Request,
     body: PhoneRequestBody,
     current_user: User = Depends(org_user_required()),
     db: AsyncSession = Depends(get_db),
@@ -134,7 +139,7 @@ async def create_phone_request(
     sender_last = current_user.last_name or current_user.email
     sender_name = f"{sender_first} {sender_last}".strip()
     contact_name = f"{contact.first_name} {contact.last_name}".strip() or contact.email
-    link = f"{_PUBLIC_BASE_URL}/r/phone/{token}"
+    link = f"{_base_url(request)}/r/phone/{token}"
 
     body_html = f"""
 <html><body style="font-family:Arial,sans-serif;color:#1e293b;max-width:600px;margin:0 auto;padding:2rem;">
@@ -180,6 +185,7 @@ async def create_phone_request(
 
 @router.post("/upload", status_code=status.HTTP_201_CREATED)
 async def create_upload_request(
+    request: Request,
     body: UploadRequestBody,
     current_user: User = Depends(org_user_required()),
     db: AsyncSession = Depends(get_db),
@@ -213,7 +219,7 @@ async def create_upload_request(
     sender_first = current_user.first_name or ""
     sender_last = current_user.last_name or current_user.email
     sender_name = f"{sender_first} {sender_last}".strip()
-    link = f"{_PUBLIC_BASE_URL}/r/upload/{token}"
+    link = f"{_base_url(request)}/r/upload/{token}"
 
     message_block = ""
     if body.message:
