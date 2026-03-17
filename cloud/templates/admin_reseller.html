@@ -314,6 +314,11 @@
     document.getElementById('oSlug').value = org ? org.slug : '';
     document.getElementById('oActive').value = org ? String(org.is_active) : 'true';
     document.getElementById('orgModalTitle').textContent = org ? 'Organisation bearbeiten' : 'Organisation hinzufügen';
+    // Reseller-Dropdown im Modal mit aktuellem Selektor-Wert vorbelegen
+    const oReseller = document.getElementById('oReseller');
+    if (oReseller) {
+      oReseller.value = org ? (org.reseller_id || '') : (document.getElementById('resellerSelector')?.value || '');
+    }
     openModal('orgModal');
   }
 
@@ -323,7 +328,12 @@
     e.preventDefault();
     const id = document.getElementById('orgId').value;
     const resellerEl = document.getElementById('oReseller');
-    const body = { name: document.getElementById('oName').value, slug: document.getElementById('oSlug').value, is_active: document.getElementById('oActive').value === 'true', ...(resellerEl && resellerEl.value ? {reseller_id: resellerEl.value} : {}) };
+    const resellerId = resellerEl ? resellerEl.value : (document.getElementById('resellerSelector')?.value || MY_RESELLER_ID);
+    if (!resellerId && !id) {
+      showToast('Bitte zuerst einen Reseller auswählen.', 'error');
+      return;
+    }
+    const body = { name: document.getElementById('oName').value, slug: document.getElementById('oSlug').value, is_active: document.getElementById('oActive').value === 'true', ...(resellerId ? {reseller_id: resellerId} : {}) };
     const btn = document.getElementById('saveOrgBtn');
     btn.disabled = true; btn.textContent = 'Speichern…';
     try {
