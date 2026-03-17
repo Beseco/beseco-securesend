@@ -4,6 +4,8 @@ cloud/schemas/auth.py — Auth request/response schemas.
 
 from __future__ import annotations
 
+from typing import Optional
+
 from pydantic import BaseModel, EmailStr
 
 
@@ -30,7 +32,12 @@ class AccessTokenResponse(BaseModel):
 class MeResponse(BaseModel):
     id: str
     email: str
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     role: str
-    org_id: Optional[str]
-    reseller_id: Optional[str]
+    org_id: Optional[str] = None
+    reseller_id: Optional[str] = None
     is_active: bool
+
+
+MeResponse.model_rebuild()

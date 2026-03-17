@@ -145,6 +145,11 @@ async def setup_submit(
             is_active=True,
         )
         db.add(org)
+        await db.flush()  # org.id verfügbar machen
+
+        # 4. Superadmin der ersten Organisation zuweisen
+        #    (gleiche Person, eine E-Mail — hat Zugriff auf alles)
+        admin.org_id = org.id
         await db.commit()
     except Exception as exc:
         await db.rollback()
