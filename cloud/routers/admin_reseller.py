@@ -48,13 +48,18 @@ def _get_reseller_id(current_user: User) -> Optional[str]:
 
 @router.get("/admin/reseller/orgs", response_model=list[OrgRead])
 async def list_reseller_orgs(
+    reseller_id: Optional[str] = None,
     current_user: User = Depends(reseller_admin_required()),
     db: AsyncSession = Depends(get_db),
 ) -> list[OrgRead]:
-    reseller_id = _get_reseller_id(current_user)
+    # Superadmin may pass explicit reseller_id; reseller_admin uses their own
+    if current_user.role == UserRole.superadmin:
+        filter_reseller_id = reseller_id  # None = all (legacy), or specific
+    else:
+        filter_reseller_id = _get_reseller_id(current_user)
     q = select(Organization).order_by(Organization.name)
-    if reseller_id:
-        q = q.where(Organization.reseller_id == reseller_id)
+    if filter_reseller_id:
+        q = q.where(Organization.reseller_id == filter_reseller_id)
     result = await db.execute(q)
     orgs = result.scalars().all()
     return [OrgRead.model_validate(o) for o in orgs]
@@ -103,12 +108,10 @@ async def update_reseller_org(
     db: AsyncSession = Depends(get_db),
 ) -> OrgRead:
     reseller_id = _get_reseller_id(current_user)
-    result = await db.execute(
-        select(Organization).where(
-            Organization.id == org_id,
-            Organization.reseller_id == reseller_id,
-        )
-    )
+    q = select(Organization).where(Organization.id == org_id)
+    if reseller_id:
+        q = q.where(Organization.reseller_id == reseller_id)
+    result = await db.execute(q)
     org = result.scalar_one_or_none()
     if not org:
         raise HTTPException(status_code=404, detail="Organisation not found")
@@ -136,12 +139,10 @@ async def deactivate_reseller_org(
 ) -> OrgRead:
     """Soft-delete: sets is_active=False rather than removing the row."""
     reseller_id = _get_reseller_id(current_user)
-    result = await db.execute(
-        select(Organization).where(
-            Organization.id == org_id,
-            Organization.reseller_id == reseller_id,
-        )
-    )
+    q = select(Organization).where(Organization.id == org_id)
+    if reseller_id:
+        q = q.where(Organization.reseller_id == reseller_id)
+    result = await db.execute(q)
     org = result.scalar_one_or_none()
     if not org:
         raise HTTPException(status_code=404, detail="Organisation not found")

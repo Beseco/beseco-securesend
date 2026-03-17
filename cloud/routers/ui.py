@@ -16,6 +16,12 @@ Routes:
   GET  /ui/admin/org    → org admin page (org_admin+)
   GET  /ui/admin/reseller → reseller admin page (reseller_admin+)
   GET  /ui/admin/super  → super admin page (superadmin)
+  GET  /ui/admin/resellers → list of all resellers (superadmin)
+  GET  /ui/admin/reseller-cp → reseller context CP (superadmin in reseller ctx)
+
+  POST /ui/ctx/reseller/{reseller_id} → enter reseller context
+  POST /ui/ctx/org/{org_id}           → enter org context
+  POST /ui/ctx/reset                  → exit current context (one level up)
 
   GET  /ui/api/history  → JSON history for the authenticated user (cookie auth)
 """
@@ -186,6 +192,8 @@ _ROLE_RANK: dict[str, int] = {
 _COOKIE_NAME = "access_token"
 _COOKIE_MAX_AGE = settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60
 
+_CTX_COOKIE = "ss_ctx"
+
 
 def _set_auth_cookie(response: RedirectResponse, token: str) -> None:
     response.set_cookie(
@@ -201,6 +209,33 @@ def _set_auth_cookie(response: RedirectResponse, token: str) -> None:
 
 def _clear_auth_cookie(response: RedirectResponse) -> None:
     response.delete_cookie(key=_COOKIE_NAME, samesite="lax", path="/")
+
+
+def _set_ctx_cookie(response: RedirectResponse, value: str) -> None:
+    response.set_cookie(
+        key=_CTX_COOKIE,
+        value=value,
+        max_age=86400 * 7,
+        httponly=False,   # JS-readable
+        samesite="lax",
+        path="/",
+    )
+
+
+def _clear_ctx_cookie(response: RedirectResponse) -> None:
+    response.delete_cookie(key=_CTX_COOKIE, samesite="lax", path="/")
+
+
+def _read_ctx(request: Request) -> dict:
+    """Read context cookie and return ctx dict for templates."""
+    raw = request.cookies.get(_CTX_COOKIE, "")
+    if raw.startswith("o:"):
+        parts = raw.split(":")
+        if len(parts) >= 3:
+            return {"type": "org", "reseller_id": parts[1], "org_id": parts[2], "raw": raw}
+    if raw.startswith("r:"):
+        return {"type": "reseller", "reseller_id": raw[2:], "raw": raw}
+    return {"type": "none", "raw": ""}
 
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
@@ -265,15 +300,44 @@ def _login_redirect(next_url: str = "/ui/") -> RedirectResponse:
     return RedirectResponse(url=f"/ui/login?next={next_url}", status_code=303)
 
 
-def _ctx(request: Request, current_user: Optional[User], active_page: str, **extra: Any) -> dict:
+def _ctx(
+    request: Request,
+    current_user: Optional[User],
+    active_page: str,
+    ctx_reseller_name: str = "",
+    ctx_org_name: str = "",
+    **extra: Any,
+) -> dict:
     """Build common template context dict."""
     return {
         "request": request,
         "current_user": current_user,
         "active_page": active_page,
         "current_year": datetime.now().year,
+        "ctx": _read_ctx(request),
+        "ctx_reseller_name": ctx_reseller_name,
+        "ctx_org_name": ctx_org_name,
         **extra,
     }
+
+
+async def _resolve_ctx_names(
+    ctx: dict, db: AsyncSession
+) -> tuple[str, str]:
+    """Fetch reseller_name and org_name for a given ctx dict."""
+    reseller_name = ""
+    org_name = ""
+    if ctx["type"] in ("reseller", "org"):
+        r = await db.execute(select(Reseller).where(Reseller.id == ctx["reseller_id"]))
+        res = r.scalar_one_or_none()
+        if res:
+            reseller_name = res.name
+    if ctx["type"] == "org":
+        o = await db.execute(select(Organization).where(Organization.id == ctx["org_id"]))
+        org = o.scalar_one_or_none()
+        if org:
+            org_name = org.name
+    return reseller_name, org_name
 
 
 # ── Login / Logout ────────────────────────────────────────────────────────────
@@ -368,6 +432,7 @@ async def logout(request: Request) -> RedirectResponse:
     """Clear the auth cookie and redirect to login."""
     response = RedirectResponse(url="/ui/login", status_code=303)
     _clear_auth_cookie(response)
+    _clear_ctx_cookie(response)
     return response
 
 
@@ -463,9 +528,11 @@ async def dashboard(
     user = await _get_user_from_cookie(request, db)
     if not user:
         return _login_redirect("/ui/")
+    ctx = _read_ctx(request)
+    rname, oname = await _resolve_ctx_names(ctx, db)
     return templates.TemplateResponse(
         "dashboard.html",
-        _ctx(request, user, "dashboard"),
+        _ctx(request, user, "dashboard", ctx_reseller_name=rname, ctx_org_name=oname),
     )
 
 
@@ -479,18 +546,21 @@ async def send_page(
     user = await _get_user_from_cookie(request, db)
     if not user:
         return _login_redirect("/ui/send")
+    ctx = _read_ctx(request)
+    rname, oname = await _resolve_ctx_names(ctx, db)
     if not user.org_id:
         return templates.TemplateResponse(
             "dashboard.html",
             _ctx(
                 request, user, "dashboard",
+                ctx_reseller_name=rname, ctx_org_name=oname,
                 flash_message="Das Senden ist nur für Organisationsbenutzer verfügbar.",
                 flash_type="error",
             ),
         )
     return templates.TemplateResponse(
         "send.html",
-        _ctx(request, user, "send"),
+        _ctx(request, user, "send", ctx_reseller_name=rname, ctx_org_name=oname),
     )
 
 
@@ -506,9 +576,11 @@ async def contacts_page(
         return _login_redirect("/ui/contacts")
     if not user.org_id:
         return RedirectResponse(url="/ui/", status_code=303)
+    ctx = _read_ctx(request)
+    rname, oname = await _resolve_ctx_names(ctx, db)
     return templates.TemplateResponse(
         "contacts.html",
-        _ctx(request, user, "contacts"),
+        _ctx(request, user, "contacts", ctx_reseller_name=rname, ctx_org_name=oname),
     )
 
 
@@ -524,9 +596,11 @@ async def history_page(
         return _login_redirect("/ui/history")
     if not user.org_id:
         return RedirectResponse(url="/ui/", status_code=303)
+    ctx = _read_ctx(request)
+    rname, oname = await _resolve_ctx_names(ctx, db)
     return templates.TemplateResponse(
         "history.html",
-        _ctx(request, user, "history"),
+        _ctx(request, user, "history", ctx_reseller_name=rname, ctx_org_name=oname),
     )
 
 
@@ -585,15 +659,25 @@ async def admin_org_page(
                 flash_type="error",
             ),
         )
-    # Superadmin sees an org selector dropdown
+    ctx = _read_ctx(request)
+    rname, oname = await _resolve_ctx_names(ctx, db)
+
+    # Superadmin in org context: use the ctx org_id directly (no dropdown needed)
+    # Superadmin at top level or reseller level: show org selector dropdown
     orgs = []
+    ctx_org_id = ""
     if user.role == UserRole.superadmin:
-        from models.organization import Organization
-        result = await db.execute(select(Organization).where(Organization.is_active == True).order_by(Organization.name))  # noqa: E712
-        orgs = [{"id": o.id, "name": o.name} for o in result.scalars().all()]
+        if ctx["type"] == "org":
+            ctx_org_id = ctx["org_id"]
+        else:
+            from models.organization import Organization
+            result = await db.execute(select(Organization).where(Organization.is_active == True).order_by(Organization.name))  # noqa: E712
+            orgs = [{"id": o.id, "name": o.name} for o in result.scalars().all()]
     return templates.TemplateResponse(
         "admin_org.html",
-        _ctx(request, user, "admin_org", orgs=orgs),
+        _ctx(request, user, "admin_org",
+             ctx_reseller_name=rname, ctx_org_name=oname,
+             orgs=orgs, ctx_org_id=ctx_org_id),
     )
 
 
@@ -616,6 +700,8 @@ async def admin_reseller_page(
                 flash_type="error",
             ),
         )
+    ctx = _read_ctx(request)
+    rname, oname = await _resolve_ctx_names(ctx, db)
     # For superadmin: pass all resellers for org creation modal + settings selector
     resellers = []
     if user.role == UserRole.superadmin:
@@ -623,8 +709,9 @@ async def admin_reseller_page(
         resellers = [{"id": r.id, "name": r.name} for r in result.scalars().all()]
     return templates.TemplateResponse(
         "admin_reseller.html",
-        _ctx(request, user, "admin_reseller", resellers=resellers,
-             reseller_id=user.reseller_id or ""),
+        _ctx(request, user, "admin_reseller",
+             ctx_reseller_name=rname, ctx_org_name=oname,
+             resellers=resellers, reseller_id=user.reseller_id or ""),
     )
 
 
@@ -647,7 +734,156 @@ async def admin_super_page(
                 flash_type="error",
             ),
         )
+    ctx = _read_ctx(request)
+    rname, oname = await _resolve_ctx_names(ctx, db)
     return templates.TemplateResponse(
         "admin_super.html",
-        _ctx(request, user, "admin_super"),
+        _ctx(request, user, "admin_super", ctx_reseller_name=rname, ctx_org_name=oname),
     )
+
+
+# ── Admin: Resellers list ──────────────────────────────────────────────────────
+
+@router.get("/admin/resellers", response_class=HTMLResponse)
+async def admin_resellers_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> HTMLResponse:
+    user = await _get_user_from_cookie(request, db)
+    if not user:
+        return _login_redirect("/ui/admin/resellers")
+    if not _require_role_rank(user, _ROLE_RANK[UserRole.superadmin]):
+        return templates.TemplateResponse(
+            "dashboard.html",
+            _ctx(
+                request, user, "dashboard",
+                flash_message="Diese Seite ist nur für Superadministratoren zugänglich.",
+                flash_type="error",
+            ),
+        )
+    ctx = _read_ctx(request)
+    rname, oname = await _resolve_ctx_names(ctx, db)
+    return templates.TemplateResponse(
+        "admin_resellers.html",
+        _ctx(request, user, "admin_resellers", ctx_reseller_name=rname, ctx_org_name=oname),
+    )
+
+
+# ── Admin: Reseller context CP ────────────────────────────────────────────────
+
+@router.get("/admin/reseller-cp", response_class=HTMLResponse)
+async def admin_reseller_cp_page(
+    request: Request,
+    tab: str = "orgs",
+    db: AsyncSession = Depends(get_db),
+) -> HTMLResponse:
+    user = await _get_user_from_cookie(request, db)
+    if not user:
+        return _login_redirect("/ui/admin/reseller-cp")
+    if not _require_role_rank(user, _ROLE_RANK[UserRole.reseller_admin]):
+        return templates.TemplateResponse(
+            "dashboard.html",
+            _ctx(
+                request, user, "dashboard",
+                flash_message="Sie haben keine Berechtigung für diese Seite.",
+                flash_type="error",
+            ),
+        )
+
+    ctx = _read_ctx(request)
+    rname, oname = await _resolve_ctx_names(ctx, db)
+
+    # Determine reseller_id: from context cookie for superadmin, from user for reseller_admin
+    if user.role == UserRole.superadmin:
+        if ctx["type"] not in ("reseller", "org"):
+            return RedirectResponse(url="/ui/admin/resellers", status_code=303)
+        reseller_id = ctx["reseller_id"]
+    else:
+        reseller_id = user.reseller_id or ""
+
+    # Fetch reseller data
+    r_result = await db.execute(select(Reseller).where(Reseller.id == reseller_id))
+    reseller = r_result.scalar_one_or_none()
+    if not reseller:
+        return RedirectResponse(url="/ui/admin/resellers", status_code=303)
+
+    # Fetch orgs for this reseller
+    orgs_result = await db.execute(
+        select(Organization).where(Organization.reseller_id == reseller_id).order_by(Organization.name)
+    )
+    orgs = orgs_result.scalars().all()
+
+    return templates.TemplateResponse(
+        "admin_reseller_cp.html",
+        _ctx(request, user, "admin_reseller_cp" if tab != "orgs" else "admin_reseller_orgs",
+             ctx_reseller_name=rname, ctx_org_name=oname,
+             reseller=reseller, orgs=orgs, active_tab=tab,
+             reseller_id=reseller_id),
+    )
+
+
+# ── Context switching routes ───────────────────────────────────────────────────
+
+@router.post("/ctx/reseller/{reseller_id}")
+async def ctx_enter_reseller(
+    reseller_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> RedirectResponse:
+    """Enter reseller context (superadmin only)."""
+    user = await _get_user_from_cookie(request, db)
+    if not user or user.role != UserRole.superadmin:
+        return RedirectResponse(url="/ui/login", status_code=303)
+
+    r_result = await db.execute(select(Reseller).where(Reseller.id == reseller_id))
+    reseller = r_result.scalar_one_or_none()
+    if not reseller:
+        return RedirectResponse(url="/ui/admin/resellers", status_code=303)
+
+    response = RedirectResponse(url="/ui/admin/reseller-cp", status_code=303)
+    _set_ctx_cookie(response, f"r:{reseller_id}")
+    return response
+
+
+@router.post("/ctx/org/{org_id}")
+async def ctx_enter_org(
+    org_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> RedirectResponse:
+    """Enter org context (superadmin only)."""
+    user = await _get_user_from_cookie(request, db)
+    if not user or user.role != UserRole.superadmin:
+        return RedirectResponse(url="/ui/login", status_code=303)
+
+    o_result = await db.execute(select(Organization).where(Organization.id == org_id))
+    org = o_result.scalar_one_or_none()
+    if not org:
+        return RedirectResponse(url="/ui/admin/reseller-cp", status_code=303)
+
+    response = RedirectResponse(url="/ui/admin/org", status_code=303)
+    _set_ctx_cookie(response, f"o:{org.reseller_id}:{org_id}")
+    return response
+
+
+@router.post("/ctx/reset")
+async def ctx_reset(
+    request: Request,
+) -> RedirectResponse:
+    """Exit current context — one level up."""
+    ctx = _read_ctx(request)
+    if ctx["type"] == "org":
+        # Go back to reseller context
+        reseller_id = ctx["reseller_id"]
+        response = RedirectResponse(url="/ui/admin/reseller-cp", status_code=303)
+        _set_ctx_cookie(response, f"r:{reseller_id}")
+        return response
+    elif ctx["type"] == "reseller":
+        # Go back to top level
+        response = RedirectResponse(url="/ui/", status_code=303)
+        _clear_ctx_cookie(response)
+        return response
+    else:
+        response = RedirectResponse(url="/ui/", status_code=303)
+        _clear_ctx_cookie(response)
+        return response

@@ -393,6 +393,9 @@
 
 {% block scripts %}
 <script>
+  // Context org id — set when superadmin is viewing in org context
+  const CTX_ORG_ID = "{{ ctx_org_id if ctx_org_id is defined else '' }}";
+
   let activeTab = 'users';
   let deleteUserTarget = null;
 
@@ -413,6 +416,8 @@
   let usersLoaded = false, providersLoaded = false, settingsLoaded = false, gatewaysLoaded = false;
 
   function getOrgParam() {
+    // If superadmin is in org context, use CTX_ORG_ID
+    if (CTX_ORG_ID) return '?org_id=' + encodeURIComponent(CTX_ORG_ID);
     const sel = document.getElementById('orgSelector');
     return (sel && sel.value) ? '?org_id=' + encodeURIComponent(sel.value) : '';
   }
@@ -915,8 +920,8 @@
   function esc(str) { return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   // Initial load
-  // Only auto-load if no org selector (org_admin) or an org is pre-selected
-  if (!document.getElementById('orgSelector')) {
+  // Auto-load if: no org selector (org_admin), or CTX_ORG_ID is set (superadmin in org context)
+  if (!document.getElementById('orgSelector') || CTX_ORG_ID) {
     loadUsers();
   }
 </script>
