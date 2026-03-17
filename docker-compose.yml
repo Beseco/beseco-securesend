@@ -1,0 +1,17 @@
+services:
+  securesend:
+    build: .
+    container_name: securesend
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    volumes:
+      - securesend_data:/data
+    env_file:
+      - cloud/.env
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:////data/securesend.db
+      UVICORN_HOST: "0.0.0.0"
+
+volumes:
+  securesend_data:

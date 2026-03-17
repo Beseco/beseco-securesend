@@ -10,4 +10,7 @@ sys.path.insert(0, str(cloud_dir))
 sys.path.insert(1, str(project_dir))  # für core.storage, core.email, core.sms
 
 import uvicorn
-uvicorn.run("main:app", host="127.0.0.1", port=8001, reload=False)
+
+# Im Docker-Container auf 0.0.0.0 lauschen, lokal auf 127.0.0.1
+host = os.environ.get("UVICORN_HOST", "127.0.0.1")
+uvicorn.run("main:app", host=host, port=8001, reload=False)
