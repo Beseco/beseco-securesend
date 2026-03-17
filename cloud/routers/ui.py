@@ -68,27 +68,39 @@ async def setup_page(request: Request, db: AsyncSession = Depends(get_db)) -> HT
 @router.post("/setup")
 async def setup_submit(
     request: Request,
+    # Schritt 1 – Administrator
     first_name: str = Form(...),
     last_name: str = Form(...),
     email: str = Form(...),
     password: str = Form(...),
     password2: str = Form(...),
+    # Schritt 2 – Reseller
+    reseller_name: str = Form(...),
+    reseller_slug: str = Form(...),
+    # Schritt 3 – Organisation
+    org_name: str = Form(...),
+    org_slug: str = Form(...),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
+    import uuid
     from dependencies import hash_password
+    from models.reseller import Reseller
+    from models.organization import Organization
 
     def _err(msg: str):
         return templates.TemplateResponse("setup.html", {
             "request": request,
             "current_year": datetime.now().year,
             "error": msg,
-            "first_name": first_name,
-            "last_name": last_name,
-            "email": email,
+            "first_name": first_name, "last_name": last_name, "email": email,
+            "reseller_name": reseller_name, "reseller_slug": reseller_slug,
+            "org_name": org_name, "org_slug": org_slug,
         }, status_code=422)
 
     if not await _needs_setup(db):
         return RedirectResponse(url="/ui/login", status_code=303)
+
+    # Validierungen
     if not first_name.strip() or not last_name.strip():
         return _err("Bitte Vor- und Nachname eingeben.")
     if "@" not in email:
@@ -97,8 +109,12 @@ async def setup_submit(
         return _err("Passwort muss mindestens 8 Zeichen haben.")
     if password != password2:
         return _err("Die Passwörter stimmen nicht überein.")
+    if not reseller_name.strip() or not reseller_slug.strip():
+        return _err("Bitte Reseller-Name und Slug eingeben.")
+    if not org_name.strip() or not org_slug.strip():
+        return _err("Bitte Organisations-Name und Slug eingeben.")
 
-    import uuid
+    # 1. Superadmin anlegen
     admin = User(
         id=str(uuid.uuid4()),
         email=email.lower().strip(),
@@ -109,6 +125,26 @@ async def setup_submit(
         is_active=True,
     )
     db.add(admin)
+
+    # 2. Reseller anlegen
+    reseller = Reseller(
+        id=str(uuid.uuid4()),
+        name=reseller_name.strip(),
+        slug=reseller_slug.strip().lower(),
+        is_active=True,
+    )
+    db.add(reseller)
+    await db.flush()  # reseller.id verfügbar machen
+
+    # 3. Organisation anlegen
+    org = Organization(
+        id=str(uuid.uuid4()),
+        reseller_id=reseller.id,
+        name=org_name.strip(),
+        slug=org_slug.strip().lower(),
+        is_active=True,
+    )
+    db.add(org)
     await db.commit()
     return RedirectResponse(url="/ui/login?setup=1", status_code=303)
 

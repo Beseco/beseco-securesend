@@ -8,141 +8,149 @@
   <style>
     body { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f2057 100%); min-height: 100vh; }
     .card { background: #fff; border-radius: 1rem; padding: 2.5rem; width: 100%; max-width: 28rem; box-shadow: 0 25px 60px rgba(0,0,0,0.35); }
-    .form-input {
-      width: 100%; padding: 0.625rem 0.875rem; border: 1px solid #e2e8f0;
-      border-radius: 0.5rem; font-size: 0.9375rem; color: #1e293b;
-      outline: none; transition: border-color 0.15s, box-shadow 0.15s;
-      box-sizing: border-box;
-    }
-    .form-input:focus { border-color: #1a56db; box-shadow: 0 0 0 3px rgba(26,86,219,0.12); }
-    .form-label { display: block; font-size: 0.8125rem; font-weight: 600; color: #374151; margin-bottom: 0.375rem; }
-    .btn { width: 100%; padding: 0.75rem; background: #1a56db; color: #fff; font-size: 0.9375rem;
-           font-weight: 700; border: none; border-radius: 0.5rem; cursor: pointer; transition: background 0.15s; }
-    .btn:hover { background: #1d4ed8; }
-    .btn:disabled { background: #93c5fd; cursor: not-allowed; }
-    .step-badge { display: inline-flex; align-items: center; justify-content: center;
-                  width: 1.5rem; height: 1.5rem; border-radius: 50%; background: #eff6ff;
-                  color: #1a56db; font-size: 0.75rem; font-weight: 700; flex-shrink: 0; }
+    .form-input { width:100%; padding:0.625rem 0.875rem; border:1px solid #e2e8f0; border-radius:0.5rem; font-size:0.9375rem; color:#1e293b; outline:none; transition:border-color 0.15s,box-shadow 0.15s; box-sizing:border-box; }
+    .form-input:focus { border-color:#1a56db; box-shadow:0 0 0 3px rgba(26,86,219,0.12); }
+    .form-label { display:block; font-size:0.8125rem; font-weight:600; color:#374151; margin-bottom:0.375rem; }
+    .btn { width:100%; padding:0.75rem; background:#1a56db; color:#fff; font-size:0.9375rem; font-weight:700; border:none; border-radius:0.5rem; cursor:pointer; transition:background 0.15s; }
+    .btn:hover { background:#1d4ed8; }
+    .btn:disabled { background:#93c5fd; cursor:not-allowed; }
+    .section-label { font-size:0.75rem; font-weight:700; color:#94a3b8; letter-spacing:0.08em; text-transform:uppercase; margin:1.25rem 0 0.75rem; padding-bottom:0.5rem; border-bottom:1px solid #f1f5f9; }
   </style>
 </head>
-<body class="h-full flex items-center justify-center px-4 py-8">
+<body class="flex items-center justify-center px-4 py-10">
+<div class="card">
 
-  <div class="card">
-    <!-- Header -->
-    <div style="text-align:center;margin-bottom:2rem;">
-      <div style="display:inline-flex;align-items:center;justify-content:center;background:#1a56db;border-radius:0.875rem;padding:0.875rem;margin-bottom:1rem;">
-        <svg style="width:2rem;height:2rem;color:#fff" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-        </svg>
-      </div>
-      <h1 style="font-size:1.4rem;font-weight:800;color:#1e293b;letter-spacing:-0.02em;">SecureSend einrichten</h1>
-      <p style="font-size:0.875rem;color:#64748b;margin-top:0.375rem;">Willkommen! Legen Sie Ihren Administrator-Account an.</p>
-    </div>
-
-    <!-- Schritte-Übersicht -->
-    <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:1.75rem;padding:0.875rem;background:#f8fafc;border-radius:0.75rem;border:1px solid #e2e8f0;">
-      <div style="display:flex;align-items:center;gap:0.375rem;font-size:0.8125rem;color:#1a56db;font-weight:600;">
-        <span class="step-badge">1</span> Admin anlegen
-      </div>
-      <div style="flex:1;height:1px;background:#e2e8f0;"></div>
-      <div style="display:flex;align-items:center;gap:0.375rem;font-size:0.8125rem;color:#94a3b8;">
-        <span class="step-badge" style="background:#f1f5f9;color:#94a3b8;">2</span> Reseller & Org
-      </div>
-      <div style="flex:1;height:1px;background:#e2e8f0;"></div>
-      <div style="display:flex;align-items:center;gap:0.375rem;font-size:0.8125rem;color:#94a3b8;">
-        <span class="step-badge" style="background:#f1f5f9;color:#94a3b8;">3</span> Fertig
-      </div>
-    </div>
-
-    <!-- Fehler -->
-    {% if error %}
-    <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:1.25rem;font-size:0.875rem;color:#991b1b;display:flex;align-items:center;gap:0.5rem;">
-      <svg style="width:1rem;height:1rem;flex-shrink:0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+  <!-- Logo -->
+  <div style="text-align:center;margin-bottom:1.75rem;">
+    <div style="display:inline-flex;align-items:center;justify-content:center;background:#1a56db;border-radius:0.875rem;padding:0.875rem;margin-bottom:0.875rem;">
+      <svg style="width:2rem;height:2rem;color:#fff" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
       </svg>
-      {{ error }}
     </div>
-    {% endif %}
-
-    <!-- Formular -->
-    <form method="post" action="/ui/setup" id="setupForm">
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.875rem;">
-        <div>
-          <label class="form-label" for="first_name">Vorname <span style="color:#ef4444;">*</span></label>
-          <input type="text" id="first_name" name="first_name" class="form-input"
-                 placeholder="Max" value="{{ first_name or '' }}" required autocomplete="given-name" />
-        </div>
-        <div>
-          <label class="form-label" for="last_name">Nachname <span style="color:#ef4444;">*</span></label>
-          <input type="text" id="last_name" name="last_name" class="form-input"
-                 placeholder="Mustermann" value="{{ last_name or '' }}" required autocomplete="family-name" />
-        </div>
-      </div>
-
-      <div style="margin-bottom:0.875rem;">
-        <label class="form-label" for="email">E-Mail-Adresse <span style="color:#ef4444;">*</span></label>
-        <input type="email" id="email" name="email" class="form-input"
-               placeholder="admin@deine-domain.de" value="{{ email or '' }}"
-               required autocomplete="email" />
-      </div>
-
-      <div style="margin-bottom:0.875rem;">
-        <label class="form-label" for="password">Passwort <span style="color:#ef4444;">*</span></label>
-        <div style="position:relative;">
-          <input type="password" id="password" name="password" class="form-input"
-                 placeholder="Mindestens 8 Zeichen" required autocomplete="new-password"
-                 style="padding-right:2.75rem;" />
-          <button type="button" onclick="togglePwd('password','eye1')" tabindex="-1"
-                  style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;">
-            <svg id="eye1" style="width:1.125rem;height:1.125rem;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <div style="margin-bottom:1.5rem;">
-        <label class="form-label" for="password2">Passwort bestätigen <span style="color:#ef4444;">*</span></label>
-        <div style="position:relative;">
-          <input type="password" id="password2" name="password2" class="form-input"
-                 placeholder="Passwort wiederholen" required autocomplete="new-password"
-                 style="padding-right:2.75rem;" />
-          <button type="button" onclick="togglePwd('password2','eye2')" tabindex="-1"
-                  style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;">
-            <svg id="eye2" style="width:1.125rem;height:1.125rem;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <button type="submit" class="btn" id="submitBtn">
-        <span id="btnText">Administrator anlegen →</span>
-      </button>
-    </form>
-
-    <p style="text-align:center;margin-top:1.25rem;font-size:0.75rem;color:#cbd5e1;">
-      SecureSend Cloud &copy; {{ current_year }}
-    </p>
+    <h1 style="font-size:1.4rem;font-weight:800;color:#1e293b;letter-spacing:-0.02em;">SecureSend einrichten</h1>
+    <p style="font-size:0.875rem;color:#64748b;margin-top:0.25rem;">Füllen Sie das Formular aus — alles wird automatisch angelegt.</p>
   </div>
 
-  <script>
-    function togglePwd(inputId, iconId) {
-      const inp = document.getElementById(inputId);
-      inp.type = inp.type === 'password' ? 'text' : 'password';
-    }
-    document.getElementById('setupForm').addEventListener('submit', function() {
-      const p1 = document.getElementById('password').value;
-      const p2 = document.getElementById('password2').value;
-      if (p1 !== p2) {
-        alert('Die Passwörter stimmen nicht überein.');
-        return false;
-      }
-      document.getElementById('submitBtn').disabled = true;
-      document.getElementById('btnText').textContent = 'Wird eingerichtet…';
-    });
-  </script>
+  {% if error %}
+  <div style="background:#fee2e2;border:1px solid #fca5a5;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:1.25rem;font-size:0.875rem;color:#991b1b;display:flex;gap:0.5rem;align-items:center;">
+    <svg style="width:1rem;height:1rem;flex-shrink:0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+    </svg>
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <form method="post" action="/ui/setup" id="setupForm">
+
+    <!-- Unternehmen -->
+    <div class="section-label">🏢 Unternehmen</div>
+    <div style="margin-bottom:0.875rem;">
+      <label class="form-label">Name <span style="color:#ef4444">*</span></label>
+      <input type="text" name="reseller_name" id="companyName" class="form-input"
+             placeholder="Muster IT-Systems GmbH"
+             value="{{ reseller_name or '' }}"
+             oninput="autoSlug(this.value)"
+             required />
+    </div>
+    <div style="margin-bottom:0.25rem;">
+      <label class="form-label">Slug <span style="font-weight:400;color:#94a3b8;">(URL-Kürzel)</span> <span style="color:#ef4444">*</span></label>
+      <input type="text" name="reseller_slug" id="companySlug" class="form-input"
+             placeholder="muster-it"
+             value="{{ reseller_slug or '' }}"
+             oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9\-]/g,'-')"
+             required />
+    </div>
+    <p style="font-size:0.75rem;color:#94a3b8;margin:0.375rem 0 0 0.125rem;">
+      Wird für Reseller und Organisation verwendet.
+    </p>
+
+    <!-- Administrator -->
+    <div class="section-label">👤 Administrator</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;margin-bottom:0.875rem;">
+      <div>
+        <label class="form-label">Vorname <span style="color:#ef4444">*</span></label>
+        <input type="text" name="first_name" class="form-input" placeholder="Max"
+               value="{{ first_name or '' }}" autocomplete="given-name" required />
+      </div>
+      <div>
+        <label class="form-label">Nachname <span style="color:#ef4444">*</span></label>
+        <input type="text" name="last_name" class="form-input" placeholder="Mustermann"
+               value="{{ last_name or '' }}" autocomplete="family-name" required />
+      </div>
+    </div>
+    <div style="margin-bottom:0.875rem;">
+      <label class="form-label">E-Mail <span style="color:#ef4444">*</span></label>
+      <input type="email" name="email" class="form-input" placeholder="admin@firma.de"
+             value="{{ email or '' }}" autocomplete="email" required />
+    </div>
+    <div style="margin-bottom:0.875rem;">
+      <label class="form-label">Passwort <span style="color:#ef4444">*</span></label>
+      <div style="position:relative;">
+        <input type="password" id="pw1" name="password" class="form-input"
+               placeholder="Mindestens 8 Zeichen" autocomplete="new-password"
+               style="padding-right:2.75rem;" required />
+        <button type="button" onclick="togglePwd('pw1')" tabindex="-1"
+                style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;">
+          <svg style="width:1.125rem;height:1.125rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div style="margin-bottom:1.75rem;">
+      <label class="form-label">Passwort bestätigen <span style="color:#ef4444">*</span></label>
+      <div style="position:relative;">
+        <input type="password" id="pw2" name="password2" class="form-input"
+               placeholder="Passwort wiederholen" autocomplete="new-password"
+               style="padding-right:2.75rem;" required />
+        <button type="button" onclick="togglePwd('pw2')" tabindex="-1"
+                style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;">
+          <svg style="width:1.125rem;height:1.125rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Hidden: org_name + org_slug = same as reseller -->
+    <input type="hidden" name="org_name" id="orgName" />
+    <input type="hidden" name="org_slug" id="orgSlug" />
+
+    <button type="submit" class="btn" id="submitBtn">✓ Einrichten</button>
+  </form>
+
+  <p style="text-align:center;margin-top:1.25rem;font-size:0.75rem;color:#cbd5e1;">
+    SecureSend Cloud &copy; {{ current_year }}
+  </p>
+</div>
+
+<script>
+  function autoSlug(val) {
+    const slug = val.toLowerCase()
+      .replace(/ä/g,'ae').replace(/ö/g,'oe').replace(/ü/g,'ue').replace(/ß/g,'ss')
+      .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'');
+    document.getElementById('companySlug').value = slug;
+  }
+
+  function togglePwd(id) {
+    const inp = document.getElementById(id);
+    inp.type = inp.type === 'password' ? 'text' : 'password';
+  }
+
+  document.getElementById('setupForm').addEventListener('submit', function(e) {
+    const pw = document.getElementById('pw1').value;
+    const pw2 = document.getElementById('pw2').value;
+    if (pw !== pw2) { e.preventDefault(); alert('Die Passwörter stimmen nicht überein.'); return; }
+    // Org = gleicher Name/Slug wie Reseller
+    const name = document.getElementById('companyName').value;
+    const slug = document.getElementById('companySlug').value;
+    document.getElementById('orgName').value = name;
+    document.getElementById('orgSlug').value = slug;
+    document.getElementById('submitBtn').disabled = true;
+    document.getElementById('submitBtn').textContent = 'Wird eingerichtet…';
+  });
+</script>
 </body>
 </html>
