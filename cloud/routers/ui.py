@@ -114,38 +114,44 @@ async def setup_submit(
     if not org_name.strip() or not org_slug.strip():
         return _err("Bitte Organisations-Name und Slug eingeben.")
 
-    # 1. Superadmin anlegen
-    admin = User(
-        id=str(uuid.uuid4()),
-        email=email.lower().strip(),
-        first_name=first_name.strip(),
-        last_name=last_name.strip(),
-        password_hash=hash_password(password),
-        role=UserRole.superadmin,
-        is_active=True,
-    )
-    db.add(admin)
+    try:
+        # 1. Superadmin anlegen
+        admin = User(
+            id=str(uuid.uuid4()),
+            email=email.lower().strip(),
+            first_name=first_name.strip(),
+            last_name=last_name.strip(),
+            password_hash=hash_password(password),
+            role=UserRole.superadmin,
+            is_active=True,
+        )
+        db.add(admin)
 
-    # 2. Reseller anlegen
-    reseller = Reseller(
-        id=str(uuid.uuid4()),
-        name=reseller_name.strip(),
-        slug=reseller_slug.strip().lower(),
-        is_active=True,
-    )
-    db.add(reseller)
-    await db.flush()  # reseller.id verfügbar machen
+        # 2. Reseller anlegen
+        reseller = Reseller(
+            id=str(uuid.uuid4()),
+            name=reseller_name.strip(),
+            slug=reseller_slug.strip().lower(),
+            contact_email=email.lower().strip(),
+            is_active=True,
+        )
+        db.add(reseller)
+        await db.flush()  # reseller.id verfügbar machen
 
-    # 3. Organisation anlegen
-    org = Organization(
-        id=str(uuid.uuid4()),
-        reseller_id=reseller.id,
-        name=org_name.strip(),
-        slug=org_slug.strip().lower(),
-        is_active=True,
-    )
-    db.add(org)
-    await db.commit()
+        # 3. Organisation anlegen
+        org = Organization(
+            id=str(uuid.uuid4()),
+            reseller_id=reseller.id,
+            name=org_name.strip(),
+            slug=org_slug.strip().lower(),
+            is_active=True,
+        )
+        db.add(org)
+        await db.commit()
+    except Exception as exc:
+        await db.rollback()
+        return _err(f"Datenbankfehler: {exc}")
+
     return RedirectResponse(url="/ui/login?setup=1", status_code=303)
 
 # ── Template engine ───────────────────────────────────────────────────────────
