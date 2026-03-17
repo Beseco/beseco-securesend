@@ -7,6 +7,10 @@ Organisations in reseller:
   PUT    /admin/reseller/orgs/{id}   → update org
   DELETE /admin/reseller/orgs/{id}   → deactivate org (soft delete)
 
+Reseller settings:
+  GET    /admin/reseller/settings    → get reseller settings_json
+  PUT    /admin/reseller/settings    → update reseller settings_json
+
 Reseller management (superadmin only):
   GET    /admin/resellers            → list all resellers
   POST   /admin/resellers            → create reseller
@@ -146,6 +150,52 @@ async def deactivate_reseller_org(
     await db.commit()
     await db.refresh(org)
     return OrgRead.model_validate(org)
+
+
+# ── Reseller Settings ─────────────────────────────────────────────────────────
+
+def _resolve_reseller_id(current_user: User, reseller_id: Optional[str]) -> str:
+    """Returns reseller_id to use: from query param (superadmin) or from user."""
+    if current_user.role == UserRole.superadmin:
+        if not reseller_id:
+            raise HTTPException(status_code=400, detail="reseller_id required for superadmin")
+        return reseller_id
+    if not current_user.reseller_id:
+        raise HTTPException(status_code=403, detail="No reseller context")
+    return current_user.reseller_id
+
+
+@router.get("/admin/reseller/settings")
+async def get_reseller_settings(
+    reseller_id: Optional[str] = None,
+    current_user: User = Depends(reseller_admin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    rid = _resolve_reseller_id(current_user, reseller_id)
+    result = await db.execute(select(Reseller).where(Reseller.id == rid))
+    reseller = result.scalar_one_or_none()
+    if not reseller:
+        raise HTTPException(status_code=404, detail="Reseller not found")
+    return reseller.settings_json or {}
+
+
+@router.put("/admin/reseller/settings")
+async def update_reseller_settings(
+    body: dict,
+    reseller_id: Optional[str] = None,
+    current_user: User = Depends(reseller_admin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    rid = _resolve_reseller_id(current_user, reseller_id)
+    result = await db.execute(select(Reseller).where(Reseller.id == rid))
+    reseller = result.scalar_one_or_none()
+    if not reseller:
+        raise HTTPException(status_code=404, detail="Reseller not found")
+    current = dict(reseller.settings_json or {})
+    current.update(body)
+    reseller.settings_json = current
+    await db.commit()
+    return reseller.settings_json or {}
 
 
 # ── Resellers (superadmin only) ────────────────────────────────────────────────

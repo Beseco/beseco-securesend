@@ -185,6 +185,11 @@
         <div style="font-size:0.8125rem;font-weight:600;color:#f1f5f9;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ current_user.email }}</div>
         <div style="font-size:0.6875rem;color:#64748b;">{{ current_user.role | role_label }}</div>
       </div>
+      <button type="button" onclick="openModal('pwdModal')" title="Passwort ändern" style="background:none;border:none;cursor:pointer;color:#64748b;padding:0.25rem;border-radius:0.25rem;transition:color 0.15s;" onmouseover="this.style.color='#93c5fd'" onmouseout="this.style.color='#64748b'">
+        <svg style="width:1rem;height:1rem;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+        </svg>
+      </button>
       <form method="post" action="/ui/logout">
         <button type="submit" title="Abmelden" style="background:none;border:none;cursor:pointer;color:#64748b;padding:0.25rem;border-radius:0.25rem;transition:color 0.15s;" onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='#64748b'">
           <svg style="width:1rem;height:1rem;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -268,5 +273,85 @@
 </script>
 
 {% block scripts %}{% endblock %}
+
+{% if current_user %}
+<!-- ── Passwort-ändern-Modal ──────────────────────────────────────────────── -->
+<div id="pwdModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-box" style="max-width:24rem;">
+    <h3 style="font-size:1rem;font-weight:700;color:#1e293b;margin-bottom:1.25rem;display:flex;align-items:center;gap:0.5rem;">
+      <svg style="width:1rem;height:1rem;color:#1a56db" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+      </svg>
+      Passwort ändern
+    </h3>
+
+    <div id="pwdError" style="display:none;background:#fee2e2;border:1px solid #fca5a5;border-radius:0.5rem;padding:0.5rem 0.75rem;font-size:0.8125rem;color:#dc2626;margin-bottom:1rem;"></div>
+
+    <div style="margin-bottom:0.875rem;">
+      <label class="form-label">Aktuelles Passwort</label>
+      <input id="pwdCurrent" type="password" class="form-input" placeholder="••••••••" autocomplete="current-password" />
+    </div>
+    <div style="margin-bottom:0.875rem;">
+      <label class="form-label">Neues Passwort</label>
+      <input id="pwdNew" type="password" class="form-input" placeholder="Mindestens 8 Zeichen" autocomplete="new-password" />
+    </div>
+    <div style="margin-bottom:1.25rem;">
+      <label class="form-label">Neues Passwort bestätigen</label>
+      <input id="pwdNew2" type="password" class="form-input" placeholder="Passwort wiederholen" autocomplete="new-password" />
+    </div>
+
+    <div style="display:flex;gap:0.625rem;justify-content:flex-end;">
+      <button type="button" onclick="closePwdModal()" class="btn-secondary">Abbrechen</button>
+      <button type="button" onclick="submitPwdChange()" class="btn-primary" id="pwdSaveBtn">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  function closePwdModal() {
+    closeModal('pwdModal');
+    document.getElementById('pwdCurrent').value = '';
+    document.getElementById('pwdNew').value = '';
+    document.getElementById('pwdNew2').value = '';
+    document.getElementById('pwdError').style.display = 'none';
+  }
+
+  async function submitPwdChange() {
+    const errEl = document.getElementById('pwdError');
+    errEl.style.display = 'none';
+
+    const current = document.getElementById('pwdCurrent').value;
+    const newPwd  = document.getElementById('pwdNew').value;
+    const newPwd2 = document.getElementById('pwdNew2').value;
+
+    if (!current) { errEl.textContent = 'Bitte aktuelles Passwort eingeben.'; errEl.style.display = 'block'; return; }
+    if (newPwd.length < 8) { errEl.textContent = 'Neues Passwort muss mindestens 8 Zeichen haben.'; errEl.style.display = 'block'; return; }
+    if (newPwd !== newPwd2) { errEl.textContent = 'Die neuen Passwörter stimmen nicht überein.'; errEl.style.display = 'block'; return; }
+
+    const btn = document.getElementById('pwdSaveBtn');
+    btn.disabled = true; btn.textContent = 'Speichern…';
+
+    try {
+      const res = await apiFetch('/auth/change-password', {
+        method: 'POST',
+        body: JSON.stringify({ current_password: current, new_password: newPwd }),
+      });
+      if (res.status === 204) {
+        closePwdModal();
+        showToast('Passwort erfolgreich geändert', 'success');
+      } else {
+        const data = await res.json();
+        errEl.textContent = data.detail || 'Fehler beim Ändern des Passworts.';
+        errEl.style.display = 'block';
+      }
+    } catch (e) {
+      errEl.textContent = 'Netzwerkfehler: ' + e.message;
+      errEl.style.display = 'block';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Speichern';
+    }
+  }
+</script>
+{% endif %}
 </body>
 </html>

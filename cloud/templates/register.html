@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="de" class="h-full">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Registrieren – SecureSend Cloud</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f2057 100%); min-height: 100vh; }
+    .card { background: #fff; border-radius: 1rem; padding: 2.5rem; width: 100%; max-width: 28rem; box-shadow: 0 25px 60px rgba(0,0,0,0.35); }
+    .form-input {
+      width: 100%; padding: 0.625rem 0.875rem; border: 1px solid #e2e8f0;
+      border-radius: 0.5rem; font-size: 0.9375rem; color: #1e293b;
+      outline: none; transition: border-color 0.15s, box-shadow 0.15s; box-sizing: border-box;
+    }
+    .form-input:focus { border-color: #1a56db; box-shadow: 0 0 0 3px rgba(26,86,219,0.12); }
+    .form-input.invalid { border-color: #ef4444; }
+    .btn { width: 100%; padding: 0.75rem; background: #1a56db; color: #fff;
+      font-size: 0.9375rem; font-weight: 700; border: none; border-radius: 0.5rem;
+      cursor: pointer; transition: background 0.15s; letter-spacing: 0.01em; }
+    .btn:hover { background: #1d4ed8; }
+    .btn:disabled { background: #93c5fd; cursor: not-allowed; }
+    label.field-label { display:block; font-size:0.8125rem; font-weight:600; color:#374151; margin-bottom:0.375rem; }
+    .field { margin-bottom: 1rem; }
+    .hint { font-size: 0.75rem; color: #94a3b8; margin-top: 0.25rem; }
+    .error-box { background:#fee2e2; border:1px solid #fca5a5; border-radius:0.5rem; padding:0.75rem 1rem; margin-bottom:1.25rem; font-size:0.875rem; color:#991b1b; }
+    .success-box { background:#dcfce7; border:1px solid #86efac; border-radius:0.5rem; padding:1rem; margin-bottom:1.25rem; font-size:0.9375rem; color:#166534; }
+  </style>
+</head>
+<body class="h-full flex items-center justify-center px-4 py-8">
+
+  <div class="card">
+    <!-- Logo -->
+    <div style="text-align:center;margin-bottom:1.75rem;">
+      <div style="display:inline-flex;align-items:center;justify-content:center;background:#1a56db;border-radius:0.875rem;padding:0.875rem;margin-bottom:1rem;">
+        <svg style="width:2rem;height:2rem;color:#fff" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+        </svg>
+      </div>
+      <h1 style="font-size:1.5rem;font-weight:800;color:#1e293b;letter-spacing:-0.02em;">Konto registrieren</h1>
+      {% if org_name %}
+      <p style="font-size:0.875rem;color:#64748b;margin-top:0.25rem;">{{ org_name }} &mdash; SecureSend Cloud</p>
+      {% else %}
+      <p style="font-size:0.875rem;color:#64748b;margin-top:0.25rem;">SecureSend Cloud</p>
+      {% endif %}
+    </div>
+
+    {% if error %}
+    <!-- Registration not available -->
+    <div class="error-box" style="display:flex;align-items:flex-start;gap:0.5rem;">
+      <svg style="width:1rem;height:1rem;flex-shrink:0;margin-top:0.1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <span>{{ error }}</span>
+    </div>
+
+    {% elif success %}
+    <!-- Success -->
+    <div class="success-box" style="display:flex;align-items:flex-start;gap:0.75rem;">
+      <svg style="width:1.25rem;height:1.25rem;flex-shrink:0;margin-top:0.1rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+      </svg>
+      <div>
+        <div style="font-weight:700;margin-bottom:0.25rem;">Registrierung erfolgreich!</div>
+        <div id="successMsg" style="font-size:0.875rem;"></div>
+      </div>
+    </div>
+
+    {% else %}
+    <!-- Registration form -->
+    <div id="formError" style="display:none;" class="error-box"></div>
+
+    <form id="regForm">
+      <div class="field">
+        <label class="field-label" for="email">E-Mail-Adresse</label>
+        <input type="email" id="email" class="form-input" placeholder="name@beispiel.de"
+               required autocomplete="email" autofocus />
+        {% if allowed_domains %}
+        <p class="hint">
+          Erlaubte Domain{% if allowed_domains|length > 1 %}s{% endif %}:
+          <strong>{% for d in allowed_domains %}{{ '@' + d.lstrip('@') }}{% if not loop.last %}, {% endif %}{% endfor %}</strong>
+        </p>
+        {% endif %}
+      </div>
+
+      <div class="field">
+        <label class="field-label" for="password">Passwort</label>
+        <div style="position:relative;">
+          <input type="password" id="password" class="form-input" placeholder="Mindestens 8 Zeichen"
+                 required autocomplete="new-password" style="padding-right:2.75rem;" />
+          <button type="button" onclick="togglePwd('password','eye1')" tabindex="-1"
+                  style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;">
+            <svg id="eye1" style="width:1.125rem;height:1.125rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="field" style="margin-bottom:1.5rem;">
+        <label class="field-label" for="password2">Passwort bestätigen</label>
+        <div style="position:relative;">
+          <input type="password" id="password2" class="form-input" placeholder="Passwort wiederholen"
+                 required autocomplete="new-password" style="padding-right:2.75rem;" />
+          <button type="button" onclick="togglePwd('password2','eye2')" tabindex="-1"
+                  style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:#94a3b8;">
+            <svg id="eye2" style="width:1.125rem;height:1.125rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <button type="submit" class="btn" id="submitBtn">
+        <span id="btnText">Registrieren</span>
+      </button>
+    </form>
+    {% endif %}
+
+    <p style="text-align:center;margin-top:1.5rem;font-size:0.8125rem;color:#94a3b8;">
+      Bereits registriert?
+      <a href="/ui/login" style="color:#1a56db;font-weight:600;text-decoration:none;">Anmelden</a>
+    </p>
+    <p style="text-align:center;margin-top:0.5rem;font-size:0.75rem;color:#cbd5e1;">
+      SecureSend Cloud &copy; {{ current_year }}
+    </p>
+  </div>
+
+  <script>
+    const ORG_SLUG = {{ org_slug | tojson }};
+    const ALLOWED_DOMAINS = {{ (allowed_domains or []) | tojson }};
+
+    function togglePwd(id, eyeId) {
+      const inp = document.getElementById(id);
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('formError');
+      el.textContent = msg;
+      el.style.display = 'block';
+    }
+
+    function hideError() {
+      document.getElementById('formError').style.display = 'none';
+    }
+
+    const form = document.getElementById('regForm');
+    if (form) {
+      form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        hideError();
+
+        const email    = document.getElementById('email').value.trim();
+        const password = document.getElementById('password').value;
+        const password2 = document.getElementById('password2').value;
+
+        // Client-side validation
+        if (ALLOWED_DOMAINS.length > 0) {
+          const domain = email.includes('@') ? email.split('@').pop().toLowerCase() : '';
+          const clean = ALLOWED_DOMAINS.map(d => d.toLowerCase().replace(/^@/, ''));
+          if (!clean.includes(domain)) {
+            showError('E-Mail-Domain nicht erlaubt. Erlaubte Domains: ' + clean.map(d => '@' + d).join(', '));
+            return;
+          }
+        }
+        if (password.length < 8) {
+          showError('Das Passwort muss mindestens 8 Zeichen haben.');
+          return;
+        }
+        if (password !== password2) {
+          showError('Die Passwörter stimmen nicht überein.');
+          return;
+        }
+
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        document.getElementById('btnText').textContent = 'Registrierung läuft…';
+
+        try {
+          const res = await fetch('/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ org_slug: ORG_SLUG, email, password }),
+          });
+          const data = await res.json();
+          if (res.ok) {
+            // Show success state
+            form.style.display = 'none';
+            const sBox = document.createElement('div');
+            sBox.className = 'success-box';
+            sBox.style.cssText = 'display:flex;align-items:flex-start;gap:0.75rem;';
+            sBox.innerHTML = `<svg style="width:1.25rem;height:1.25rem;flex-shrink:0;margin-top:0.1rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+              <div><div style="font-weight:700;margin-bottom:0.25rem;">Registrierung erfolgreich!</div>
+              <div style="font-size:0.875rem;">${data.detail}</div></div>`;
+            form.parentNode.insertBefore(sBox, form);
+          } else {
+            showError(data.detail || 'Registrierung fehlgeschlagen.');
+            btn.disabled = false;
+            document.getElementById('btnText').textContent = 'Registrieren';
+          }
+        } catch (err) {
+          showError('Netzwerkfehler: ' + err.message);
+          btn.disabled = false;
+          document.getElementById('btnText').textContent = 'Registrieren';
+        }
+      });
+    }
+  </script>
+</body>
+</html>

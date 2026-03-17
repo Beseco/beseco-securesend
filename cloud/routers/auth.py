@@ -19,10 +19,13 @@ from sqlalchemy.orm import selectinload
 
 from config import settings
 from database import get_db
+from pydantic import BaseModel
+
 from dependencies import (
     CREDENTIALS_EXCEPTION,
     decode_token,
     get_current_user,
+    hash_password,
     verify_password,
 )
 from models.user import User
@@ -132,6 +135,32 @@ async def logout() -> dict:
     A production system would add the JTI to a denylist here.
     """
     return {"detail": "Logged out"}
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/change-password", status_code=204)
+async def change_password(
+    body: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Change the authenticated user's own password."""
+    if not verify_password(body.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Aktuelles Passwort ist falsch",
+        )
+    if len(body.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Neues Passwort muss mindestens 8 Zeichen haben",
+        )
+    current_user.password_hash = hash_password(body.new_password)
+    await db.commit()
 
 
 @router.get("/me", response_model=MeResponse)

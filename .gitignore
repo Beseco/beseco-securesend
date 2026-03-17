@@ -2,6 +2,8 @@
 .env
 config.json
 data.db
+cloud/securesend.db
+*.db
 addressbook.json
 history.json
 

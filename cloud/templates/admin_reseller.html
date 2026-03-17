@@ -3,7 +3,7 @@
 {% block page_title %}Reseller-Verwaltung{% endblock %}
 
 {% block topbar_actions %}
-  <button onclick="openOrgModal()" class="btn-primary" style="display:inline-flex;align-items:center;gap:0.375rem;">
+  <button id="btnAddOrg" onclick="openOrgModal()" class="btn-primary" style="display:inline-flex;align-items:center;gap:0.375rem;">
     <svg style="width:0.875rem;height:0.875rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
       <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
     </svg>
@@ -12,6 +12,24 @@
 {% endblock %}
 
 {% block content %}
+{% if resellers %}
+<div style="margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem;">
+  <label style="font-size:0.875rem;font-weight:600;color:#475569;white-space:nowrap;">Reseller:</label>
+  <select id="resellerSelector" class="form-input" style="max-width:22rem;" onchange="onResellerChange()">
+    <option value="">— Reseller wählen —</option>
+    {% for r in resellers %}<option value="{{ r.id }}">{{ r.name }}</option>{% endfor %}
+  </select>
+</div>
+{% endif %}
+
+<!-- Tab navigation -->
+<div style="display:flex;gap:0.25rem;background:#f1f5f9;border-radius:0.75rem;padding:0.25rem;margin-bottom:1.5rem;width:fit-content;">
+  <button onclick="showTab('orgs')" id="tabOrgs" style="padding:0.5rem 1.25rem;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;background:#1a56db;color:#fff;transition:all 0.15s;">Organisationen</button>
+  <button onclick="showTab('settings')" id="tabSettings" style="padding:0.5rem 1.25rem;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;background:transparent;color:#64748b;transition:all 0.15s;">Einstellungen</button>
+</div>
+
+<!-- ── Organisations Tab ──────────────────────────────────────────────────── -->
+<div id="panelOrgs">
 <div class="card" style="overflow:hidden;">
   <!-- Toolbar -->
   <div style="padding:1rem 1.25rem;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;gap:1rem;">
@@ -42,6 +60,66 @@
     </table>
   </div>
 </div>
+</div><!-- end panelOrgs -->
+
+<!-- ── Settings Tab ──────────────────────────────────────────────────────── -->
+<div id="panelSettings" style="display:none;">
+  <div style="max-width:40rem;">
+    <div class="card" style="margin-bottom:1rem;">
+      <h3 style="font-size:0.9375rem;font-weight:700;color:#1e293b;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem;">
+        <svg style="width:1rem;height:1rem;color:#1a56db" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        Zentraler SMTP-Server
+      </h3>
+      <p style="font-size:0.8125rem;color:#64748b;margin-bottom:1.25rem;">Diese Einstellungen gelten für alle Organisationen dieses Resellers, <strong>sofern die Organisation keinen eigenen SMTP-Server</strong> konfiguriert hat.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
+        <div>
+          <label class="form-label">SMTP-Host</label>
+          <input id="rSmtpHost" type="text" class="form-input" placeholder="mail.example.com" />
+        </div>
+        <div>
+          <label class="form-label">Port</label>
+          <input id="rSmtpPort" type="number" class="form-input" value="587" />
+        </div>
+      </div>
+      <div style="margin-bottom:0.875rem;">
+        <label class="form-label">Modus</label>
+        <select id="rSmtpMode" class="form-input">
+          <option value="none">Keine Verschlüsselung</option>
+          <option value="starttls" selected>STARTTLS</option>
+          <option value="ssl">SSL/TLS</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
+        <div>
+          <label class="form-label">Benutzername</label>
+          <input id="rSmtpUser" type="text" class="form-input" placeholder="user@example.com" />
+        </div>
+        <div>
+          <label class="form-label">Passwort</label>
+          <input id="rSmtpPassword" type="password" class="form-input" placeholder="••••••••" />
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:1.25rem;">
+        <div>
+          <label class="form-label">Absender-E-Mail</label>
+          <input id="rSmtpFromAddr" type="email" class="form-input" placeholder="noreply@example.com" />
+        </div>
+        <div>
+          <label class="form-label">Absender-Name</label>
+          <input id="rSmtpFromName" type="text" class="form-input" placeholder="SecureSend" />
+        </div>
+      </div>
+      <div style="margin-bottom:1.25rem;">
+        <label class="form-label">E-Mail-Signatur (HTML) <span style="font-weight:400;color:#94a3b8;">— Fallback für alle Orgs</span></label>
+        <textarea id="rSmtpSignature" rows="3" class="form-input" style="resize:vertical;font-family:monospace;font-size:0.8125rem;" placeholder="<p>Mit freundlichen Grüßen</p>"></textarea>
+      </div>
+    </div>
+    <button onclick="saveResellerSettings()" class="btn-primary" style="display:inline-flex;align-items:center;gap:0.5rem;" id="saveResellerSettingsBtn">
+      <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+      Einstellungen speichern
+    </button>
+  </div>
+</div><!-- end panelSettings -->
 
 <!-- Org Modal -->
 <div id="orgModal" class="modal-backdrop" style="display:none;">
@@ -105,6 +183,78 @@
 <script>
   let allOrgs = [];
   let deactivateTarget = null;
+  let activeTab = 'orgs';
+  let settingsLoaded = false;
+
+  // reseller_id from server context (empty string for superadmin)
+  const MY_RESELLER_ID = "{{ reseller_id }}";
+
+  function getResellerParam() {
+    const sel = document.getElementById('resellerSelector');
+    if (sel && sel.value) return '?reseller_id=' + encodeURIComponent(sel.value);
+    if (MY_RESELLER_ID) return '?reseller_id=' + encodeURIComponent(MY_RESELLER_ID);
+    return '';
+  }
+
+  function onResellerChange() {
+    settingsLoaded = false;
+    if (activeTab === 'settings') loadResellerSettings();
+  }
+
+  function showTab(tab) {
+    activeTab = tab;
+    document.getElementById('panelOrgs').style.display = tab === 'orgs' ? 'block' : 'none';
+    document.getElementById('panelSettings').style.display = tab === 'settings' ? 'block' : 'none';
+    document.getElementById('tabOrgs').style.background = tab === 'orgs' ? '#1a56db' : 'transparent';
+    document.getElementById('tabOrgs').style.color = tab === 'orgs' ? '#fff' : '#64748b';
+    document.getElementById('tabSettings').style.background = tab === 'settings' ? '#1a56db' : 'transparent';
+    document.getElementById('tabSettings').style.color = tab === 'settings' ? '#fff' : '#64748b';
+    document.getElementById('btnAddOrg').style.display = tab === 'orgs' ? '' : 'none';
+    if (tab === 'settings' && !settingsLoaded) loadResellerSettings();
+  }
+
+  async function loadResellerSettings() {
+    const param = getResellerParam();
+    if (!param) return; // superadmin must select a reseller first
+    const res = await apiFetch('/admin/reseller/settings' + param);
+    if (!res.ok) return;
+    const data = await res.json();
+    settingsLoaded = true;
+    const smtp = data.smtp || {};
+    document.getElementById('rSmtpHost').value = smtp.host || '';
+    document.getElementById('rSmtpPort').value = smtp.port || 587;
+    document.getElementById('rSmtpMode').value = smtp.mode || 'starttls';
+    document.getElementById('rSmtpUser').value = smtp.user || '';
+    document.getElementById('rSmtpPassword').value = smtp.password || '';
+    document.getElementById('rSmtpFromAddr').value = smtp.from_addr || '';
+    document.getElementById('rSmtpFromName').value = smtp.from_name || '';
+    document.getElementById('rSmtpSignature').value = data.signature || '';
+  }
+
+  async function saveResellerSettings() {
+    const param = getResellerParam();
+    if (!param) { showToast('Bitte zuerst einen Reseller wählen', 'error'); return; }
+    const body = {
+      smtp: {
+        host: document.getElementById('rSmtpHost').value,
+        port: parseInt(document.getElementById('rSmtpPort').value) || 587,
+        mode: document.getElementById('rSmtpMode').value,
+        user: document.getElementById('rSmtpUser').value,
+        password: document.getElementById('rSmtpPassword').value,
+        from_addr: document.getElementById('rSmtpFromAddr').value,
+        from_name: document.getElementById('rSmtpFromName').value,
+      },
+      signature: document.getElementById('rSmtpSignature').value,
+    };
+    const btn = document.getElementById('saveResellerSettingsBtn');
+    btn.disabled = true; btn.textContent = 'Speichern…';
+    try {
+      const res = await apiFetch('/admin/reseller/settings' + param, { method: 'PUT', body: JSON.stringify(body) });
+      if (res.ok) showToast('Einstellungen gespeichert', 'success');
+      else { const err = await res.json(); showToast(err.detail || 'Fehler', 'error'); }
+    } catch(e) { showToast('Netzwerkfehler', 'error'); }
+    finally { btn.disabled = false; btn.innerHTML = '<svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Einstellungen speichern'; }
+  }
 
   async function loadOrgs() {
     try {

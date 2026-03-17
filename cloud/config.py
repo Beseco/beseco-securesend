@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ALGORITHM: str = "HS256"
 
+    # Public base URL (used in e-mails; override in .env for production)
+    PUBLIC_BASE_URL: str = ""
+
     # App metadata
     APP_TITLE: str = "SecureSend Cloud API"
     APP_VERSION: str = "1.0.0"

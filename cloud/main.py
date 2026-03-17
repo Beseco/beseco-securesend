@@ -33,8 +33,10 @@ from database import Base, engine
 from routers.auth import router as auth_router
 from routers.contacts import router as contacts_router
 from routers.send import router as send_router
+from routers.templates import router as templates_router
 from routers.admin_org import router as admin_org_router
 from routers.admin_reseller import router as admin_reseller_router
+from routers.register import router as register_router
 from routers.ui import router as ui_router
 
 logging.basicConfig(level=logging.INFO)
@@ -81,9 +83,11 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(send_router)
+app.include_router(templates_router)
 app.include_router(contacts_router)
 app.include_router(admin_org_router)
 app.include_router(admin_reseller_router)
+app.include_router(register_router)
 app.include_router(ui_router)
 
 

@@ -5,6 +5,7 @@ cloud/schemas/reseller.py — Reseller request/response schemas.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Optional
 
 from pydantic import BaseModel, EmailStr
 
@@ -30,5 +31,6 @@ class ResellerRead(BaseModel):
     contact_email: str
     is_active: bool
     created_at: datetime
+    settings_json: Optional[dict] = None
 
     model_config = {"from_attributes": True}

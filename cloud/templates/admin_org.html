@@ -3,11 +3,21 @@
 {% block page_title %}Organisation verwalten{% endblock %}
 
 {% block content %}
+{% if orgs %}
+<div style="margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem;">
+  <label style="font-size:0.875rem;font-weight:600;color:#475569;white-space:nowrap;">Organisation:</label>
+  <select id="orgSelector" class="form-input" style="max-width:22rem;" onchange="onOrgChange()">
+    <option value="">— Organisation wählen —</option>
+    {% for o in orgs %}<option value="{{ o.id }}">{{ o.name }}</option>{% endfor %}
+  </select>
+</div>
+{% endif %}
 <!-- Tab navigation -->
 <div style="display:flex;gap:0.25rem;background:#f1f5f9;border-radius:0.75rem;padding:0.25rem;margin-bottom:1.5rem;width:fit-content;">
   <button onclick="showTab('users')" id="tabUsers" style="padding:0.5rem 1.25rem;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;background:#1a56db;color:#fff;transition:all 0.15s;">Benutzer</button>
   <button onclick="showTab('providers')" id="tabProviders" style="padding:0.5rem 1.25rem;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;background:transparent;color:#64748b;transition:all 0.15s;">Anbieter</button>
   <button onclick="showTab('settings')" id="tabSettings" style="padding:0.5rem 1.25rem;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;background:transparent;color:#64748b;transition:all 0.15s;">Einstellungen</button>
+  <button onclick="showTab('gateways')" id="tabGateways" style="padding:0.5rem 1.25rem;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;background:transparent;color:#64748b;transition:all 0.15s;">SMS-Gateway</button>
 </div>
 
 <!-- ── Users Tab ───────────────────────────────────────────────────────────── -->
@@ -127,10 +137,118 @@
       </div>
     </div>
 
+    <!-- Registration settings -->
+    <div class="card" style="margin-bottom:1rem;">
+      <h3 style="font-size:0.9375rem;font-weight:700;color:#1e293b;margin-bottom:1.25rem;display:flex;align-items:center;gap:0.5rem;">
+        <svg style="width:1rem;height:1rem;color:#1a56db" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
+        Selbst-Registrierung
+      </h3>
+      <label style="display:flex;align-items:center;gap:0.625rem;margin-bottom:1rem;cursor:pointer;">
+        <input type="checkbox" id="allowRegistration" style="accent-color:#1a56db;width:1rem;height:1rem;" onchange="onRegToggle()" />
+        <span style="font-size:0.875rem;font-weight:500;color:#374151;">Registrierung für Benutzer aktivieren</span>
+      </label>
+      <div id="regDetails" style="display:none;">
+        <div style="margin-bottom:0.875rem;">
+          <label class="form-label">Erlaubte E-Mail-Domains</label>
+          <input id="allowedDomains" type="text" class="form-input" placeholder="kreis-ffb.de, landkreis-ffb.de" />
+          <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.25rem;">Kommagetrennt, ohne @. Leer lassen = alle Domains erlaubt.</p>
+        </div>
+        <div id="regLinkWrap" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:0.5rem;padding:0.75rem 1rem;">
+          <div style="font-size:0.75rem;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.375rem;">Registrierungs-Link</div>
+          <div style="display:flex;align-items:center;gap:0.5rem;">
+            <code id="regLink" style="font-size:0.8125rem;color:#166534;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></code>
+            <button type="button" onclick="copyRegLink()" title="Kopieren" style="background:none;border:none;cursor:pointer;color:#64748b;padding:0.25rem;" onmouseover="this.style.color='#1a56db'" onmouseout="this.style.color='#64748b'">
+              <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <button onclick="saveSettings()" class="btn-primary" style="display:inline-flex;align-items:center;gap:0.5rem;" id="saveSettingsBtn">
       <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
       Einstellungen speichern
     </button>
+  </div>
+</div>
+
+<!-- ── SMS Gateways Tab ─────────────────────────────────────────────────────── -->
+<div id="panelGateways" style="display:none;">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+    <h3 style="font-size:0.9375rem;font-weight:700;color:#1e293b;">SMS-Gateways</h3>
+    <button onclick="openGatewayModal()" class="btn-primary" style="display:inline-flex;align-items:center;gap:0.375rem;font-size:0.8125rem;padding:0.4rem 0.875rem;">
+      <svg style="width:0.8125rem;height:0.8125rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+      Gateway hinzufügen
+    </button>
+  </div>
+  <div id="gatewayCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(22rem,1fr));gap:1rem;">
+    <div style="text-align:center;padding:2rem;color:#94a3b8;">Lade…</div>
+  </div>
+</div>
+
+<!-- Gateway Modal -->
+<div id="gatewayModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-box" style="max-width:34rem;">
+    <h3 id="gatewayModalTitle" style="font-size:1.0625rem;font-weight:700;color:#1e293b;margin-bottom:1.25rem;">SMS-Gateway hinzufügen</h3>
+    <form id="gatewayForm">
+      <input type="hidden" id="gatewayId" />
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
+        <div>
+          <label class="form-label">Name</label>
+          <input type="text" id="gName" class="form-input" required placeholder="z.B. sipgate Firma" />
+        </div>
+        <div>
+          <label class="form-label">Dienst</label>
+          <select id="gService" class="form-input">
+            <option value="sipgate">sipgate</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom:0.875rem;">
+        <label class="form-label">Token-ID <span style="font-weight:400;color:#94a3b8;font-size:0.8rem;">(z.B. token-XXXXX)</span></label>
+        <input type="text" id="gTokenId" class="form-input" placeholder="token-XXXXX" />
+      </div>
+      <div style="margin-bottom:0.875rem;">
+        <label class="form-label">API-Token</label>
+        <input type="password" id="gToken" class="form-input" placeholder="••••••••••••••••" />
+      </div>
+      <div style="margin-bottom:1.25rem;">
+        <label class="form-label">SMS-Gerät-ID <span style="font-weight:400;color:#94a3b8;font-size:0.8rem;">(z.B. s0)</span></label>
+        <input type="text" id="gSmsId" class="form-input" value="s0" />
+      </div>
+      <div style="display:flex;gap:1.5rem;margin-bottom:1.5rem;">
+        <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem;font-weight:500;color:#374151;cursor:pointer;">
+          <input type="checkbox" id="gDefault" style="accent-color:#1a56db;width:1rem;height:1rem;" />
+          Standard-Gateway
+        </label>
+        <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem;font-weight:500;color:#374151;cursor:pointer;">
+          <input type="checkbox" id="gActive" checked style="accent-color:#1a56db;width:1rem;height:1rem;" />
+          Aktiv
+        </label>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
+        <button type="button" onclick="closeModal('gatewayModal')" class="btn-secondary">Abbrechen</button>
+        <button type="submit" id="saveGatewayBtn" class="btn-primary">Speichern</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- EVN Modal -->
+<div id="evnModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-box" style="max-width:56rem;width:95vw;max-height:85vh;display:flex;flex-direction:column;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;flex-shrink:0;">
+      <h3 id="evnModalTitle" style="font-size:1.0625rem;font-weight:700;color:#1e293b;">Einzelverbindungsnachweis</h3>
+      <button type="button" onclick="closeModal('evnModal')" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:0.25rem;" onmouseover="this.style.color='#374151'" onmouseout="this.style.color='#94a3b8'">
+        <svg style="width:1.25rem;height:1.25rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="evnModalBody" style="overflow-y:auto;flex:1;border:1px solid #e2e8f0;border-radius:0.5rem;">
+      <div style="padding:2rem;text-align:center;color:#64748b;">Lade…</div>
+    </div>
+    <div style="margin-top:1rem;text-align:right;flex-shrink:0;">
+      <button type="button" onclick="closeModal('evnModal')" class="btn-secondary">Schließen</button>
+    </div>
   </div>
 </div>
 
@@ -280,7 +398,7 @@
 
   function showTab(tab) {
     activeTab = tab;
-    ['users','providers','settings'].forEach(t => {
+    ['users','providers','settings','gateways'].forEach(t => {
       document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = t === tab ? 'block' : 'none';
       const btn = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
       btn.style.background = t === tab ? '#1a56db' : 'transparent';
@@ -289,13 +407,24 @@
     if (tab === 'users' && !usersLoaded) loadUsers();
     if (tab === 'providers' && !providersLoaded) loadProviders();
     if (tab === 'settings' && !settingsLoaded) loadSettings();
+    if (tab === 'gateways' && !gatewaysLoaded) loadGateways();
   }
 
-  let usersLoaded = false, providersLoaded = false, settingsLoaded = false;
+  let usersLoaded = false, providersLoaded = false, settingsLoaded = false, gatewaysLoaded = false;
+
+  function getOrgParam() {
+    const sel = document.getElementById('orgSelector');
+    return (sel && sel.value) ? '?org_id=' + encodeURIComponent(sel.value) : '';
+  }
+
+  function onOrgChange() {
+    usersLoaded = false; providersLoaded = false; settingsLoaded = false;
+    showTab(activeTab);
+  }
 
   // ── Users ──────────────────────────────────────────────────────────────────
   async function loadUsers() {
-    const res = await apiFetch('/admin/org/users');
+    const res = await apiFetch('/admin/org/users' + getOrgParam());
     if (!res.ok) { document.getElementById('usersBody').innerHTML = '<tr><td colspan="4" style="padding:2rem;text-align:center;color:#ef4444;">Fehler beim Laden</td></tr>'; return; }
     const users = await res.json();
     usersLoaded = true;
@@ -349,8 +478,8 @@
     btn.disabled = true; btn.textContent = 'Speichern…';
     try {
       const res = id
-        ? await apiFetch('/admin/org/users/' + id, { method: 'PUT', body: JSON.stringify(body) })
-        : await apiFetch('/admin/org/users', { method: 'POST', body: JSON.stringify(body) });
+        ? await apiFetch('/admin/org/users/' + id + getOrgParam(), { method: 'PUT', body: JSON.stringify(body) })
+        : await apiFetch('/admin/org/users' + getOrgParam(), { method: 'POST', body: JSON.stringify(body) });
       if (res.ok) { closeModal('userModal'); showToast('Gespeichert', 'success'); usersLoaded = false; loadUsers(); }
       else { const err = await res.json(); showToast(err.detail || 'Fehler', 'error'); }
     } catch(e) { showToast('Netzwerkfehler', 'error'); }
@@ -368,7 +497,7 @@
     const btn = document.getElementById('confirmDeleteUserBtn');
     btn.disabled = true; btn.textContent = 'Löschen…';
     try {
-      const res = await apiFetch('/admin/org/users/' + deleteUserTarget, { method: 'DELETE' });
+      const res = await apiFetch('/admin/org/users/' + deleteUserTarget + getOrgParam(), { method: 'DELETE' });
       if (res.ok || res.status === 204) { closeModal('deleteUserModal'); showToast('Benutzer gelöscht', 'success'); usersLoaded = false; loadUsers(); }
       else { showToast('Fehler beim Löschen', 'error'); }
     } catch(e) { showToast('Netzwerkfehler', 'error'); }
@@ -377,11 +506,12 @@
 
   // ── Providers ──────────────────────────────────────────────────────────────
   async function loadProviders() {
-    const res = await apiFetch('/admin/org/providers');
+    const res = await apiFetch('/admin/org/providers' + getOrgParam());
     if (!res.ok) { document.getElementById('providerCards').innerHTML = '<div style="color:#ef4444;">Fehler beim Laden</div>'; return; }
     const providers = await res.json();
     providersLoaded = true;
     renderProviders(providers);
+    providers.forEach(p => checkProviderStatus(p.id));
   }
 
   function renderProviders(providers) {
@@ -392,7 +522,7 @@
     document.getElementById('providerCards').innerHTML = providers.map(p => `
       <div class="card" style="position:relative;">
         ${p.is_default ? '<div style="position:absolute;top:0.75rem;right:0.75rem;background:#fef3c7;color:#92400e;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">Standard</div>' : ''}
-        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
+        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
           <div style="background:${p.service === 'nextcloud' ? '#e0f2fe' : '#ede9fe'};border-radius:0.5rem;padding:0.625rem;">
             ${p.service === 'nextcloud'
               ? '<svg style="width:1.25rem;height:1.25rem;color:#0369a1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>'
@@ -403,6 +533,8 @@
             <div style="font-size:0.8125rem;color:#64748b;">${esc(p.service)}</div>
           </div>
         </div>
+        <!-- Status-Panel -->
+        <div id="prov-status-${p.id}" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.5rem;padding:0.5rem 0.75rem;margin-bottom:0.75rem;font-size:0.8125rem;color:#94a3b8;">Prüfe…</div>
         <div style="display:flex;align-items:center;justify-content:space-between;">
           ${p.is_active ? '<span class="badge-active">Aktiv</span>' : '<span class="badge-inactive">Inaktiv</span>'}
           <div style="display:flex;gap:0.5rem;">
@@ -412,6 +544,52 @@
         </div>
       </div>
     `).join('');
+  }
+
+  function _fmtBytes(bytes) {
+    if (bytes == null) return '—';
+    const gb = bytes / (1024 ** 3);
+    if (gb >= 1) return gb.toFixed(1) + ' GB';
+    const mb = bytes / (1024 ** 2);
+    return mb.toFixed(0) + ' MB';
+  }
+
+  async function checkProviderStatus(id) {
+    const panel = document.getElementById('prov-status-' + id);
+    if (!panel) return;
+    try {
+      const res = await apiFetch('/admin/org/providers/' + id + '/status' + getOrgParam());
+      const d = await res.json();
+      if (!res.ok || d.error) {
+        panel.innerHTML = `<span style="color:#dc2626;">✗ ${esc(d.error || d.detail || 'Fehler')}</span>`;
+        return;
+      }
+      let quotaHtml = '';
+      if (d.quota) {
+        const used = _fmtBytes(d.quota.used);
+        const total = _fmtBytes(d.quota.total);
+        const avail = _fmtBytes(d.quota.available);
+        const pct = (d.quota.total && d.quota.used != null) ? Math.round(d.quota.used / d.quota.total * 100) : null;
+        const barColor = pct == null ? '#94a3b8' : pct > 85 ? '#ef4444' : pct > 60 ? '#f59e0b' : '#16a34a';
+        quotaHtml = `
+          <div style="margin-top:0.5rem;">
+            <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:#64748b;margin-bottom:0.25rem;">
+              <span>Belegt: <strong style="color:#1e293b;">${used}</strong>${total !== '—' ? ' / ' + total : ''}</span>
+              <span>Frei: <strong style="color:#1e293b;">${avail}</strong>${pct != null ? ' (' + (100-pct) + '%)' : ''}</span>
+            </div>
+            ${pct != null ? `<div style="height:5px;background:#e2e8f0;border-radius:9999px;overflow:hidden;"><div style="height:100%;width:${pct}%;background:${barColor};border-radius:9999px;transition:width 0.3s;"></div></div>` : ''}
+          </div>`;
+      }
+      const name = d.display_name ? ` <span style="color:#64748b;">· ${esc(d.display_name)}</span>` : '';
+      panel.innerHTML = `
+        <div style="display:flex;align-items:center;gap:0.375rem;">
+          <svg style="width:0.8rem;height:0.8rem;color:#16a34a;flex-shrink:0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          <span style="font-weight:600;color:#16a34a;">Verbunden</span>${name}
+        </div>
+        ${quotaHtml}`;
+    } catch(e) {
+      if (panel) panel.innerHTML = `<span style="color:#dc2626;">Netzwerkfehler</span>`;
+    }
   }
 
   function updateProviderFields() {
@@ -428,7 +606,7 @@
     document.getElementById('pActive').checked = provider ? provider.is_active : true;
     const cfg = provider ? (provider.config_json || {}) : {};
     document.getElementById('pNcUrl').value = cfg.url || '';
-    document.getElementById('pNcUser').value = cfg.username || '';
+    document.getElementById('pNcUser').value = cfg.user || cfg.username || '';
     document.getElementById('pNcPassword').value = cfg.password || '';
     document.getElementById('pNcFolder').value = cfg.folder || '/SecureSend';
     document.getElementById('pOdClientId').value = cfg.client_id || '';
@@ -448,7 +626,7 @@
     const svc = document.getElementById('pService').value;
     let config = {};
     if (svc === 'nextcloud') {
-      config = { url: document.getElementById('pNcUrl').value, username: document.getElementById('pNcUser').value, password: document.getElementById('pNcPassword').value, folder: document.getElementById('pNcFolder').value };
+      config = { url: document.getElementById('pNcUrl').value, user: document.getElementById('pNcUser').value, password: document.getElementById('pNcPassword').value, folder: document.getElementById('pNcFolder').value };
     } else {
       config = { client_id: document.getElementById('pOdClientId').value, client_secret: document.getElementById('pOdClientSecret').value, tenant_id: document.getElementById('pOdTenantId').value, refresh_token: document.getElementById('pOdRefreshToken').value };
     }
@@ -457,8 +635,8 @@
     btn.disabled = true; btn.textContent = 'Speichern…';
     try {
       const res = id
-        ? await apiFetch('/admin/org/providers/' + id, { method: 'PUT', body: JSON.stringify(body) })
-        : await apiFetch('/admin/org/providers', { method: 'POST', body: JSON.stringify(body) });
+        ? await apiFetch('/admin/org/providers/' + id + getOrgParam(), { method: 'PUT', body: JSON.stringify(body) })
+        : await apiFetch('/admin/org/providers' + getOrgParam(), { method: 'POST', body: JSON.stringify(body) });
       if (res.ok) { closeModal('providerModal'); showToast('Anbieter gespeichert', 'success'); providersLoaded = false; loadProviders(); }
       else { const err = await res.json(); showToast(err.detail || 'Fehler', 'error'); }
     } catch(e) { showToast('Netzwerkfehler', 'error'); }
@@ -474,7 +652,7 @@
 
   // ── Settings ───────────────────────────────────────────────────────────────
   async function loadSettings() {
-    const res = await apiFetch('/admin/org/settings');
+    const res = await apiFetch('/admin/org/settings' + getOrgParam());
     if (!res.ok) return;
     const data = await res.json();
     settingsLoaded = true;
@@ -489,6 +667,31 @@
     document.getElementById('settExpiry').value = String(data.expiry_days || 7);
     document.getElementById('settSubject').value = data.default_subject || 'Ihr sicheres Dokument';
     document.getElementById('settSignature').value = data.signature || '';
+    // Registration settings
+    const allowReg = !!data.allow_registration;
+    document.getElementById('allowRegistration').checked = allowReg;
+    const rawDomains = data.allowed_domains || [];
+    document.getElementById('allowedDomains').value = rawDomains.join(', ');
+    document.getElementById('regDetails').style.display = allowReg ? 'block' : 'none';
+    if (allowReg) _updateRegLink(data.org_slug);
+  }
+
+  function onRegToggle() {
+    const on = document.getElementById('allowRegistration').checked;
+    document.getElementById('regDetails').style.display = on ? 'block' : 'none';
+  }
+
+  function _updateRegLink(slug) {
+    if (!slug) return;
+    const url = window.location.origin + '/ui/register/' + slug;
+    document.getElementById('regLink').textContent = url;
+    document.getElementById('regLinkWrap').dataset.url = url;
+  }
+
+  async function copyRegLink() {
+    const url = document.getElementById('regLinkWrap').dataset.url || document.getElementById('regLink').textContent;
+    try { await navigator.clipboard.writeText(url); showToast('Link kopiert', 'success'); }
+    catch(_) { showToast(url, 'success'); }
   }
 
   async function saveSettings() {
@@ -505,20 +708,216 @@
       expiry_days: parseInt(document.getElementById('settExpiry').value),
       default_subject: document.getElementById('settSubject').value,
       signature: document.getElementById('settSignature').value,
+      allow_registration: document.getElementById('allowRegistration').checked,
+      allowed_domains: document.getElementById('allowedDomains').value
+        .split(',').map(s => s.trim().replace(/^@/, '')).filter(Boolean),
     };
     const btn = document.getElementById('saveSettingsBtn');
     btn.disabled = true; btn.textContent = 'Speichern…';
     try {
-      const res = await apiFetch('/admin/org/settings', { method: 'PUT', body: JSON.stringify(body) });
-      if (res.ok) showToast('Einstellungen gespeichert', 'success');
+      const res = await apiFetch('/admin/org/settings' + getOrgParam(), { method: 'PUT', body: JSON.stringify(body) });
+      if (res.ok) {
+        showToast('Einstellungen gespeichert', 'success');
+        const saved = await res.json();
+        if (saved.org_slug && body.allow_registration) _updateRegLink(saved.org_slug);
+      }
       else { const err = await res.json(); showToast(err.detail || 'Fehler', 'error'); }
     } catch(e) { showToast('Netzwerkfehler', 'error'); }
     finally { btn.disabled = false; btn.innerHTML = '<svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg> Einstellungen speichern'; }
   }
 
+  // ── SMS Gateways ────────────────────────────────────────────────────────────
+  async function loadGateways() {
+    const res = await apiFetch('/admin/org/gateways' + getOrgParam());
+    if (!res.ok) { document.getElementById('gatewayCards').innerHTML = '<div style="color:#ef4444;">Fehler beim Laden</div>'; return; }
+    const gateways = await res.json();
+    gatewaysLoaded = true;
+    renderGateways(gateways);
+    // Status für jedes Gateway automatisch laden
+    gateways.forEach(g => checkGatewayStatus(g.id));
+  }
+
+  // Cache für Gateway-Statusdaten (für EVN-Modal)
+  const gwStatusCache = {};
+
+  function renderGateways(gateways) {
+    if (!gateways.length) {
+      document.getElementById('gatewayCards').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:#94a3b8;"><p>Kein SMS-Gateway konfiguriert.</p><p style="font-size:0.8125rem;margin-top:0.25rem;">Fügen Sie ein sipgate-Gateway hinzu, um SMS-Benachrichtigungen zu aktivieren.</p></div>';
+      return;
+    }
+    document.getElementById('gatewayCards').innerHTML = gateways.map(g => `
+      <div class="card" style="position:relative;">
+        ${g.is_default ? '<div style="position:absolute;top:0.75rem;right:0.75rem;background:#fef3c7;color:#92400e;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">Standard</div>' : ''}
+        <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
+          <div style="background:#f0fdf4;border-radius:0.5rem;padding:0.625rem;">
+            <svg style="width:1.25rem;height:1.25rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+          </div>
+          <div>
+            <div style="font-size:0.9375rem;font-weight:700;color:#1e293b;">${esc(g.name)}</div>
+            <div style="font-size:0.8125rem;color:#64748b;">${esc(g.service)}</div>
+          </div>
+        </div>
+        <!-- Kompaktes Status-Panel -->
+        <div id="gw-status-${g.id}" style="display:none;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.5rem;padding:0.625rem;margin-bottom:0.75rem;font-size:0.8125rem;"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          ${g.is_active ? '<span class="badge-active">Aktiv</span>' : '<span class="badge-inactive">Inaktiv</span>'}
+          <div style="display:flex;gap:0.5rem;">
+            <button onclick='checkGatewayStatus("${g.id}")' class="btn-secondary btn-sm" id="gw-status-btn-${g.id}">↻</button>
+            <button onclick='openEvnModal("${g.id}", "${esc(g.name)}")' class="btn-secondary btn-sm" id="gw-evn-btn-${g.id}">EVN</button>
+            <button onclick='editGateway(${JSON.stringify(g)})' class="btn-secondary btn-sm">Bearbeiten</button>
+            <button onclick='deleteGateway("${g.id}")' class="btn-danger btn-sm">Löschen</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  async function checkGatewayStatus(id) {
+    const panel = document.getElementById('gw-status-' + id);
+    const btn = document.getElementById('gw-status-btn-' + id);
+    panel.style.display = 'block';
+    panel.innerHTML = '<div style="color:#64748b;">Prüfe…</div>';
+    btn.disabled = true;
+    try {
+      const res = await apiFetch('/admin/org/gateways/' + id + '/status' + getOrgParam());
+      const d = await res.json();
+      if (!res.ok || d.error) {
+        panel.innerHTML = `<div style="color:#dc2626;display:flex;align-items:center;gap:0.375rem;"><svg style="width:0.875rem;height:0.875rem;flex-shrink:0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>${esc(d.error || d.detail || 'Fehler')}</div>`;
+        return;
+      }
+      // Cache für EVN
+      gwStatusCache[id] = d;
+      const balanceStr = d.balance ? `${d.balance.amount.toFixed(2)} ${d.balance.currency}` : '—';
+      panel.innerHTML = `
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+          <svg style="width:0.875rem;height:0.875rem;color:#16a34a;flex-shrink:0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+          <span style="font-weight:600;color:#16a34a;">Verbunden</span>
+          <span style="color:#94a3b8;margin:0 0.25rem;">·</span>
+          <span style="font-size:0.8125rem;color:#64748b;">Guthaben</span>
+          <strong style="font-size:0.8125rem;color:#1e293b;">${esc(balanceStr)}</strong>
+        </div>`;
+    } catch(e) {
+      panel.innerHTML = `<div style="color:#dc2626;">Netzwerkfehler: ${esc(e.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function openEvnModal(id, name) {
+    document.getElementById('evnModalTitle').textContent = `EVN – ${name}`;
+    document.getElementById('evnModalBody').innerHTML = '<div style="padding:2rem;text-align:center;color:#64748b;">Lade…</div>';
+    openModal('evnModal');
+
+    // Aus Cache oder neu laden
+    let d = gwStatusCache[id];
+    if (!d) {
+      const btn = document.getElementById('gw-evn-btn-' + id);
+      if (btn) btn.disabled = true;
+      try {
+        const res = await apiFetch('/admin/org/gateways/' + id + '/status' + getOrgParam());
+        d = await res.json();
+        if (!res.ok || d.error) {
+          document.getElementById('evnModalBody').innerHTML = `<div style="padding:1.5rem;color:#dc2626;">${esc(d.error || d.detail || 'Fehler beim Laden')}</div>`;
+          return;
+        }
+        gwStatusCache[id] = d;
+      } catch(e) {
+        document.getElementById('evnModalBody').innerHTML = `<div style="padding:1.5rem;color:#dc2626;">Netzwerkfehler: ${esc(e.message)}</div>`;
+        return;
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    const rows = d.history || [];
+    if (!rows.length) {
+      document.getElementById('evnModalBody').innerHTML = '<div style="padding:2rem;text-align:center;color:#94a3b8;">Keine Einträge vorhanden</div>';
+      return;
+    }
+
+    document.getElementById('evnModalBody').innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:0.8125rem;">
+        <thead>
+          <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
+            <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Datum</th>
+            <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Empfänger</th>
+            <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Richtung</th>
+            <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Status</th>
+            <th style="padding:0.625rem 1rem;text-align:right;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;" title="Preise werden von sipgate nicht im Verlauf geliefert">Preis ⓘ</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((h, i) => {
+            const statusColor = (h.status==='SENT'||h.status==='DELIVERED') ? '#16a34a' : h.status==='FAILED' ? '#dc2626' : '#64748b';
+            const priceStr = h.price != null ? h.price.toFixed(4) + ' €' : '<span title="sipgate liefert keine Preise im Verlauf" style="color:#cbd5e1;cursor:help;">k.A.</span>';
+            const dir = h.direction === 'OUTGOING' ? '↑ Ausgehend' : h.direction === 'INCOMING' ? '↓ Eingehend' : h.direction || '—';
+            return `<tr style="border-bottom:1px solid #f1f5f9;${i%2===1?'background:#fafafa':''}">
+              <td style="padding:0.5rem 1rem;color:#64748b;white-space:nowrap;">${h.created ? h.created.slice(0,16).replace('T',' ') : '—'}</td>
+              <td style="padding:0.5rem 1rem;color:#1e293b;font-weight:500;">${esc(h.recipient || '—')}</td>
+              <td style="padding:0.5rem 1rem;color:#64748b;">${esc(dir)}</td>
+              <td style="padding:0.5rem 1rem;"><span style="color:${statusColor};font-weight:600;">${esc(h.status||'—')}</span></td>
+              <td style="padding:0.5rem 1rem;text-align:right;color:#64748b;font-variant-numeric:tabular-nums;">${priceStr}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  }
+
+  function openGatewayModal(gateway = null) {
+    document.getElementById('gatewayId').value = gateway ? gateway.id : '';
+    document.getElementById('gName').value = gateway ? gateway.name : '';
+    document.getElementById('gService').value = gateway ? gateway.service : 'sipgate';
+    document.getElementById('gDefault').checked = gateway ? gateway.is_default : false;
+    document.getElementById('gActive').checked = gateway ? gateway.is_active : true;
+    const cfg = gateway ? (gateway.config_json || {}) : {};
+    document.getElementById('gTokenId').value = cfg.token_id || '';
+    document.getElementById('gToken').value = cfg.token || '';
+    document.getElementById('gSmsId').value = cfg.sms_id || 's0';
+    document.getElementById('gatewayModalTitle').textContent = gateway ? 'Gateway bearbeiten' : 'SMS-Gateway hinzufügen';
+    openModal('gatewayModal');
+  }
+
+  function editGateway(g) { openGatewayModal(g); }
+
+  document.getElementById('gatewayForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const id = document.getElementById('gatewayId').value;
+    const body = {
+      name: document.getElementById('gName').value,
+      service: document.getElementById('gService').value,
+      config_json: {
+        token_id: document.getElementById('gTokenId').value.trim(),
+        token:    document.getElementById('gToken').value.trim(),
+        sms_id:   document.getElementById('gSmsId').value.trim() || 's0',
+      },
+      is_default: document.getElementById('gDefault').checked,
+      is_active:  document.getElementById('gActive').checked,
+    };
+    const btn = document.getElementById('saveGatewayBtn');
+    btn.disabled = true; btn.textContent = 'Speichern…';
+    try {
+      const res = id
+        ? await apiFetch('/admin/org/gateways/' + id + getOrgParam(), { method: 'PUT', body: JSON.stringify(body) })
+        : await apiFetch('/admin/org/gateways' + getOrgParam(), { method: 'POST', body: JSON.stringify(body) });
+      if (res.ok) { closeModal('gatewayModal'); showToast('Gateway gespeichert', 'success'); gatewaysLoaded = false; loadGateways(); }
+      else { const err = await res.json(); showToast(err.detail || 'Fehler', 'error'); }
+    } catch(e) { showToast('Netzwerkfehler', 'error'); }
+    finally { btn.disabled = false; btn.textContent = 'Speichern'; }
+  });
+
+  async function deleteGateway(id) {
+    if (!confirm('Gateway wirklich löschen?')) return;
+    const res = await apiFetch('/admin/org/gateways/' + id + getOrgParam(), { method: 'DELETE' });
+    if (res.ok || res.status === 204) { showToast('Gateway gelöscht', 'success'); gatewaysLoaded = false; loadGateways(); }
+    else showToast('Fehler beim Löschen', 'error');
+  }
+
   function esc(str) { return String(str||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
   // Initial load
-  loadUsers();
+  // Only auto-load if no org selector (org_admin) or an org is pre-selected
+  if (!document.getElementById('orgSelector')) {
+    loadUsers();
+  }
 </script>
 {% endblock %}

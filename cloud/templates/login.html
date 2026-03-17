@@ -96,7 +96,27 @@
       </button>
     </form>
 
-    <p style="text-align:center;margin-top:1.5rem;font-size:0.8125rem;color:#94a3b8;">
+    {% if reg_orgs %}
+    <div style="text-align:center;margin-top:1.25rem;font-size:0.8125rem;color:#94a3b8;">
+      Noch kein Konto?
+      {% if reg_orgs|length == 1 %}
+      <a href="/ui/register/{{ reg_orgs[0].slug }}" style="color:#1a56db;font-weight:600;text-decoration:none;">Jetzt registrieren</a>
+      {% else %}
+      <br/>
+      <span style="display:inline-flex;flex-direction:column;gap:0.25rem;margin-top:0.375rem;">
+        {% for org in reg_orgs %}
+        <a href="/ui/register/{{ org.slug }}" style="color:#1a56db;font-weight:600;text-decoration:none;">{{ org.name }} – Registrieren</a>
+        {% endfor %}
+      </span>
+      {% endif %}
+    </div>
+    {% else %}
+    <p style="text-align:center;margin-top:1.25rem;font-size:0.8125rem;color:#94a3b8;">
+      Noch kein Konto?
+      <span style="color:#64748b;">Registrierungslink von Ihrem Administrator anfordern.</span>
+    </p>
+    {% endif %}
+    <p style="text-align:center;margin-top:0.5rem;font-size:0.75rem;color:#cbd5e1;">
       SecureSend Cloud &copy; {{ current_year }} &mdash; Sicheres Senden
     </p>
   </div>

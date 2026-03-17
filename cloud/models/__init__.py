@@ -12,6 +12,7 @@ from models.shared import (
     History,
     MsgTemplate,
     EmailTemplate,
+    EmailVerification,
 )
 
 __all__ = [
@@ -25,4 +26,5 @@ __all__ = [
     "History",
     "MsgTemplate",
     "EmailTemplate",
+    "EmailVerification",
 ]

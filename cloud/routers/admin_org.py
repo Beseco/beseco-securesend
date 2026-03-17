@@ -20,18 +20,21 @@ Org Settings:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from dependencies import hash_password, org_admin_required
 from models.organization import Organization
-from models.shared import CloudProvider
-from models.user import User
-from schemas.shared import CloudProviderCreate, CloudProviderRead, CloudProviderUpdate
+from models.shared import CloudProvider, SmsGateway
+from models.user import User, UserRole
+from schemas.shared import (
+    CloudProviderCreate, CloudProviderRead, CloudProviderUpdate,
+    SmsGatewayCreate, SmsGatewayRead, SmsGatewayUpdate,
+)
 from schemas.user import UserCreate, UserRead, UserUpdate
 
 router = APIRouter(prefix="/admin/org", tags=["admin-org"])
@@ -39,7 +42,18 @@ router = APIRouter(prefix="/admin/org", tags=["admin-org"])
 
 # ── Helper ─────────────────────────────────────────────────────────────────────
 
-def _assert_has_org(current_user: User) -> str:
+def _resolve_org_id(current_user: User, org_id: Optional[str] = None) -> str:
+    """
+    For superadmin: use explicit org_id param.
+    For org_admin/reseller_admin: use their own org_id.
+    """
+    if current_user.role == UserRole.superadmin:
+        if not org_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="org_id query parameter required for superadmin",
+            )
+        return org_id
     if not current_user.org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -52,10 +66,11 @@ def _assert_has_org(current_user: User) -> str:
 
 @router.get("/users", response_model=list[UserRead])
 async def list_org_users(
+    org_id: Optional[str] = Query(None),
     current_user: User = Depends(org_admin_required()),
     db: AsyncSession = Depends(get_db),
 ) -> list[UserRead]:
-    org_id = _assert_has_org(current_user)
+    org_id = _resolve_org_id(current_user, org_id)
     result = await db.execute(
         select(User)
         .where(User.org_id == org_id)
@@ -68,13 +83,13 @@ async def list_org_users(
 @router.post("/users", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 async def create_org_user(
     body: UserCreate,
+    org_id: Optional[str] = Query(None),
     current_user: User = Depends(org_admin_required()),
     db: AsyncSession = Depends(get_db),
 ) -> UserRead:
-    org_id = _assert_has_org(current_user)
+    org_id = _resolve_org_id(current_user, org_id)
 
     # Prevent privilege escalation
-    from models.user import UserRole
     from dependencies import _ROLE_RANK
 
     if _ROLE_RANK.get(body.role, 0) > _ROLE_RANK.get(current_user.role, 0):
@@ -105,10 +120,11 @@ async def create_org_user(
 async def update_org_user(
     user_id: str,
     body: UserUpdate,
+    org_id: Optional[str] = Query(None),
     current_user: User = Depends(org_admin_required()),
     db: AsyncSession = Depends(get_db),
 ) -> UserRead:
-    org_id = _assert_has_org(current_user)
+    org_id = _resolve_org_id(current_user, org_id)
     result = await db.execute(
         select(User).where(User.id == user_id, User.org_id == org_id)
     )
@@ -139,10 +155,11 @@ async def update_org_user(
 @router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_org_user(
     user_id: str,
+    org_id: Optional[str] = Query(None),
     current_user: User = Depends(org_admin_required()),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    org_id = _assert_has_org(current_user)
+    org_id = _resolve_org_id(current_user, org_id)
     if user_id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot delete your own account")
     result = await db.execute(
@@ -159,10 +176,11 @@ async def delete_org_user(
 
 @router.get("/providers", response_model=list[CloudProviderRead])
 async def list_providers(
+    org_id: Optional[str] = Query(None),
     current_user: User = Depends(org_admin_required()),
     db: AsyncSession = Depends(get_db),
 ) -> list[CloudProviderRead]:
-    org_id = _assert_has_org(current_user)
+    org_id = _resolve_org_id(current_user, org_id)
     result = await db.execute(
         select(CloudProvider)
         .where(CloudProvider.org_id == org_id)
@@ -175,10 +193,11 @@ async def list_providers(
 @router.post("/providers", response_model=CloudProviderRead, status_code=status.HTTP_201_CREATED)
 async def create_provider(
     body: CloudProviderCreate,
+    org_id: Optional[str] = Query(None),
     current_user: User = Depends(org_admin_required()),
     db: AsyncSession = Depends(get_db),
 ) -> CloudProviderRead:
-    org_id = _assert_has_org(current_user)
+    org_id = _resolve_org_id(current_user, org_id)
 
     # If this is the new default, clear existing defaults first
     if body.is_default:
@@ -210,10 +229,11 @@ async def create_provider(
 async def update_provider(
     provider_id: str,
     body: CloudProviderUpdate,
+    org_id: Optional[str] = Query(None),
     current_user: User = Depends(org_admin_required()),
     db: AsyncSession = Depends(get_db),
 ) -> CloudProviderRead:
-    org_id = _assert_has_org(current_user)
+    org_id = _resolve_org_id(current_user, org_id)
     result = await db.execute(
         select(CloudProvider).where(
             CloudProvider.id == provider_id,
@@ -243,13 +263,37 @@ async def update_provider(
     return CloudProviderRead.model_validate(provider)
 
 
+@router.get("/providers/{provider_id}/status")
+async def provider_status(
+    provider_id: str,
+    org_id: Optional[str] = Query(None),
+    current_user: User = Depends(org_admin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Prüft Verbindung + Quota für einen Cloud-Anbieter."""
+    org_id = _resolve_org_id(current_user, org_id)
+    result = await db.execute(
+        select(CloudProvider).where(CloudProvider.id == provider_id, CloudProvider.org_id == org_id)
+    )
+    provider = result.scalar_one_or_none()
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    cfg = dict(provider.config_json or {})
+    cfg["service"] = provider.service
+    import asyncio
+    from core.storage import get_provider_status  # type: ignore[import]
+    status_data = await asyncio.get_event_loop().run_in_executor(None, get_provider_status, cfg)
+    return status_data
+
+
 @router.delete("/providers/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_provider(
     provider_id: str,
+    org_id: Optional[str] = Query(None),
     current_user: User = Depends(org_admin_required()),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    org_id = _assert_has_org(current_user)
+    org_id = _resolve_org_id(current_user, org_id)
     result = await db.execute(
         select(CloudProvider).where(
             CloudProvider.id == provider_id,
@@ -263,28 +307,147 @@ async def delete_provider(
     await db.commit()
 
 
+# ── SMS Gateways ───────────────────────────────────────────────────────────────
+
+@router.get("/gateways", response_model=list[SmsGatewayRead])
+async def list_gateways(
+    org_id: Optional[str] = Query(None),
+    current_user: User = Depends(org_admin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> list[SmsGatewayRead]:
+    org_id = _resolve_org_id(current_user, org_id)
+    result = await db.execute(
+        select(SmsGateway).where(SmsGateway.org_id == org_id).order_by(SmsGateway.name)
+    )
+    return [SmsGatewayRead.model_validate(g) for g in result.scalars().all()]
+
+
+@router.post("/gateways", response_model=SmsGatewayRead, status_code=status.HTTP_201_CREATED)
+async def create_gateway(
+    body: SmsGatewayCreate,
+    org_id: Optional[str] = Query(None),
+    current_user: User = Depends(org_admin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> SmsGatewayRead:
+    org_id = _resolve_org_id(current_user, org_id)
+    if body.is_default:
+        existing = await db.execute(
+            select(SmsGateway).where(SmsGateway.org_id == org_id, SmsGateway.is_default == True)  # noqa: E712
+        )
+        for g in existing.scalars().all():
+            g.is_default = False
+    gateway = SmsGateway(
+        org_id=org_id,
+        name=body.name,
+        service=body.service,
+        config_json=body.config_json,
+        is_default=body.is_default,
+        is_active=body.is_active,
+    )
+    db.add(gateway)
+    await db.commit()
+    await db.refresh(gateway)
+    return SmsGatewayRead.model_validate(gateway)
+
+
+@router.put("/gateways/{gateway_id}", response_model=SmsGatewayRead)
+async def update_gateway(
+    gateway_id: str,
+    body: SmsGatewayUpdate,
+    org_id: Optional[str] = Query(None),
+    current_user: User = Depends(org_admin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> SmsGatewayRead:
+    org_id = _resolve_org_id(current_user, org_id)
+    result = await db.execute(
+        select(SmsGateway).where(SmsGateway.id == gateway_id, SmsGateway.org_id == org_id)
+    )
+    gateway = result.scalar_one_or_none()
+    if not gateway:
+        raise HTTPException(status_code=404, detail="Gateway not found")
+    if body.is_default is True:
+        existing = await db.execute(
+            select(SmsGateway).where(
+                SmsGateway.org_id == org_id,
+                SmsGateway.is_default == True,  # noqa: E712
+                SmsGateway.id != gateway_id,
+            )
+        )
+        for g in existing.scalars().all():
+            g.is_default = False
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(gateway, field, value)
+    await db.commit()
+    await db.refresh(gateway)
+    return SmsGatewayRead.model_validate(gateway)
+
+
+@router.get("/gateways/{gateway_id}/status")
+async def gateway_status(
+    gateway_id: str,
+    org_id: Optional[str] = Query(None),
+    current_user: User = Depends(org_admin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Prüft sipgate-Credentials, liefert Kontostand + EVN."""
+    org_id = _resolve_org_id(current_user, org_id)
+    result = await db.execute(
+        select(SmsGateway).where(SmsGateway.id == gateway_id, SmsGateway.org_id == org_id)
+    )
+    gateway = result.scalar_one_or_none()
+    if not gateway:
+        raise HTTPException(status_code=404, detail="Gateway not found")
+    cfg = dict(gateway.config_json or {})
+    import asyncio
+    from core.sms import get_sipgate_status  # type: ignore[import]
+    status_data = await asyncio.get_event_loop().run_in_executor(None, get_sipgate_status, cfg)
+    return status_data
+
+
+@router.delete("/gateways/{gateway_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_gateway(
+    gateway_id: str,
+    org_id: Optional[str] = Query(None),
+    current_user: User = Depends(org_admin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    org_id = _resolve_org_id(current_user, org_id)
+    result = await db.execute(
+        select(SmsGateway).where(SmsGateway.id == gateway_id, SmsGateway.org_id == org_id)
+    )
+    gateway = result.scalar_one_or_none()
+    if not gateway:
+        raise HTTPException(status_code=404, detail="Gateway not found")
+    await db.delete(gateway)
+    await db.commit()
+
+
 # ── Org Settings ───────────────────────────────────────────────────────────────
 
 @router.get("/settings")
 async def get_org_settings(
+    org_id: Optional[str] = Query(None),
     current_user: User = Depends(org_admin_required()),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    org_id = _assert_has_org(current_user)
+    org_id = _resolve_org_id(current_user, org_id)
     result = await db.execute(select(Organization).where(Organization.id == org_id))
     org = result.scalar_one_or_none()
     if not org:
         raise HTTPException(status_code=404, detail="Organisation not found")
-    return org.settings_json or {}
+    data = dict(org.settings_json or {})
+    data["org_slug"] = org.slug   # expose slug so the UI can build the registration link
+    return data
 
 
 @router.put("/settings")
 async def update_org_settings(
     body: dict[str, Any],
+    org_id: Optional[str] = Query(None),
     current_user: User = Depends(org_admin_required()),
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
-    org_id = _assert_has_org(current_user)
+    org_id = _resolve_org_id(current_user, org_id)
     result = await db.execute(select(Organization).where(Organization.id == org_id))
     org = result.scalar_one_or_none()
     if not org:

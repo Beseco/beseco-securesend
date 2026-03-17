@@ -36,6 +36,7 @@ class CloudProviderRead(BaseModel):
     user_id: Optional[str]
     name: str
     service: str
+    config_json: Optional[dict[str, Any]] = None
     is_default: bool
     is_active: bool
     created_at: datetime
@@ -66,6 +67,7 @@ class SmsGatewayRead(BaseModel):
     org_id: str
     name: str
     service: str
+    config_json: Optional[dict[str, Any]] = None
     is_default: bool
     is_active: bool
     created_at: datetime

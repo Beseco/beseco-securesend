@@ -199,3 +199,156 @@ def upload_and_share(cfg: dict, filename: str, content: bytes,
 
     else:
         raise ValueError(f"Unbekannter Storage-Service: {service!r}")
+
+
+# ── Multi-File Upload + Folder-Share ─────────────────────────────────────────
+
+def upload_files_and_share_folder(
+    cfg: dict,
+    files: list[tuple[str, bytes, str]],
+    folder_path: str,
+    password: str,
+    days: int,
+) -> str:
+    """Lädt mehrere Dateien in einen Ordner hoch und gibt einen Freigabe-Link auf den Ordner zurück.
+
+    Args:
+        cfg:         Provider-Konfiguration (inkl. service)
+        files:       Liste von (filename, content, content_type)
+        folder_path: Zielordner-Pfad (relativ zum Upload-Basisordner)
+        password:    Passwort für den Share-Link
+        days:        Ablauftage
+    """
+    service = cfg.get("service", "nextcloud")
+
+    if service == "nextcloud":
+        nc_ensure_folder(cfg, folder_path)
+        for filename, content, content_type in files:
+            url = _nc_webdav_url(cfg, f"{folder_path}/{filename}")
+            resp = requests.put(
+                url,
+                auth=(cfg["user"], cfg["password"]),
+                data=content,
+                headers={"Content-Type": content_type},
+                timeout=60,
+            )
+            resp.raise_for_status()
+        return create_nextcloud_share_link(cfg, folder_path, password, days)
+
+    elif service == "onedrive":
+        token = get_graph_token(cfg)
+        for filename, content, content_type in files:
+            upload_to_onedrive(cfg, token, filename, content,
+                               content_type=content_type, subfolder=folder_path)
+        # OneDrive: Ordner-Share-Link erstellen
+        base = cfg.get("url", "https://graph.microsoft.com/v1.0")
+        r = requests.get(
+            f"https://graph.microsoft.com/v1.0/me/drive/root:/{folder_path}",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10,
+        )
+        r.raise_for_status()
+        item_id = r.json()["id"]
+        return create_onedrive_share_link(cfg, token, item_id, password, days)
+
+    else:
+        raise ValueError(f"Unbekannter Storage-Service: {service!r}")
+
+
+# ── Status & Quota ────────────────────────────────────────────────────────────
+
+def get_provider_status(cfg: dict) -> dict:
+    """Prüft Verbindung und liefert Quota-Informationen.
+
+    Rückgabe:
+      {
+        "ok": bool,
+        "service": str,
+        "display_name": str | None,
+        "quota": {"used": int, "available": int, "total": int} | None,
+        "error": str | None,
+      }
+    """
+    service = cfg.get("service", "nextcloud")
+    result: dict = {"ok": False, "service": service, "display_name": None, "quota": None, "error": None}
+
+    if service == "nextcloud":
+        try:
+            base = cfg["url"].rstrip("/")
+            auth = (cfg.get("user", ""), cfg.get("password", ""))
+
+            # Verbindung + User-Info via OCS
+            r = requests.get(
+                f"{base}/ocs/v2.php/cloud/user",
+                auth=auth,
+                headers={"OCS-APIRequest": "true", "Accept": "application/json"},
+                timeout=10,
+            )
+            if r.status_code == 401:
+                result["error"] = "Ungültige Zugangsdaten (401)"
+                return result
+            r.raise_for_status()
+            data = r.json()["ocs"]["data"]
+            result["display_name"] = data.get("display-name") or data.get("displayname") or data.get("id")
+
+            # Quota via WebDAV PROPFIND
+            uid = data.get("id", quote(cfg.get("user", ""), safe=""))
+            webdav_url = f"{base}/remote.php/dav/files/{uid}/"
+            propfind_body = (
+                '<?xml version="1.0"?>'
+                '<d:propfind xmlns:d="DAV:">'
+                '<d:prop><d:quota-available-bytes/><d:quota-used-bytes/></d:prop>'
+                '</d:propfind>'
+            )
+            rq = requests.request(
+                "PROPFIND", webdav_url,
+                auth=auth,
+                data=propfind_body,
+                headers={"Depth": "0", "Content-Type": "application/xml"},
+                timeout=10,
+            )
+            if rq.ok:
+                import xml.etree.ElementTree as ET
+                root = ET.fromstring(rq.text)
+                ns = {"d": "DAV:"}
+                avail = root.findtext(".//d:quota-available-bytes", namespaces=ns)
+                used  = root.findtext(".//d:quota-used-bytes",      namespaces=ns)
+                avail_i = int(avail) if avail and avail.lstrip("-").isdigit() else None
+                used_i  = int(used)  if used  and used.lstrip("-").isdigit()  else None
+                if used_i is not None:
+                    total = (used_i + avail_i) if (avail_i is not None and avail_i >= 0) else None
+                    result["quota"] = {
+                        "used":      used_i,
+                        "available": avail_i if avail_i is not None and avail_i >= 0 else None,
+                        "total":     total,
+                    }
+            result["ok"] = True
+
+        except requests.RequestException as e:
+            result["error"] = f"Verbindungsfehler: {e}"
+
+    elif service == "onedrive":
+        try:
+            token = get_graph_token(cfg)
+            r = requests.get(
+                "https://graph.microsoft.com/v1.0/me/drive",
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=10,
+            )
+            r.raise_for_status()
+            d = r.json()
+            result["display_name"] = d.get("owner", {}).get("user", {}).get("displayName")
+            quota = d.get("quota", {})
+            used  = quota.get("used")
+            total = quota.get("total")
+            avail = quota.get("remaining")
+            if used is not None:
+                result["quota"] = {"used": used, "available": avail, "total": total}
+            result["ok"] = True
+        except Exception as e:
+            result["error"] = str(e)
+
+    else:
+        result["error"] = f"Unbekannter Service: {service!r}"
+
+    return result

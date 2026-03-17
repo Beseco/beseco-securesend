@@ -36,8 +36,9 @@ from sqlalchemy.orm import selectinload
 
 from config import settings
 from database import get_db
+from models.organization import Organization
 from models.reseller import Reseller
-from models.shared import History
+from models.shared import EmailVerification, History
 from models.user import User, UserRole
 
 router = APIRouter(prefix="/ui", tags=["ui"])
@@ -80,11 +81,12 @@ def _set_auth_cookie(response: RedirectResponse, token: str) -> None:
         httponly=True,
         samesite="lax",
         secure=False,  # set to True in production behind HTTPS
+        path="/",       # must be "/" so API routes at /admin/* also receive the cookie
     )
 
 
 def _clear_auth_cookie(response: RedirectResponse) -> None:
-    response.delete_cookie(key=_COOKIE_NAME, samesite="lax")
+    response.delete_cookie(key=_COOKIE_NAME, samesite="lax", path="/")
 
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
@@ -173,6 +175,18 @@ async def login_page(
     user = await _get_user_from_cookie(request, db)
     if user:
         return RedirectResponse(url="/ui/", status_code=303)
+
+    # Orgs with self-registration enabled → show registration links
+    from models.organization import Organization as OrgModel
+    orgs_result = await db.execute(
+        select(OrgModel).where(OrgModel.is_active == True)
+    )
+    reg_orgs = [
+        {"name": o.name, "slug": o.slug}
+        for o in orgs_result.scalars().all()
+        if (o.settings_json or {}).get("allow_registration") and o.slug
+    ]
+
     return templates.TemplateResponse(
         "login.html",
         {
@@ -181,6 +195,7 @@ async def login_page(
             "next": next,
             "current_year": datetime.now().year,
             "prefill_email": request.query_params.get("email", ""),
+            "reg_orgs": reg_orgs,
         },
     )
 
@@ -236,6 +251,88 @@ async def logout(request: Request) -> RedirectResponse:
     response = RedirectResponse(url="/ui/login", status_code=303)
     _clear_auth_cookie(response)
     return response
+
+
+# ── Self-registration ─────────────────────────────────────────────────────────
+
+@router.get("/register/{org_slug}", response_class=HTMLResponse)
+async def register_page(
+    request: Request,
+    org_slug: str,
+    db: AsyncSession = Depends(get_db),
+) -> HTMLResponse:
+    """Public registration page for a specific org slug."""
+    result = await db.execute(
+        select(Organization).where(Organization.slug == org_slug)
+    )
+    org = result.scalar_one_or_none()
+    settings_j = (org.settings_json or {}) if org else {}
+    if not org or not org.is_active or not settings_j.get("allow_registration"):
+        return templates.TemplateResponse(
+            "register.html",
+            {
+                "request": request,
+                "org_slug": org_slug,
+                "org_name": None,
+                "allowed_domains": [],
+                "error": "Die Registrierung für diese Organisation ist nicht verfügbar.",
+                "current_year": datetime.now().year,
+            },
+            status_code=404,
+        )
+    return templates.TemplateResponse(
+        "register.html",
+        {
+            "request": request,
+            "org_slug": org_slug,
+            "org_name": org.name,
+            "allowed_domains": settings_j.get("allowed_domains", []),
+            "error": None,
+            "current_year": datetime.now().year,
+        },
+    )
+
+
+@router.get("/verify-email", response_class=HTMLResponse)
+async def verify_email_page(
+    request: Request,
+    token: str = "",
+    db: AsyncSession = Depends(get_db),
+) -> HTMLResponse:
+    """Verify e-mail token and activate the user account."""
+    ctx: dict = {"request": request, "current_year": datetime.now().year}
+
+    if not token:
+        ctx.update(success=False, message="Kein Token angegeben.")
+        return templates.TemplateResponse("verify_email.html", ctx, status_code=400)
+
+    result = await db.execute(
+        select(EmailVerification).where(EmailVerification.token == token)
+    )
+    verification = result.scalar_one_or_none()
+
+    if not verification:
+        ctx.update(success=False, message="Ungültiger oder bereits verwendeter Bestätigungslink.")
+        return templates.TemplateResponse("verify_email.html", ctx, status_code=404)
+
+    if verification.expires_at < datetime.utcnow():
+        await db.delete(verification)
+        await db.commit()
+        ctx.update(success=False, message="Der Bestätigungslink ist abgelaufen. Bitte registrieren Sie sich erneut.")
+        return templates.TemplateResponse("verify_email.html", ctx, status_code=410)
+
+    # Activate user
+    user_result = await db.execute(
+        select(User).where(User.id == verification.user_id)
+    )
+    user = user_result.scalar_one_or_none()
+    if user:
+        user.is_active = True
+    await db.delete(verification)
+    await db.commit()
+
+    ctx.update(success=True, message="Ihre E-Mail-Adresse wurde bestätigt. Sie können sich jetzt anmelden.")
+    return templates.TemplateResponse("verify_email.html", ctx)
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
@@ -370,9 +467,15 @@ async def admin_org_page(
                 flash_type="error",
             ),
         )
+    # Superadmin sees an org selector dropdown
+    orgs = []
+    if user.role == UserRole.superadmin:
+        from models.organization import Organization
+        result = await db.execute(select(Organization).where(Organization.is_active == True).order_by(Organization.name))  # noqa: E712
+        orgs = [{"id": o.id, "name": o.name} for o in result.scalars().all()]
     return templates.TemplateResponse(
         "admin_org.html",
-        _ctx(request, user, "admin_org"),
+        _ctx(request, user, "admin_org", orgs=orgs),
     )
 
 
@@ -395,14 +498,15 @@ async def admin_reseller_page(
                 flash_type="error",
             ),
         )
-    # Superadmin sees a reseller dropdown in the org creation modal
+    # For superadmin: pass all resellers for org creation modal + settings selector
     resellers = []
     if user.role == UserRole.superadmin:
         result = await db.execute(select(Reseller).where(Reseller.is_active == True).order_by(Reseller.name))  # noqa: E712
         resellers = [{"id": r.id, "name": r.name} for r in result.scalars().all()]
     return templates.TemplateResponse(
         "admin_reseller.html",
-        _ctx(request, user, "admin_reseller", resellers=resellers),
+        _ctx(request, user, "admin_reseller", resellers=resellers,
+             reseller_id=user.reseller_id or ""),
     )
 
 

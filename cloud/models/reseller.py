@@ -7,7 +7,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, func
+from typing import Optional
+
+from sqlalchemy import Boolean, DateTime, JSON, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
@@ -26,6 +28,8 @@ class Reseller(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
+    # Flexible JSON bag: smtp config, signature, branding, etc.
+    settings_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     # relationships
     organizations: Mapped[list["Organization"]] = relationship(  # noqa: F821

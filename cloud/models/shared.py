@@ -199,3 +199,27 @@ class EmailTemplate(Base):
 
     def __repr__(self) -> str:
         return f"<EmailTemplate id={self.id!r} name={self.name!r}>"
+
+
+class EmailVerification(Base):
+    """Pending email verification tokens for self-registration."""
+
+    __tablename__ = "email_verifications"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    # stored as UTC-naive datetime
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    user: Mapped["User"] = relationship("User")  # noqa: F821
+
+    def __repr__(self) -> str:
+        return f"<EmailVerification user_id={self.user_id!r}>"

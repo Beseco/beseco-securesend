@@ -1,13 +1,13 @@
 """
 cloud/routers/send.py — Secure send endpoint.
 
-POST /send  — multipart file upload  (file field required)
+POST /send  — multipart file upload  (files[] field, multiple allowed)
 POST /send  — JSON body               (message field required, no file)
 
 Both paths:
   1. Build file content + filename
   2. Look up org's default cloud provider
-  3. Upload + create share link via core.storage.upload_and_share
+  3. Upload + create share link via core.storage
   4. Optionally send email  via core.email.send_email
   5. Optionally send SMS    via core.sms.send_sms_sipgate
   6. Write history entry
@@ -20,6 +20,8 @@ import secrets
 import string
 import uuid
 from datetime import datetime, timezone
+from pathlib import PurePosixPath
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from sqlalchemy import select
@@ -27,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from dependencies import get_current_user, org_user_required
+from models.reseller import Reseller
 from models.shared import CloudProvider, History, SmsGateway
 from models.user import User
 from schemas.shared import SendResponse
@@ -34,6 +37,14 @@ from schemas.shared import SendResponse
 router = APIRouter(prefix="/send", tags=["send"])
 
 _ALPHABET = string.ascii_letters + string.digits
+
+# Extensions that must not be uploaded
+BLOCKED_EXTENSIONS: frozenset[str] = frozenset({
+    ".exe", ".bat", ".cmd", ".com", ".msi", ".ps1", ".vbs", ".vbe",
+    ".sh", ".bash", ".zsh", ".jar", ".scr", ".pif", ".reg", ".dll",
+    ".hta", ".lnk", ".js", ".jse", ".wsf", ".wsh", ".msp", ".gadget",
+    ".cpl", ".inf", ".ins", ".isp", ".msc", ".mst", ".application",
+})
 
 
 def _random_password(length: int = 10) -> str:
@@ -88,8 +99,8 @@ async def _get_sms_gateway(db: AsyncSession, org_id: str) -> Optional[SmsGateway
 @router.post("", response_model=SendResponse)
 async def send_secure(
     request: Request,
-    # ---- File upload (optional) ----
-    file: Optional[UploadFile] = File(default=None),
+    # ---- File upload (multiple, optional) ----
+    files: List[UploadFile] = File(default=[]),
     # ---- Form / JSON fields ----
     to_email: str = Form(default=""),
     to_phone: str = Form(default=""),
@@ -105,9 +116,9 @@ async def send_secure(
     db: AsyncSession = Depends(get_db),
 ) -> SendResponse:
     """
-    Upload a file OR a Markdown message to the org's cloud storage,
-    create a password-protected share link, and optionally notify via
-    email and/or SMS.
+    Upload one or more files OR a Markdown message to the org's cloud
+    storage, create a password-protected share link, and optionally
+    notify via email and/or SMS.
     """
     # Superadmins have no org_id; block them here
     if not current_user.org_id:
@@ -118,21 +129,20 @@ async def send_secure(
 
     org_id = current_user.org_id
 
-    # ── Build content ──────────────────────────────────────────────────────
-    if file and file.filename:
-        content = await file.read()
-        filename = file.filename
-        content_type = file.content_type or "application/octet-stream"
-    elif message:
-        content = message.encode("utf-8")
-        ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        filename = f"nachricht_{ts}.md"
-        content_type = "text/markdown; charset=utf-8"
-    else:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Either a file upload or a message body is required",
-        )
+    # ── Validate and read uploaded files ──────────────────────────────────
+    valid_files = [f for f in files if f.filename]
+    if valid_files:
+        for f in valid_files:
+            ext = PurePosixPath(f.filename).suffix.lower()
+            if ext in BLOCKED_EXTENSIONS:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Dateityp nicht erlaubt: {f.filename} ({ext})",
+                )
+        file_entries: list[tuple[str, bytes, str]] = []
+        for f in valid_files:
+            data = await f.read()
+            file_entries.append((f.filename, data, f.content_type or "application/octet-stream"))
 
     # ── Load cloud provider ────────────────────────────────────────────────
     provider = await _get_provider(db, org_id, provider_id)
@@ -141,40 +151,91 @@ async def send_secure(
 
     # ── Upload + share link ────────────────────────────────────────────────
     password = _random_password()
-    subfolder = current_user.id  # one sub-folder per user
 
     try:
-        # core.storage is imported here to ensure sys.path is already set up by main.py
-        from core.storage import upload_and_share  # type: ignore[import]
+        import asyncio
 
-        share_url = upload_and_share(
-            cfg=cfg,
-            filename=filename,
-            content=content,
-            password=password,
-            days=expiry_days,
-            content_type=content_type,
-            subfolder=subfolder,
-        )
+        if valid_files:
+            from core.storage import upload_files_and_share_folder  # type: ignore[import]
+
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            base_folder = cfg.get("folder", "SecureSend")
+            folder_path = f"{base_folder}/{current_user.id}/{ts}"
+
+            share_url = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: upload_files_and_share_folder(
+                    cfg=cfg,
+                    files=file_entries,
+                    folder_path=folder_path,
+                    password=password,
+                    days=expiry_days,
+                ),
+            )
+            filename = (
+                valid_files[0].filename
+                if len(valid_files) == 1
+                else f"{len(valid_files)} Dateien"
+            )
+
+        elif message:
+            from core.storage import upload_and_share  # type: ignore[import]
+
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            filename = f"nachricht_{ts}.md"
+            content = message.encode("utf-8")
+
+            share_url = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: upload_and_share(
+                    cfg=cfg,
+                    filename=filename,
+                    content=content,
+                    password=password,
+                    days=expiry_days,
+                    content_type="text/markdown; charset=utf-8",
+                    subfolder=current_user.id,
+                ),
+            )
+
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Either a file upload or a message body is required",
+            )
+
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Cloud storage error: {exc}",
         ) from exc
 
-    # ── Resolve org SMTP config ────────────────────────────────────────────
+    # ── Resolve SMTP config: org → reseller fallback ───────────────────────
     org_settings: dict = {}
     if current_user.organization and current_user.organization.settings_json:
         org_settings = current_user.organization.settings_json
 
     smtp_cfg: Optional[dict] = org_settings.get("smtp")
+    signature: str = org_settings.get("signature", "")
+
+    if not smtp_cfg and current_user.organization:
+        # Fall back to reseller SMTP
+        res_result = await db.execute(
+            select(Reseller).where(Reseller.id == current_user.organization.reseller_id)
+        )
+        reseller = res_result.scalar_one_or_none()
+        if reseller and reseller.settings_json:
+            smtp_cfg = reseller.settings_json.get("smtp")
+            if not signature:
+                signature = reseller.settings_json.get("signature", "")
 
     # ── Send email ─────────────────────────────────────────────────────────
     if send_email_flag and to_email and smtp_cfg:
         try:
             from core.email import send_email  # type: ignore[import]
 
-            signature = org_settings.get("signature", "")
             body_html = (
                 f"<p>{subject}</p>"
                 f"<p>Download-Link: <a href='{share_url}'>{share_url}</a></p>"
