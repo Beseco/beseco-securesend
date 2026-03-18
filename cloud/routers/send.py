@@ -1,21 +1,15 @@
 """
 cloud/routers/send.py — Secure send endpoint.
 
-POST /send  — multipart file upload  (files[] field, multiple allowed)
-POST /send  — JSON body               (message field required, no file)
-
-Both paths:
-  1. Build file content + filename
-  2. Look up org's default cloud provider
-  3. Upload + create share link via core.storage
-  4. Optionally send email  via core.email.send_email
-  5. Optionally send SMS    via core.sms.send_sms_sipgate
-  6. Write history entry
-  7. Return share_url
+Sicherheitsstufen:
+  normal   — Link per E-Mail, kein Passwort, kein SMS
+  secure   — Passwortgeschützter Link per E-Mail + Passwort per SMS  (Standard)
+  extended — Dateien in AES-256-verschlüsseltem ZIP per E-Mail + Passwort per SMS
 """
 
 from __future__ import annotations
 
+import io
 import secrets
 import string
 import uuid
@@ -38,7 +32,6 @@ router = APIRouter(prefix="/send", tags=["send"])
 
 _ALPHABET = string.ascii_letters + string.digits
 
-# Extensions that must not be uploaded
 BLOCKED_EXTENSIONS: frozenset[str] = frozenset({
     ".exe", ".bat", ".cmd", ".com", ".msi", ".ps1", ".vbs", ".vbe",
     ".sh", ".bash", ".zsh", ".jar", ".scr", ".pif", ".reg", ".dll",
@@ -46,15 +39,76 @@ BLOCKED_EXTENSIONS: frozenset[str] = frozenset({
     ".cpl", ".inf", ".ins", ".isp", ".msc", ".mst", ".application",
 })
 
+_INFO_TXT = """\
+=== SecureSend – Sicherheitshinweis ===
 
-def _random_password(length: int = 10) -> str:
+Die Datei(en) in diesem Ordner sind in einem verschlüsselten
+ZIP-Archiv (AES-256) gespeichert.
+
+Das Passwort haben Sie separat per SMS erhalten.
+
+So öffnen Sie die Dateien:
+─────────────────────────────────────
+  Windows : 7-Zip oder WinRAR
+  macOS   : Finder oder „The Unarchiver"
+  Linux   : unzip -P <passwort> datei.zip
+
+1. ZIP-Datei herunterladen
+2. Entpackprogramm öffnen
+3. Per SMS erhaltenes Passwort eingeben
+4. Fertig
+
+Warum zwei Kanäle?
+──────────────────
+  Link  →  E-Mail   (etwas das Sie haben)
+  PW    →  SMS      (etwas das Ihr Handy hat)
+
+Nur wer Zugang zu beiden Kanälen hat, kann die Dateien öffnen.
+
+Gesendet mit SecureSend – Sicheres Übermittlungssystem
+"""
+
+
+def _random_password(length: int = 12) -> str:
     return "".join(secrets.choice(_ALPHABET) for _ in range(length))
+
+
+def _build_encrypted_zip(
+    file_entries: list[tuple[str, bytes, str]],
+    message: str,
+    password: str,
+) -> bytes:
+    """Erstellt ein AES-256-verschlüsseltes ZIP (pyzipper), Fallback: Standard-ZIP."""
+    buf = io.BytesIO()
+    try:
+        import pyzipper
+        with pyzipper.AESZipFile(
+            buf, "w",
+            compression=pyzipper.ZIP_DEFLATED,
+            encryption=pyzipper.WZ_AES,
+        ) as zf:
+            zf.setpassword(password.encode())
+            for fname, data, _ in file_entries:
+                zf.writestr(fname, data)
+            if message:
+                zf.writestr("nachricht.md", message.encode("utf-8"))
+    except ImportError:
+        import zipfile
+        import logging
+        logging.getLogger("send").warning(
+            "pyzipper not installed – falling back to unencrypted ZIP"
+        )
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            for fname, data, _ in file_entries:
+                zf.writestr(fname, data)
+            if message:
+                zf.writestr("nachricht.md", message.encode("utf-8"))
+    return buf.getvalue()
 
 
 async def _get_provider(
     db: AsyncSession, org_id: str, provider_id: Optional[str]
 ) -> CloudProvider:
-    """Load the requested or default cloud provider for the org."""
     if provider_id:
         result = await db.execute(
             select(CloudProvider).where(
@@ -68,7 +122,6 @@ async def _get_provider(
             raise HTTPException(status_code=404, detail="Cloud provider not found")
         return provider
 
-    # Fall back to org default
     result = await db.execute(
         select(CloudProvider).where(
             CloudProvider.org_id == org_id,
@@ -80,7 +133,7 @@ async def _get_provider(
     if not provider:
         raise HTTPException(
             status_code=status.HTTP_424_FAILED_DEPENDENCY,
-            detail="No default cloud provider configured for this organisation",
+            detail="Kein Standard-Cloud-Anbieter für diese Organisation konfiguriert",
         )
     return provider
 
@@ -99,38 +152,42 @@ async def _get_sms_gateway(db: AsyncSession, org_id: str) -> Optional[SmsGateway
 @router.post("", response_model=SendResponse)
 async def send_secure(
     request: Request,
-    # ---- File upload (multiple, optional) ----
     files: List[UploadFile] = File(default=[]),
-    # ---- Form / JSON fields ----
     to_email: str = Form(default=""),
     to_phone: str = Form(default=""),
     subject: str = Form(default="Ihr sicheres Dokument"),
     message: str = Form(default=""),
+    personal_message: str = Form(default=""),
     expiry_days: int = Form(default=7),
-    security_level: str = Form(default="standard"),
-    send_sms: bool = Form(default=False),
-    send_email_flag: bool = Form(default=True, alias="send_email"),
+    security_level: str = Form(default="secure"),  # normal | secure | extended
     provider_id: Optional[str] = Form(default=None),
-    # ---- Auth ----
     current_user: User = Depends(org_user_required()),
     db: AsyncSession = Depends(get_db),
 ) -> SendResponse:
-    """
-    Upload one or more files OR a Markdown message to the org's cloud
-    storage, create a password-protected share link, and optionally
-    notify via email and/or SMS.
-    """
-    # Superadmins have no org_id; block them here
     if not current_user.org_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only organisation users can send files",
+            detail="Nur Organisations-Benutzer können Dateien senden",
         )
 
     org_id = current_user.org_id
 
-    # ── Validate and read uploaded files ──────────────────────────────────
+    # Sicherheitsstufe normalisieren
+    if security_level not in ("normal", "secure", "extended"):
+        security_level = "secure"
+
+    use_sms = security_level in ("secure", "extended")
+    share_password: Optional[str] = None
+    zip_password: Optional[str] = None
+
+    if security_level == "secure":
+        share_password = _random_password()
+    elif security_level == "extended":
+        zip_password = _random_password()
+
+    # ── Dateien validieren und lesen ───────────────────────────────────────
     valid_files = [f for f in files if f.filename]
+    file_entries: list[tuple[str, bytes, str]] = []
     if valid_files:
         for f in valid_files:
             ext = PurePosixPath(f.filename).suffix.lower()
@@ -139,69 +196,76 @@ async def send_secure(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Dateityp nicht erlaubt: {f.filename} ({ext})",
                 )
-        file_entries: list[tuple[str, bytes, str]] = []
         for f in valid_files:
             data = await f.read()
             file_entries.append((f.filename, data, f.content_type or "application/octet-stream"))
 
-    # ── Load cloud provider ────────────────────────────────────────────────
+    if not file_entries and not message:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Datei-Upload oder Nachricht erforderlich",
+        )
+
+    # ── Cloud Provider laden ───────────────────────────────────────────────
     provider = await _get_provider(db, org_id, provider_id)
     cfg: dict = dict(provider.config_json or {})
     cfg["service"] = provider.service
 
-    # ── Upload + share link ────────────────────────────────────────────────
-    password = _random_password()
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    base_folder = cfg.get("folder", "SecureSend")
+    folder_path = f"{base_folder}/{current_user.id}/{ts}"
 
+    # ── Upload je nach Sicherheitsstufe ───────────────────────────────────
     try:
         import asyncio
+        from core.storage import upload_files_and_share_folder, upload_and_share  # type: ignore
 
-        if valid_files:
-            from core.storage import upload_files_and_share_folder  # type: ignore[import]
+        if security_level == "extended":
+            # Alle Dateien + Nachricht in verschlüsseltem ZIP
+            zip_bytes = _build_encrypted_zip(file_entries, message, zip_password)
+            upload_list = [
+                ("securesend_verschluesselt.zip", zip_bytes, "application/zip"),
+                ("Info.txt", _INFO_TXT.encode("utf-8"), "text/plain"),
+            ]
+            share_url = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: upload_files_and_share_folder(
+                    cfg=cfg,
+                    files=upload_list,
+                    folder_path=folder_path,
+                    password=None,  # kein Passwort auf Share, Datei selbst ist verschlüsselt
+                    days=expiry_days,
+                ),
+            )
+            filename = f"{len(file_entries)} Datei(en) (verschlüsselt)" if file_entries else "Nachricht (verschlüsselt)"
 
-            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-            base_folder = cfg.get("folder", "SecureSend")
-            folder_path = f"{base_folder}/{current_user.id}/{ts}"
-
+        elif file_entries:
             share_url = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: upload_files_and_share_folder(
                     cfg=cfg,
                     files=file_entries,
                     folder_path=folder_path,
-                    password=password,
+                    password=share_password,
                     days=expiry_days,
                 ),
             )
-            filename = (
-                valid_files[0].filename
-                if len(valid_files) == 1
-                else f"{len(valid_files)} Dateien"
-            )
+            filename = valid_files[0].filename if len(valid_files) == 1 else f"{len(valid_files)} Dateien"
 
-        elif message:
-            from core.storage import upload_and_share  # type: ignore[import]
-
-            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        else:
+            # Nur Textnachricht
             filename = f"nachricht_{ts}.md"
-            content = message.encode("utf-8")
-
             share_url = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: upload_and_share(
                     cfg=cfg,
                     filename=filename,
-                    content=content,
-                    password=password,
+                    content=message.encode("utf-8"),
+                    password=share_password,
                     days=expiry_days,
                     content_type="text/markdown; charset=utf-8",
                     subfolder=current_user.id,
                 ),
-            )
-
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Either a file upload or a message body is required",
             )
 
     except HTTPException:
@@ -209,10 +273,10 @@ async def send_secure(
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Cloud storage error: {exc}",
+            detail=f"Cloud-Speicher Fehler: {exc}",
         ) from exc
 
-    # ── Resolve SMTP config: org → reseller fallback ───────────────────────
+    # ── SMTP-Konfiguration ermitteln (Org → Reseller Fallback) ─────────────
     org_settings: dict = {}
     if current_user.organization and current_user.organization.settings_json:
         org_settings = current_user.organization.settings_json
@@ -221,7 +285,6 @@ async def send_secure(
     signature: str = org_settings.get("signature", "")
 
     if not smtp_cfg and current_user.organization:
-        # Fall back to reseller SMTP
         res_result = await db.execute(
             select(Reseller).where(Reseller.id == current_user.organization.reseller_id)
         )
@@ -231,41 +294,83 @@ async def send_secure(
             if not signature:
                 signature = reseller.settings_json.get("signature", "")
 
-    # ── Send email ─────────────────────────────────────────────────────────
-    if send_email_flag and to_email and smtp_cfg:
-        try:
-            from core.email import send_email  # type: ignore[import]
+    # ── E-Mail senden ──────────────────────────────────────────────────────
+    effective_password = zip_password or share_password
+    sender_name = (
+        f"{current_user.first_name or ''} {current_user.last_name or ''}".strip()
+        or current_user.email
+    )
+    org_name = (current_user.organization.name if current_user.organization else "") or ""
 
-            body_html = (
-                f"<p>{subject}</p>"
-                f"<p>Download-Link: <a href='{share_url}'>{share_url}</a></p>"
-                f"<p>Passwort: <strong>{password}</strong></p>"
-                f"<p>Gültig für {expiry_days} Tag(e).</p>"
-                f"{'<hr/>' + signature if signature else ''}"
+    if to_email and smtp_cfg:
+        try:
+            from core.email import send_email  # type: ignore
+
+            personal_block = (
+                f"<div style='background:#f8fafc;border-left:3px solid #1a56db;"
+                f"padding:0.75rem 1rem;margin-bottom:1.5rem;border-radius:0 0.375rem 0.375rem 0;"
+                f"font-style:italic;color:#475569;'>{personal_message}</div>"
+                if personal_message else ""
             )
+
+            if security_level == "normal":
+                pw_hint = ""
+                link_hint = f"<p>Der Link ist ohne Passwort zugänglich.</p>"
+            elif security_level == "secure":
+                pw_hint = "<p>Das Passwort erhalten Sie separat per SMS.</p>"
+                link_hint = ""
+            else:  # extended
+                pw_hint = (
+                    "<p>Das Passwort zum Entschlüsseln der ZIP-Datei erhalten Sie per SMS.</p>"
+                    "<p>Bitte beachten Sie die <strong>Info.txt</strong> im Download-Ordner.</p>"
+                )
+                link_hint = ""
+
+            body_html = f"""
+            <div style="font-family:sans-serif;color:#1e293b;max-width:540px;">
+              <h2 style="color:#1a56db;margin-bottom:0.5rem;">{subject}</h2>
+              <p style="color:#64748b;margin-bottom:1.5rem;">
+                {sender_name}{' · ' + org_name if org_name else ''} hat eine Datei sicher für Sie bereitgestellt.
+              </p>
+              {personal_block}
+              <p>
+                <a href="{share_url}" style="display:inline-block;background:#1a56db;color:#fff;
+                   padding:0.625rem 1.25rem;border-radius:0.5rem;text-decoration:none;font-weight:600;">
+                  Datei herunterladen
+                </a>
+              </p>
+              <p style="font-size:0.875rem;color:#64748b;word-break:break-all;">
+                Link: <a href="{share_url}" style="color:#1a56db;">{share_url}</a>
+              </p>
+              {pw_hint}{link_hint}
+              <p style="font-size:0.8125rem;color:#94a3b8;">Gültig für {expiry_days} Tag(e).</p>
+              {'<hr style="border:none;border-top:1px solid #e2e8f0;margin-top:1.5rem;"/>' + f'<p style="font-size:0.8125rem;color:#94a3b8;">{signature}</p>' if signature else ''}
+            </div>
+            """
             send_email(smtp_cfg, to_email, subject, body_html)
         except Exception as exc:
-            # Non-fatal: log but don't abort
             import logging
             logging.getLogger("send").warning("Email send failed: %s", exc)
 
-    # ── Send SMS ───────────────────────────────────────────────────────────
-    if send_sms and to_phone:
+    # ── SMS senden ─────────────────────────────────────────────────────────
+    if use_sms and to_phone and effective_password:
         gateway = await _get_sms_gateway(db, org_id)
         if gateway and gateway.config_json:
             try:
-                from core.sms import send_sms_sipgate  # type: ignore[import]
-
-                sms_text = f"{subject}\nLink: {share_url}\nPW: {password}"
+                from core.sms import send_sms_sipgate  # type: ignore
+                if security_level == "extended":
+                    sms_text = f"{subject}\nLink: {share_url}\nZIP-Passwort: {effective_password}"
+                else:
+                    sms_text = f"{subject}\nLink: {share_url}\nPW: {effective_password}"
                 send_sms_sipgate(gateway.config_json, to_phone, sms_text)
             except Exception as exc:
                 import logging
                 logging.getLogger("send").warning("SMS send failed: %s", exc)
 
-    # ── Write history ──────────────────────────────────────────────────────
+    # ── Verlauf speichern ──────────────────────────────────────────────────
     client_ip = request.client.host if request.client else ""
     history_id = str(uuid.uuid4())
-    history_entry = History(
+    db.add(History(
         id=history_id,
         user_id=current_user.id,
         to_email=to_email,
@@ -276,8 +381,7 @@ async def send_secure(
         expiry_days=expiry_days,
         security_level=security_level,
         ip_address=client_ip,
-    )
-    db.add(history_entry)
+    ))
     await db.commit()
 
     return SendResponse(

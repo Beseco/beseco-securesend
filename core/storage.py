@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import requests
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 from urllib.parse import quote
 
 try:
@@ -81,23 +82,27 @@ def upload_to_nextcloud(cfg: dict, filename: str, content: bytes,
     return path
 
 
-def create_nextcloud_share_link(cfg: dict, file_path: str, password: str, days: int) -> str:
-    """Erstellt Share via OCS API, gibt die öffentliche URL zurück."""
+def create_nextcloud_share_link(cfg: dict, file_path: str, password: Optional[str], days: int) -> str:
+    """Erstellt Share via OCS API, gibt die öffentliche URL zurück.
+    Wird password=None übergeben, wird kein Passwortschutz gesetzt."""
     base = cfg["url"].rstrip("/")
     api_url = f"{base}/ocs/v2.php/apps/files_sharing/api/v1/shares"
     expiry_str = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
+
+    data: dict = {
+        "path":        f"/{file_path}",
+        "shareType":   3,
+        "permissions": 1,
+        "expireDate":  expiry_str,
+    }
+    if password:
+        data["password"] = password
 
     resp = requests.post(
         api_url,
         auth=(cfg["user"], cfg["password"]),
         headers={"OCS-APIRequest": "true", "Accept": "application/json"},
-        data={
-            "path":        f"/{file_path}",
-            "shareType":   3,
-            "permissions": 1,
-            "password":    password,
-            "expireDate":  expiry_str,
-        },
+        data=data,
         timeout=30,
     )
     resp.raise_for_status()
@@ -207,7 +212,7 @@ def upload_files_and_share_folder(
     cfg: dict,
     files: list[tuple[str, bytes, str]],
     folder_path: str,
-    password: str,
+    password: Optional[str],
     days: int,
 ) -> str:
     """Lädt mehrere Dateien in einen Ordner hoch und gibt einen Freigabe-Link auf den Ordner zurück.
@@ -216,7 +221,7 @@ def upload_files_and_share_folder(
         cfg:         Provider-Konfiguration (inkl. service)
         files:       Liste von (filename, content, content_type)
         folder_path: Zielordner-Pfad (relativ zum Upload-Basisordner)
-        password:    Passwort für den Share-Link
+        password:    Passwort für den Share-Link (None = kein Passwortschutz)
         days:        Ablauftage
     """
     service = cfg.get("service", "nextcloud")
