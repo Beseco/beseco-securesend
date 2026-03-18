@@ -33,6 +33,39 @@ log = logging.getLogger("securesend")
 
 router = APIRouter(prefix="/requests", tags=["requests"])
 
+
+# ── GET /requests/upload ──────────────────────────────────────────────────────
+
+@router.get("/upload")
+async def list_upload_requests(
+    current_user: User = Depends(org_user_required()),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Return all UploadRequests created by the current user, newest first."""
+    result = await db.execute(
+        select(UploadRequest)
+        .where(UploadRequest.sender_id == current_user.id)
+        .order_by(UploadRequest.created_at.desc())
+    )
+    rows = result.scalars().all()
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    out = []
+    for r in rows:
+        effective_status = r.status
+        if effective_status == "pending" and r.expires_at < now:
+            effective_status = "expired"
+        out.append({
+            "id": r.id,
+            "recipient_email": r.recipient_email,
+            "recipient_name": r.recipient_name or "",
+            "status": effective_status,
+            "result_url": r.result_url or "",
+            "created_at": r.created_at.isoformat(),
+            "expires_at": r.expires_at.isoformat(),
+        })
+    return out
+
+
 def _base_url(request: Request) -> str:
     """Return PUBLIC_BASE_URL from settings, or derive from the incoming request."""
     if settings.PUBLIC_BASE_URL:

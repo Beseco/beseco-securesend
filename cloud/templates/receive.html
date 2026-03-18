@@ -3,25 +3,30 @@
 {% block page_title %}Empfangen{% endblock %}
 
 {% block content %}
-<div style="max-width:42rem;margin:0 auto;">
+<div style="max-width:52rem;margin:0 auto;display:flex;flex-direction:column;gap:1.5rem;">
 
-  <!-- Intro -->
-  <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:0.75rem;padding:1.25rem 1.5rem;margin-bottom:1.5rem;display:flex;gap:1rem;align-items:flex-start;">
-    <svg style="width:1.5rem;height:1.5rem;color:#1a56db;flex-shrink:0;margin-top:0.125rem;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-      <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-    </svg>
-    <div>
-      <div style="font-size:0.9375rem;font-weight:700;color:#1e3a8a;margin-bottom:0.25rem;">Upload-Link senden</div>
-      <div style="font-size:0.875rem;color:#1e40af;line-height:1.5;">
-        Empfänger erhalten einen sicheren Link, über den sie Dateien zu Ihnen hochladen können — ganz ohne Login.
-        Die Dateien landen direkt im Cloud-Speicher Ihrer Organisation.
-      </div>
-    </div>
-  </div>
-
-  <!-- Formular -->
+  <!-- ── Upload-Link senden ───────────────────────────────────────────────── -->
   <div class="card">
+    <h2 style="font-size:0.9375rem;font-weight:700;color:#1e293b;margin-bottom:0.125rem;">
+      📤 Upload-Link senden
+    </h2>
+    <p style="font-size:0.8125rem;color:#64748b;margin-bottom:1.25rem;">
+      Empfänger erhalten einen sicheren Link, über den sie Dateien zu Ihnen hochladen können — ganz ohne Login.
+    </p>
+
     <form id="uploadReqForm">
+
+      <!-- Kontakt-Picker -->
+      <div style="margin-bottom:1rem;position:relative;">
+        <label class="form-label">
+          Kontakt wählen
+          <span style="font-weight:400;color:#94a3b8;">(optional)</span>
+        </label>
+        <input type="text" id="urContactSearch" class="form-input"
+               placeholder="Name oder E-Mail suchen…" autocomplete="off"
+               oninput="urFilterContacts(this.value)" onfocus="urShowDropdown()" />
+        <div id="urContactDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:20;max-height:14rem;overflow-y:auto;margin-top:2px;"></div>
+      </div>
 
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
         <div>
@@ -36,48 +41,53 @@
 
       <div style="margin-bottom:1rem;">
         <label class="form-label" for="urMessage">Nachricht an Empfänger (optional)</label>
-        <textarea id="urMessage" class="form-input" rows="3"
+        <textarea id="urMessage" class="form-input" rows="2"
                   placeholder="Bitte laden Sie die angeforderten Dokumente hoch…"
                   style="resize:vertical;"></textarea>
       </div>
 
-      <div style="margin-bottom:1.5rem;">
-        <label class="form-label" for="urDays">Link gültig für</label>
-        <select id="urDays" class="form-input" style="max-width:14rem;">
-          <option value="7">7 Tage</option>
-          <option value="14" selected>14 Tage</option>
-          <option value="30">30 Tage</option>
-        </select>
+      <div style="display:flex;align-items:flex-end;gap:1rem;">
+        <div style="flex:1;max-width:14rem;">
+          <label class="form-label" for="urDays">Link gültig für</label>
+          <select id="urDays" class="form-input">
+            <option value="7">7 Tage</option>
+            <option value="14" selected>14 Tage</option>
+            <option value="30">30 Tage</option>
+          </select>
+        </div>
+        <button type="submit" id="urSubmitBtn" class="btn-primary" style="padding:0.625rem 1.5rem;white-space:nowrap;">
+          <span id="urBtnContent" style="display:flex;align-items:center;gap:0.5rem;">
+            <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+            Link senden
+          </span>
+        </button>
       </div>
 
-      <button type="submit" id="urSubmitBtn" class="btn-primary" style="width:100%;padding:0.75rem;font-size:0.9375rem;">
-        <span id="urBtnContent" style="display:flex;align-items:center;justify-content:center;gap:0.5rem;">
-          <svg style="width:1.125rem;height:1.125rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-          </svg>
-          Upload-Link senden
-        </span>
-      </button>
     </form>
   </div>
 
-  <!-- Erfolgs-Panel -->
-  <div id="urResultPanel" style="display:none;" class="card">
-    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
-      <div style="background:#dcfce7;border-radius:50%;padding:0.625rem;">
-        <svg style="width:1.25rem;height:1.25rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+  <!-- ── Gesendete Upload-Links ───────────────────────────────────────────── -->
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div style="padding:1rem 1.25rem;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;">
+      <h2 style="font-size:0.9375rem;font-weight:700;color:#1e293b;margin:0;">Gesendete Upload-Links</h2>
+      <button onclick="loadUploadRequests()" title="Aktualisieren"
+              style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:0.25rem;border-radius:0.25rem;transition:color 0.15s;"
+              onmouseover="this.style.color='#1a56db'" onmouseout="this.style.color='#94a3b8'">
+        <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
         </svg>
-      </div>
-      <div>
-        <div style="font-size:1rem;font-weight:700;color:#166534;">Upload-Link gesendet!</div>
-        <div style="font-size:0.8125rem;color:#4ade80;" id="urResultEmail"></div>
+      </button>
+    </div>
+    <div id="urList" style="min-height:6rem;">
+      <div style="padding:3rem;text-align:center;color:#94a3b8;">
+        <svg style="width:2rem;height:2rem;margin:0 auto 0.5rem;opacity:0.4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+        </svg>
+        <div>Lade…</div>
       </div>
     </div>
-    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:0.5rem;padding:1rem;font-size:0.875rem;color:#166534;line-height:1.6;">
-      Der Empfänger erhält eine E-Mail mit einem sicheren Upload-Link. Die hochgeladenen Dateien erscheinen automatisch in Ihrem Cloud-Speicher.
-    </div>
-    <button onclick="urReset()" class="btn-secondary" style="width:100%;margin-top:1rem;">Weiteren Link senden</button>
   </div>
 
 </div>
@@ -85,6 +95,53 @@
 
 {% block scripts %}
 <script>
+  // ── Kontakt-Picker ──────────────────────────────────────────────────────────
+  let _urContacts = [];
+
+  async function urLoadContacts() {
+    try {
+      const res = await apiFetch('/contacts');
+      if (res.ok) _urContacts = await res.json();
+    } catch(e) {}
+  }
+
+  function urShowDropdown() { urFilterContacts(document.getElementById('urContactSearch').value); }
+
+  function urFilterContacts(q) {
+    const dd = document.getElementById('urContactDropdown');
+    const term = q.trim().toLowerCase();
+    const matches = term
+      ? _urContacts.filter(c => (c.name||'').toLowerCase().includes(term) || (c.email||'').toLowerCase().includes(term))
+      : _urContacts.slice(0, 8);
+    if (!matches.length) { dd.style.display = 'none'; return; }
+    dd.innerHTML = matches.map(c => `
+      <div onclick="urSelectContact(${JSON.stringify(c).replace(/"/g,'&quot;')})"
+           style="padding:0.5rem 0.875rem;cursor:pointer;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:0.625rem;"
+           onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+        <div style="background:#dbeafe;border-radius:50%;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.75rem;font-weight:700;color:#374151;">
+          ${((c.name||c.email||'?')[0]).toUpperCase()}
+        </div>
+        <div style="min-width:0;">
+          <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">${esc(c.name||'')}</div>
+          <div style="font-size:0.75rem;color:#64748b;">${esc(c.email||'')}</div>
+        </div>
+      </div>`).join('');
+    dd.style.display = 'block';
+  }
+
+  function urSelectContact(c) {
+    document.getElementById('urContactSearch').value = c.name || c.email || '';
+    document.getElementById('urEmail').value = c.email || '';
+    document.getElementById('urName').value = c.name || '';
+    document.getElementById('urContactDropdown').style.display = 'none';
+  }
+
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('#urContactSearch') && !e.target.closest('#urContactDropdown'))
+      document.getElementById('urContactDropdown').style.display = 'none';
+  });
+
+  // ── Formular senden ─────────────────────────────────────────────────────────
   document.getElementById('uploadReqForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const email = document.getElementById('urEmail').value.trim();
@@ -106,10 +163,12 @@
         }),
       });
       if (res.ok) {
-        document.getElementById('uploadReqForm').style.display = 'none';
-        document.getElementById('urResultPanel').style.display = 'block';
-        document.getElementById('urResultEmail').textContent = email;
-        showToast('Upload-Link gesendet', 'success');
+        showToast('Upload-Link wurde an ' + email + ' gesendet', 'success');
+        // Form zurücksetzen
+        document.getElementById('uploadReqForm').reset();
+        document.getElementById('urContactSearch').value = '';
+        // Liste aktualisieren
+        await loadUploadRequests();
       } else {
         const err = await res.json().catch(() => ({}));
         showToast(err.detail || 'Fehler beim Senden', 'error');
@@ -119,15 +178,65 @@
     } finally {
       btn.disabled = false;
       document.getElementById('urBtnContent').innerHTML =
-        '<svg style="width:1.125rem;height:1.125rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg> Upload-Link senden';
+        '<svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg> Link senden';
     }
   });
 
-  function urReset() {
-    document.getElementById('uploadReqForm').reset();
-    document.getElementById('uploadReqForm').style.display = 'block';
-    document.getElementById('urResultPanel').style.display = 'none';
+  // ── Upload-Requests laden ───────────────────────────────────────────────────
+  async function loadUploadRequests() {
+    const container = document.getElementById('urList');
+    try {
+      const res = await apiFetch('/requests/upload');
+      if (!res.ok) { container.innerHTML = '<div style="padding:2rem;text-align:center;color:#94a3b8;font-size:0.875rem;">Fehler beim Laden</div>'; return; }
+      const rows = await res.json();
+      if (!rows.length) {
+        container.innerHTML = '<div style="padding:3rem;text-align:center;color:#94a3b8;font-size:0.875rem;">Noch keine Upload-Links gesendet</div>';
+        return;
+      }
+      container.innerHTML = rows.map(r => {
+        const statusCfg = {
+          pending:   { bg:'#fef9c3', color:'#a16207', label:'Ausstehend' },
+          fulfilled: { bg:'#dcfce7', color:'#166534', label:'Hochgeladen' },
+          expired:   { bg:'#f1f5f9', color:'#64748b', label:'Abgelaufen' },
+        }[r.status] || { bg:'#f1f5f9', color:'#64748b', label: r.status };
+
+        const created = new Date(r.created_at).toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
+        const expires = new Date(r.expires_at).toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
+
+        return `<div style="display:flex;align-items:center;gap:1rem;padding:0.875rem 1.25rem;border-bottom:1px solid #f8fafc;flex-wrap:wrap;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:0.875rem;font-weight:600;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              ${esc(r.recipient_name || r.recipient_email)}
+            </div>
+            <div style="font-size:0.75rem;color:#94a3b8;margin-top:0.125rem;">
+              ${r.recipient_name ? esc(r.recipient_email) + ' · ' : ''}Gesendet: ${created} · Ablauf: ${expires}
+            </div>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.75rem;flex-shrink:0;">
+            ${r.result_url ? `<a href="${esc(r.result_url)}" target="_blank" title="Hochgeladene Dateien ansehen"
+              style="font-size:0.75rem;font-weight:600;color:#1a56db;text-decoration:none;display:inline-flex;align-items:center;gap:0.25rem;background:#eff6ff;padding:0.25rem 0.625rem;border-radius:0.375rem;"
+              onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">
+              <svg style="width:0.75rem;height:0.75rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+              Dateien
+            </a>` : ''}
+            <span style="font-size:0.75rem;font-weight:600;padding:0.2rem 0.6rem;border-radius:9999px;background:${statusCfg.bg};color:${statusCfg.color};">
+              ${statusCfg.label}
+            </span>
+          </div>
+        </div>`;
+      }).join('');
+    } catch(e) {
+      container.innerHTML = '<div style="padding:2rem;text-align:center;color:#94a3b8;font-size:0.875rem;">Netzwerkfehler</div>';
+    }
   }
+
+  function esc(s) {
+    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // Beim Laden
+  urLoadContacts();
+  loadUploadRequests();
 </script>
 <style>
   @keyframes spin { to { transform: rotate(360deg); } }
