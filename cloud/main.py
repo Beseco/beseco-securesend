@@ -75,22 +75,19 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 async def _run_migrations(conn) -> None:
-    """Lightweight inline migrations for new columns (idempotent)."""
+    """Lightweight inline migrations for new columns (idempotent via IF NOT EXISTS)."""
     migrations = [
-        "ALTER TABLE users ADD COLUMN first_name VARCHAR(100)",
-        "ALTER TABLE users ADD COLUMN last_name VARCHAR(100)",
-        "ALTER TABLE history ADD COLUMN tracking_token VARCHAR(32)",
-        "ALTER TABLE history ADD COLUMN opened_at TIMESTAMP",
-        "ALTER TABLE history ADD COLUMN link_clicked_at TIMESTAMP",
-        "ALTER TABLE users ADD COLUMN totp_secret VARCHAR(64)",
-        "ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT FALSE",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)",
+        "ALTER TABLE history ADD COLUMN IF NOT EXISTS tracking_token VARCHAR(32)",
+        "ALTER TABLE history ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP",
+        "ALTER TABLE history ADD COLUMN IF NOT EXISTS link_clicked_at TIMESTAMP",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64)",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE",
     ]
     for sql in migrations:
-        try:
-            await conn.execute(text(sql))
-            log.info("Migration OK: %s", sql)
-        except Exception:
-            pass  # Spalte existiert bereits → ignorieren
+        await conn.execute(text(sql))
+        log.info("Migration OK: %s", sql)
 
 
 @asynccontextmanager
