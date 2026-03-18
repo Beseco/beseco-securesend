@@ -34,6 +34,8 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from fastapi.templating import Jinja2Templates
 from jose import JWTError, jwt
 from sqlalchemy import select
@@ -48,6 +50,7 @@ from models.shared import EmailVerification, History
 from models.user import User, UserRole
 
 router = APIRouter(prefix="/ui", tags=["ui"])
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ── Setup-Assistent ────────────────────────────────────────────────────────────
@@ -383,16 +386,79 @@ async def login_page(
 
 
 @router.post("/login")
+@limiter.limit("10/minute")
 async def login_submit(
     request: Request,
-    email: str = Form(...),
-    password: str = Form(...),
+    email: str = Form(default=""),
+    password: str = Form(default=""),
     next: str = Form(default="/ui/"),
+    totp_code: str = Form(default=""),
+    pending_token: str = Form(default=""),
     db: AsyncSession = Depends(get_db),
 ) -> RedirectResponse:
     """Process login form: verify credentials, set cookie, redirect."""
     from dependencies import verify_password  # local import to avoid circular
+    from jose import JWTError
+    import pyotp as _pyotp
 
+    # ── Step 2: TOTP verification (pending_token present) ──────────────────────
+    if pending_token:
+        try:
+            payload = jwt.decode(pending_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            if payload.get("type") != "2fa_pending":
+                raise JWTError("wrong type")
+            user_id = payload["sub"]
+        except (JWTError, KeyError, Exception):
+            return templates.TemplateResponse(
+                "login.html",
+                {
+                    "request": request,
+                    "error": "Sitzung abgelaufen. Bitte erneut anmelden.",
+                    "current_year": datetime.now().year,
+                    "reg_orgs": [],
+                },
+                status_code=401,
+            )
+        result = await db.execute(
+            select(User).options(selectinload(User.organization)).where(User.id == user_id)
+        )
+        user = result.scalar_one_or_none()
+        if not user or not user.totp_secret:
+            return templates.TemplateResponse(
+                "login.html",
+                {"request": request, "error": "Fehler.", "current_year": datetime.now().year, "reg_orgs": []},
+                status_code=401,
+            )
+
+        totp = _pyotp.TOTP(user.totp_secret)
+        if not totp.verify(totp_code.strip(), valid_window=1):
+            # Re-issue pending token so user can try again
+            expire = datetime.now(timezone.utc) + timedelta(minutes=5)
+            new_pending = jwt.encode(
+                {"sub": user.id, "type": "2fa_pending", "exp": expire},
+                settings.SECRET_KEY,
+                algorithm=settings.ALGORITHM,
+            )
+            return templates.TemplateResponse(
+                "login.html",
+                {
+                    "request": request,
+                    "show_totp": True,
+                    "pending_token": new_pending,
+                    "error": "Ungültiger Code. Bitte erneut versuchen.",
+                    "next": next,
+                    "current_year": datetime.now().year,
+                    "reg_orgs": [],
+                },
+                status_code=401,
+            )
+        # TOTP OK → set cookie
+        safe_next = next if next.startswith("/ui") else "/ui/"
+        response = RedirectResponse(url=safe_next, status_code=303)
+        _set_auth_cookie(response, _make_access_token(user))
+        return response
+
+    # ── Step 1: Password verification ──────────────────────────────────────────
     result = await db.execute(
         select(User)
         .options(selectinload(User.organization))
@@ -415,15 +481,35 @@ async def login_submit(
                 "next": next,
                 "current_year": datetime.now().year,
                 "prefill_email": email,
+                "reg_orgs": [],
             },
             status_code=401,
         )
 
-    token = _make_access_token(user)
-    # Ensure redirect target is safe (starts with /ui/)
+    # ── 2FA required? ──────────────────────────────────────────────────────────
+    if user.totp_enabled and user.totp_secret:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=5)
+        p_token = jwt.encode(
+            {"sub": user.id, "type": "2fa_pending", "exp": expire},
+            settings.SECRET_KEY,
+            algorithm=settings.ALGORITHM,
+        )
+        return templates.TemplateResponse(
+            "login.html",
+            {
+                "request": request,
+                "show_totp": True,
+                "pending_token": p_token,
+                "next": next,
+                "current_year": datetime.now().year,
+                "reg_orgs": [],
+            },
+        )
+
+    # ── No 2FA: set cookie ─────────────────────────────────────────────────────
     safe_next = next if next.startswith("/ui") else "/ui/"
     response = RedirectResponse(url=safe_next, status_code=303)
-    _set_auth_cookie(response, token)
+    _set_auth_cookie(response, _make_access_token(user))
     return response
 
 
@@ -655,6 +741,8 @@ async def history_api(
             "security_level": h.security_level,
             "ip_address": h.ip_address,
             "created_at": h.created_at.isoformat(),
+            "opened_at": h.opened_at.isoformat() if h.opened_at else None,
+            "link_clicked_at": h.link_clicked_at.isoformat() if h.link_clicked_at else None,
         }
         for h in rows
     ])

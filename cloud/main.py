@@ -28,6 +28,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
 from sqlalchemy import text
 
 from config import settings
@@ -42,6 +46,7 @@ from routers.register import router as register_router
 from routers.ui import router as ui_router
 from routers.requests_router import router as requests_router
 from routers.public import router as public_router
+from routers.tracking import router as tracking_router
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("securesend")
@@ -49,11 +54,19 @@ log = logging.getLogger("securesend")
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 
+limiter = Limiter(key_func=get_remote_address)
+
+
 async def _run_migrations(conn) -> None:
     """Lightweight inline migrations for new columns (idempotent)."""
     migrations = [
         "ALTER TABLE users ADD COLUMN first_name VARCHAR(100)",
         "ALTER TABLE users ADD COLUMN last_name VARCHAR(100)",
+        "ALTER TABLE history ADD COLUMN tracking_token VARCHAR(32)",
+        "ALTER TABLE history ADD COLUMN opened_at TIMESTAMP",
+        "ALTER TABLE history ADD COLUMN link_clicked_at TIMESTAMP",
+        "ALTER TABLE users ADD COLUMN totp_secret VARCHAR(64)",
+        "ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT FALSE",
     ]
     for sql in migrations:
         try:
@@ -89,6 +102,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Allow all origins in development; tighten for production via env var
 app.add_middleware(
     CORSMiddleware,
@@ -110,6 +126,7 @@ app.include_router(register_router)
 app.include_router(ui_router)
 app.include_router(requests_router)
 app.include_router(public_router)
+app.include_router(tracking_router)
 
 
 # ── Root redirect ─────────────────────────────────────────────────────────────

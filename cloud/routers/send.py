@@ -200,6 +200,16 @@ async def send_secure(
             data = await f.read()
             file_entries.append((f.filename, data, f.content_type or "application/octet-stream"))
 
+    # ── Virenscanner ───────────────────────────────────────────────────────
+    from core.antivirus import scan_bytes  # type: ignore
+    for fname, data, mime in file_entries:
+        is_clean, msg = scan_bytes(data, fname)
+        if not is_clean:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Datei '{fname}' enthält Schadsoftware und wurde abgelehnt.",
+            )
+
     if not file_entries and not message:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -294,7 +304,27 @@ async def send_secure(
             if not signature:
                 signature = reseller.settings_json.get("signature", "")
 
+    # ── Verlauf speichern (vor E-Mail, damit tracking_token verfügbar) ─────
+    client_ip = request.client.host if request.client else ""
+    history_id = str(uuid.uuid4())
+    h = History(
+        id=history_id,
+        user_id=current_user.id,
+        to_email=to_email,
+        to_phone=to_phone,
+        filename=filename,
+        share_url=share_url,
+        provider=provider.service,
+        expiry_days=expiry_days,
+        security_level=security_level,
+        ip_address=client_ip,
+    )
+    db.add(h)
+    await db.commit()
+    await db.refresh(h)
+
     # ── E-Mail senden ──────────────────────────────────────────────────────
+    base_url = str(request.base_url).rstrip("/")
     effective_password = zip_password or share_password
     sender_name = (
         f"{current_user.first_name or ''} {current_user.last_name or ''}".strip()
@@ -315,7 +345,7 @@ async def send_secure(
 
             if security_level == "normal":
                 pw_hint = ""
-                link_hint = f"<p>Der Link ist ohne Passwort zugänglich.</p>"
+                link_hint = "<p>Der Link ist ohne Passwort zugänglich.</p>"
             elif security_level == "secure":
                 pw_hint = "<p>Das Passwort erhalten Sie separat per SMS.</p>"
                 link_hint = ""
@@ -326,6 +356,9 @@ async def send_secure(
                 )
                 link_hint = ""
 
+            tracking_link = f"{base_url}/track/l/{h.tracking_token}"
+            tracking_pixel = f'<img src="{base_url}/track/o/{h.tracking_token}" width="1" height="1" style="display:none" alt="" />'
+
             body_html = f"""
             <div style="font-family:sans-serif;color:#1e293b;max-width:540px;">
               <h2 style="color:#1a56db;margin-bottom:0.5rem;">{subject}</h2>
@@ -334,17 +367,18 @@ async def send_secure(
               </p>
               {personal_block}
               <p>
-                <a href="{share_url}" style="display:inline-block;background:#1a56db;color:#fff;
+                <a href="{tracking_link}" style="display:inline-block;background:#1a56db;color:#fff;
                    padding:0.625rem 1.25rem;border-radius:0.5rem;text-decoration:none;font-weight:600;">
                   Datei herunterladen
                 </a>
               </p>
               <p style="font-size:0.875rem;color:#64748b;word-break:break-all;">
-                Link: <a href="{share_url}" style="color:#1a56db;">{share_url}</a>
+                Link: <a href="{tracking_link}" style="color:#1a56db;">{share_url}</a>
               </p>
               {pw_hint}{link_hint}
               <p style="font-size:0.8125rem;color:#94a3b8;">Gültig für {expiry_days} Tag(e).</p>
               {'<hr style="border:none;border-top:1px solid #e2e8f0;margin-top:1.5rem;"/>' + f'<p style="font-size:0.8125rem;color:#94a3b8;">{signature}</p>' if signature else ''}
+              {tracking_pixel}
             </div>
             """
             send_email(smtp_cfg, to_email, subject, body_html)
@@ -366,23 +400,6 @@ async def send_secure(
             except Exception as exc:
                 import logging
                 logging.getLogger("send").warning("SMS send failed: %s", exc)
-
-    # ── Verlauf speichern ──────────────────────────────────────────────────
-    client_ip = request.client.host if request.client else ""
-    history_id = str(uuid.uuid4())
-    db.add(History(
-        id=history_id,
-        user_id=current_user.id,
-        to_email=to_email,
-        to_phone=to_phone,
-        filename=filename,
-        share_url=share_url,
-        provider=provider.service,
-        expiry_days=expiry_days,
-        security_level=security_level,
-        ip_address=client_ip,
-    ))
-    await db.commit()
 
     return SendResponse(
         share_url=share_url,

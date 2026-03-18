@@ -93,6 +93,8 @@
       const dateStr = dt.toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'});
       const timeStr = dt.toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'});
       const recipientDisplay = [h.to_email, h.to_phone].filter(Boolean).join(' / ') || '—';
+      const openedStr = h.opened_at ? new Date(h.opened_at).toLocaleString('de-DE', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : null;
+      const clickedStr = h.link_clicked_at ? new Date(h.link_clicked_at).toLocaleString('de-DE', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : null;
       const secBadgeCfg = {
         'normal':         { bg:'#f1f5f9', color:'#475569', label:'📧 Normal' },
         'secure':         { bg:'#dbeafe', color:'#1e40af', label:'🔒 Sicher' },
@@ -122,6 +124,10 @@
                 Öffnen
               </a>`
             : '<span style="color:#cbd5e1;font-size:0.8125rem;">—</span>'}
+          <div style="font-size:0.7rem;color:#94a3b8;margin-top:0.25rem;display:flex;flex-direction:column;gap:0.1rem;">
+            ${openedStr ? `<span style="color:#16a34a;">&#10003; Geöffnet ${openedStr}</span>` : '<span style="color:#cbd5e1;">&#8211; Noch nicht geöffnet</span>'}
+            ${clickedStr ? `<span style="color:#1a56db;">&#8599; Link geklickt ${clickedStr}</span>` : ''}
+          </div>
         </td>
         <td style="padding:0.75rem 1rem;text-align:center;font-size:0.875rem;color:#475569;">${h.expiry_days}d</td>
         <td style="padding:0.75rem 1.25rem;text-align:center;">${secBadge}</td>

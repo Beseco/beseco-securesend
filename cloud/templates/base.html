@@ -278,6 +278,11 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
         </svg>
       </button>
+      <button type="button" onclick="open2faModal()" title="Zwei-Faktor-Authentifizierung" style="background:none;border:none;cursor:pointer;color:#64748b;padding:0.25rem;border-radius:0.25rem;transition:color 0.15s;" onmouseover="this.style.color='#93c5fd'" onmouseout="this.style.color='#64748b'">
+        <svg style="width:1rem;height:1rem;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
+      </button>
       <form method="post" action="/ui/logout">
         <button type="submit" title="Abmelden" style="background:none;border:none;cursor:pointer;color:#64748b;padding:0.25rem;border-radius:0.25rem;transition:color 0.15s;" onmouseover="this.style.color='#f87171'" onmouseout="this.style.color='#64748b'">
           <svg style="width:1rem;height:1rem;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -457,6 +462,197 @@
     } finally {
       btn.disabled = false; btn.textContent = 'Speichern';
     }
+  }
+</script>
+
+<!-- ── 2FA-Modal ──────────────────────────────────────────────────────────── -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<div id="twoFaModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-box" style="max-width:26rem;">
+    <h3 style="font-size:1rem;font-weight:700;color:#1e293b;margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem;">
+      <svg style="width:1rem;height:1rem;color:#1a56db" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+      </svg>
+      Zwei-Faktor-Authentifizierung
+    </h3>
+
+    <div id="twoFaError" style="display:none;background:#fee2e2;border:1px solid #fca5a5;border-radius:0.5rem;padding:0.5rem 0.75rem;font-size:0.8125rem;color:#dc2626;margin-bottom:1rem;"></div>
+
+    <!-- Status view -->
+    <div id="twoFaStatus">
+      <div id="twoFaStatusText" style="font-size:0.875rem;color:#475569;margin-bottom:1.25rem;padding:0.75rem;background:#f8fafc;border-radius:0.5rem;border:1px solid #e2e8f0;"></div>
+      <div style="display:flex;gap:0.625rem;flex-wrap:wrap;">
+        <button type="button" id="twoFaSetupBtn" onclick="startTwoFaSetup()" class="btn-primary btn-sm" style="font-size:0.875rem;padding:0.5rem 1rem;">2FA einrichten</button>
+        <button type="button" id="twoFaDisableBtn" onclick="showTwoFaDisable()" class="btn-danger btn-sm" style="font-size:0.875rem;padding:0.5rem 1rem;display:none;">2FA deaktivieren</button>
+        <button type="button" onclick="close2faModal()" class="btn-secondary btn-sm" style="font-size:0.875rem;padding:0.5rem 1rem;">Schließen</button>
+      </div>
+    </div>
+
+    <!-- Setup view -->
+    <div id="twoFaSetupView" style="display:none;">
+      <p style="font-size:0.875rem;color:#475569;margin-bottom:1rem;">
+        Scannen Sie den QR-Code mit Ihrer Authenticator-App (z.B. Google Authenticator, Authy).
+      </p>
+      <div id="twoFaQrCode" style="display:flex;justify-content:center;margin-bottom:1rem;"></div>
+      <div style="margin-bottom:1rem;">
+        <label class="form-label">Secret (manuell eingeben)</label>
+        <input id="twoFaSecret" type="text" class="form-input" readonly style="font-family:monospace;font-size:0.875rem;letter-spacing:0.1em;" />
+      </div>
+      <div style="margin-bottom:1.25rem;">
+        <label class="form-label">Code zur Bestätigung eingeben</label>
+        <input id="twoFaVerifyCode" type="text" class="form-input" placeholder="000000" maxlength="6"
+               pattern="[0-9]{6}" inputmode="numeric" autocomplete="one-time-code"
+               style="letter-spacing:0.3em;font-size:1.125rem;text-align:center;" />
+      </div>
+      <div style="display:flex;gap:0.625rem;">
+        <button type="button" onclick="confirmTwoFaSetup()" class="btn-primary btn-sm" id="twoFaEnableBtn" style="font-size:0.875rem;padding:0.5rem 1rem;">Aktivieren</button>
+        <button type="button" onclick="cancelTwoFaSetup()" class="btn-secondary btn-sm" style="font-size:0.875rem;padding:0.5rem 1rem;">Abbrechen</button>
+      </div>
+    </div>
+
+    <!-- Disable view -->
+    <div id="twoFaDisableView" style="display:none;">
+      <p style="font-size:0.875rem;color:#475569;margin-bottom:1rem;">
+        Bitte geben Sie Ihr Passwort ein, um die Zwei-Faktor-Authentifizierung zu deaktivieren.
+      </p>
+      <div style="margin-bottom:1.25rem;">
+        <label class="form-label">Passwort</label>
+        <input id="twoFaDisablePwd" type="password" class="form-input" placeholder="••••••••" autocomplete="current-password" />
+      </div>
+      <div style="display:flex;gap:0.625rem;">
+        <button type="button" onclick="confirmTwoFaDisable()" class="btn-danger btn-sm" id="twoFaDisableConfirmBtn" style="font-size:0.875rem;padding:0.5rem 1rem;">Deaktivieren</button>
+        <button type="button" onclick="cancelTwoFaDisable()" class="btn-secondary btn-sm" style="font-size:0.875rem;padding:0.5rem 1rem;">Abbrechen</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let _twoFaEnabled = false;
+
+  async function open2faModal() {
+    document.getElementById('twoFaError').style.display = 'none';
+    document.getElementById('twoFaSetupView').style.display = 'none';
+    document.getElementById('twoFaDisableView').style.display = 'none';
+    document.getElementById('twoFaStatus').style.display = 'block';
+    openModal('twoFaModal');
+    try {
+      const res = await apiFetch('/auth/2fa/status');
+      const data = await res.json();
+      _twoFaEnabled = data.enabled;
+      updateTwoFaStatusView();
+    } catch (e) {
+      document.getElementById('twoFaStatusText').textContent = 'Status konnte nicht geladen werden.';
+    }
+  }
+
+  function updateTwoFaStatusView() {
+    const statusEl = document.getElementById('twoFaStatusText');
+    const setupBtn = document.getElementById('twoFaSetupBtn');
+    const disableBtn = document.getElementById('twoFaDisableBtn');
+    if (_twoFaEnabled) {
+      statusEl.innerHTML = '<span style="color:#166534;font-weight:600;">&#10003; Zwei-Faktor-Authentifizierung ist aktiv.</span><br/><span style="font-size:0.8125rem;color:#64748b;margin-top:0.25rem;display:block;">Ihr Konto ist durch einen zusätzlichen Faktor geschützt.</span>';
+      setupBtn.style.display = 'none';
+      disableBtn.style.display = 'inline-block';
+    } else {
+      statusEl.innerHTML = '<span style="color:#dc2626;font-weight:600;">&#8211; Zwei-Faktor-Authentifizierung ist nicht aktiv.</span><br/><span style="font-size:0.8125rem;color:#64748b;margin-top:0.25rem;display:block;">Aktivieren Sie 2FA für zusätzliche Kontosicherheit.</span>';
+      setupBtn.style.display = 'inline-block';
+      disableBtn.style.display = 'none';
+    }
+  }
+
+  function close2faModal() {
+    closeModal('twoFaModal');
+  }
+
+  async function startTwoFaSetup() {
+    const errEl = document.getElementById('twoFaError');
+    errEl.style.display = 'none';
+    try {
+      const res = await apiFetch('/auth/2fa/setup', { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) { errEl.textContent = data.detail || 'Fehler beim Setup.'; errEl.style.display = 'block'; return; }
+
+      document.getElementById('twoFaSecret').value = data.secret;
+      document.getElementById('twoFaVerifyCode').value = '';
+
+      // Generate QR code
+      const qrContainer = document.getElementById('twoFaQrCode');
+      qrContainer.innerHTML = '';
+      new QRCode(qrContainer, { text: data.uri, width: 180, height: 180 });
+
+      document.getElementById('twoFaStatus').style.display = 'none';
+      document.getElementById('twoFaSetupView').style.display = 'block';
+    } catch (e) {
+      errEl.textContent = 'Netzwerkfehler: ' + e.message;
+      errEl.style.display = 'block';
+    }
+  }
+
+  async function confirmTwoFaSetup() {
+    const errEl = document.getElementById('twoFaError');
+    errEl.style.display = 'none';
+    const code = document.getElementById('twoFaVerifyCode').value.trim();
+    if (!code || code.length !== 6) { errEl.textContent = 'Bitte 6-stelligen Code eingeben.'; errEl.style.display = 'block'; return; }
+
+    const btn = document.getElementById('twoFaEnableBtn');
+    btn.disabled = true; btn.textContent = 'Aktiviere…';
+    try {
+      const res = await apiFetch('/auth/2fa/enable', { method: 'POST', body: JSON.stringify({ code }) });
+      const data = await res.json();
+      if (!res.ok) { errEl.textContent = data.detail || 'Ungültiger Code.'; errEl.style.display = 'block'; return; }
+      _twoFaEnabled = true;
+      document.getElementById('twoFaSetupView').style.display = 'none';
+      document.getElementById('twoFaStatus').style.display = 'block';
+      updateTwoFaStatusView();
+      showToast('Zwei-Faktor-Authentifizierung aktiviert', 'success');
+    } catch (e) {
+      errEl.textContent = 'Netzwerkfehler: ' + e.message;
+      errEl.style.display = 'block';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Aktivieren';
+    }
+  }
+
+  function cancelTwoFaSetup() {
+    document.getElementById('twoFaSetupView').style.display = 'none';
+    document.getElementById('twoFaStatus').style.display = 'block';
+  }
+
+  function showTwoFaDisable() {
+    document.getElementById('twoFaDisablePwd').value = '';
+    document.getElementById('twoFaStatus').style.display = 'none';
+    document.getElementById('twoFaDisableView').style.display = 'block';
+  }
+
+  async function confirmTwoFaDisable() {
+    const errEl = document.getElementById('twoFaError');
+    errEl.style.display = 'none';
+    const pwd = document.getElementById('twoFaDisablePwd').value;
+    if (!pwd) { errEl.textContent = 'Bitte Passwort eingeben.'; errEl.style.display = 'block'; return; }
+
+    const btn = document.getElementById('twoFaDisableConfirmBtn');
+    btn.disabled = true; btn.textContent = 'Deaktiviere…';
+    try {
+      const res = await apiFetch('/auth/2fa/disable', { method: 'POST', body: JSON.stringify({ password: pwd }) });
+      const data = await res.json();
+      if (!res.ok) { errEl.textContent = data.detail || 'Fehler.'; errEl.style.display = 'block'; return; }
+      _twoFaEnabled = false;
+      document.getElementById('twoFaDisableView').style.display = 'none';
+      document.getElementById('twoFaStatus').style.display = 'block';
+      updateTwoFaStatusView();
+      showToast('Zwei-Faktor-Authentifizierung deaktiviert', 'success');
+    } catch (e) {
+      errEl.textContent = 'Netzwerkfehler: ' + e.message;
+      errEl.style.display = 'block';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Deaktivieren';
+    }
+  }
+
+  function cancelTwoFaDisable() {
+    document.getElementById('twoFaDisableView').style.display = 'none';
+    document.getElementById('twoFaStatus').style.display = 'block';
   }
 </script>
 {% endif %}

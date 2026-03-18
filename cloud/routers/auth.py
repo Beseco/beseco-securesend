@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pyotp
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from jose import jwt
 from sqlalchemy import select
@@ -161,6 +163,69 @@ async def change_password(
         )
     current_user.password_hash = hash_password(body.new_password)
     await db.commit()
+
+
+class TotpEnableRequest(BaseModel):
+    code: str
+
+
+class TotpDisableRequest(BaseModel):
+    password: str
+
+
+@router.get("/2fa/status")
+async def twofa_status(current_user: User = Depends(get_current_user)) -> dict:
+    return {"enabled": current_user.totp_enabled}
+
+
+@router.post("/2fa/setup")
+async def twofa_setup(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Generate a new TOTP secret (not yet enabled). Returns the secret + otpauth URI."""
+    secret = pyotp.random_base32()
+    current_user.totp_secret = secret
+    current_user.totp_enabled = False
+    await db.commit()
+    totp = pyotp.TOTP(secret)
+    uri = totp.provisioning_uri(name=current_user.email, issuer_name="SecureSend Cloud")
+    return {"secret": secret, "uri": uri}
+
+
+@router.post("/2fa/enable")
+async def twofa_enable(
+    body: TotpEnableRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Verify TOTP code and enable 2FA."""
+    if not current_user.totp_secret:
+        raise HTTPException(
+            status_code=400,
+            detail="Kein TOTP-Secret vorhanden – bitte zuerst Setup aufrufen",
+        )
+    totp = pyotp.TOTP(current_user.totp_secret)
+    if not totp.verify(body.code, valid_window=1):
+        raise HTTPException(status_code=400, detail="Ungültiger Code")
+    current_user.totp_enabled = True
+    await db.commit()
+    return {"enabled": True}
+
+
+@router.post("/2fa/disable")
+async def twofa_disable(
+    body: TotpDisableRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Disable 2FA (requires current password confirmation)."""
+    if not verify_password(body.password, current_user.password_hash):
+        raise HTTPException(status_code=400, detail="Falsches Passwort")
+    current_user.totp_enabled = False
+    current_user.totp_secret = None
+    await db.commit()
+    return {"enabled": False}
 
 
 @router.get("/me", response_model=MeResponse)

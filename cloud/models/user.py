@@ -39,6 +39,8 @@ class User(Base):
         Enum(UserRole), nullable=False, default=UserRole.org_user
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    totp_secret: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

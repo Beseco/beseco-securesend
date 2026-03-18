@@ -5,6 +5,7 @@ cloud/models/shared.py — Shared ORM models:
 
 from __future__ import annotations
 
+import secrets
 import uuid
 from datetime import datetime
 from typing import Optional
@@ -133,6 +134,11 @@ class History(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
+    tracking_token: Mapped[str] = mapped_column(
+        String(32), nullable=False, default=lambda: secrets.token_urlsafe(16), unique=True, index=True
+    )
+    opened_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    link_clicked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
     user: Mapped["User"] = relationship("User", back_populates="history")  # noqa: F821
 

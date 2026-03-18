@@ -20,6 +20,8 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
 from sqlalchemy import select
@@ -35,6 +37,7 @@ from models.user import User
 log = logging.getLogger("securesend")
 
 router = APIRouter(tags=["public"])
+limiter = Limiter(key_func=get_remote_address)
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
@@ -142,6 +145,7 @@ async def phone_landing(
 # ── POST /r/phone/{token} ─────────────────────────────────────────────────────
 
 @router.post("/r/phone/{token}", include_in_schema=False)
+@limiter.limit("5/minute")
 async def phone_submit(
     token: str,
     request: Request,
@@ -264,6 +268,7 @@ async def upload_landing(
 # ── POST /r/upload/{token} ────────────────────────────────────────────────────
 
 @router.post("/r/upload/{token}", include_in_schema=False)
+@limiter.limit("5/minute")
 async def upload_submit(
     token: str,
     request: Request,
@@ -332,6 +337,14 @@ async def upload_submit(
 
     if not file_tuples:
         return RedirectResponse(url="/r/done?type=upload", status_code=303)
+
+    # Virenscanner
+    from core.antivirus import scan_bytes  # type: ignore[import]
+    for fname, data, mime in file_tuples:
+        is_clean, msg = scan_bytes(data, fname)
+        if not is_clean:
+            log.warning("Virus in UploadRequest %s, Datei %r: %s", upload_req.id, fname, msg)
+            return RedirectResponse(url="/r/done?type=upload&error=virus", status_code=303)
 
     # Upload to cloud storage
     folder_path = f"upload-requests/{upload_req.id}"
