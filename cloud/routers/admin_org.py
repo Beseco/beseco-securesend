@@ -281,9 +281,12 @@ async def provider_status(
     cfg = dict(provider.config_json or {})
     cfg["service"] = provider.service
     import asyncio
-    from core.storage import get_provider_status  # type: ignore[import]
-    status_data = await asyncio.get_event_loop().run_in_executor(None, get_provider_status, cfg)
-    return status_data
+    try:
+        from core.storage import get_provider_status  # type: ignore[import]
+        status_data = await asyncio.get_running_loop().run_in_executor(None, get_provider_status, cfg)
+        return status_data
+    except Exception as exc:
+        return {"ok": False, "service": provider.service, "display_name": None, "quota": None, "error": str(exc)}
 
 
 @router.delete("/providers/{provider_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -399,9 +402,12 @@ async def gateway_status(
         raise HTTPException(status_code=404, detail="Gateway not found")
     cfg = dict(gateway.config_json or {})
     import asyncio
-    from core.sms import get_sipgate_status  # type: ignore[import]
-    status_data = await asyncio.get_event_loop().run_in_executor(None, get_sipgate_status, cfg)
-    return status_data
+    try:
+        from core.sms import get_sipgate_status  # type: ignore[import]
+        status_data = await asyncio.get_running_loop().run_in_executor(None, get_sipgate_status, cfg)
+        return status_data
+    except Exception as exc:
+        return {"ok": False, "balance": None, "history": [], "error": str(exc)}
 
 
 @router.delete("/gateways/{gateway_id}", status_code=status.HTTP_204_NO_CONTENT)
