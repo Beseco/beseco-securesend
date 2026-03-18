@@ -93,9 +93,14 @@
       const dateStr = dt.toLocaleDateString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric'});
       const timeStr = dt.toLocaleTimeString('de-DE', {hour:'2-digit',minute:'2-digit'});
       const recipientDisplay = [h.to_email, h.to_phone].filter(Boolean).join(' / ') || '—';
-      const secBadge = h.security_level === 'high'
-        ? `<span style="background:#fef3c7;color:#92400e;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">Erhöht</span>`
-        : `<span style="background:#f1f5f9;color:#475569;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">Normal</span>`;
+      const secBadgeCfg = {
+        'normal':         { bg:'#f1f5f9', color:'#475569', label:'📧 Normal' },
+        'secure':         { bg:'#dbeafe', color:'#1e40af', label:'🔒 Sicher' },
+        'extended':       { bg:'#fef3c7', color:'#92400e', label:'🛡️ Erweitert' },
+        'upload-request': { bg:'#dcfce7', color:'#166534', label:'📤 Empfangen' },
+        'high':           { bg:'#fef3c7', color:'#92400e', label:'Erhöht' },
+      }[h.security_level] || { bg:'#f1f5f9', color:'#64748b', label: h.security_level || '—' };
+      const secBadge = `<span style="background:${secBadgeCfg.bg};color:${secBadgeCfg.color};font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;white-space:nowrap;">${secBadgeCfg.label}</span>`;
       const providerIcon = h.provider === 'nextcloud'
         ? '<span style="background:#e0f2fe;color:#0369a1;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">Nextcloud</span>'
         : '<span style="background:#ede9fe;color:#7c3aed;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">OneDrive</span>';
