@@ -1,18 +1,39 @@
 services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: securesend_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: securesend
+      POSTGRES_USER: securesend
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-securesend_pw_change_me}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U securesend -d securesend"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   securesend:
     build: .
     container_name: securesend
     restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
     ports:
       - "8001:8001"
     volumes:
-      - securesend_data:/data
+      - securesend_files:/data
     env_file:
       - cloud/.env
     environment:
-      DATABASE_URL: sqlite+aiosqlite:////data/securesend.db
+      DATABASE_URL: postgresql+asyncpg://securesend:${POSTGRES_PASSWORD:-securesend_pw_change_me}@postgres/securesend
       UVICORN_HOST: "0.0.0.0"
       PUBLIC_BASE_URL: "https://securesend.cloud-fs.de"
 
 volumes:
-  securesend_data:
+  postgres_data:
+  securesend_files:
