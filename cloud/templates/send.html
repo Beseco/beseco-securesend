@@ -453,6 +453,9 @@
   // ── Kontakt-Picker ────────────────────────────────────────────────────────
   let _allContacts = [], _selectedContactId = null;
 
+  // Hilfsfunktion: Vollständigen Namen aus first_name + last_name bilden
+  function cName(c) { return ((c.first_name||'') + ' ' + (c.last_name||'')).trim() || c.email || ''; }
+
   async function loadContacts() {
     try { const res = await apiFetch('/contacts'); if (res.ok) _allContacts = await res.json(); } catch(e) {}
   }
@@ -464,7 +467,7 @@
     const dd = document.getElementById('contactDropdown');
     const term = q.trim().toLowerCase();
     const matches = term
-      ? _allContacts.filter(c => (c.name||'').toLowerCase().includes(term) || (c.email||'').toLowerCase().includes(term))
+      ? _allContacts.filter(c => cName(c).toLowerCase().includes(term) || (c.email||'').toLowerCase().includes(term))
       : _allContacts.slice(0, 8);
     if (!matches.length) { dd.style.display = 'none'; return; }
     dd.innerHTML = matches.map(c => `
@@ -472,11 +475,11 @@
            style="padding:0.5rem 0.875rem;cursor:pointer;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:0.625rem;"
            onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
         <div style="background:${c.mobile ? '#dcfce7' : '#fef9c3'};border-radius:50%;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.75rem;font-weight:700;color:#374151;">
-          ${(c.name||c.email||'?')[0].toUpperCase()}
+          ${cName(c)[0]?.toUpperCase() || '?'}
         </div>
         <div style="min-width:0;">
-          <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">${c.name||''}</div>
-          <div style="font-size:0.75rem;color:#64748b;">${c.email||''}${c.mobile ? ' · '+c.mobile : ' · <span style="color:#ca8a04;">keine Nummer</span>'}</div>
+          <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">${esc(cName(c))}</div>
+          <div style="font-size:0.75rem;color:#64748b;">${esc(c.email||'')}${c.mobile ? ' · '+esc(c.mobile) : ' · <span style="color:#ca8a04;">keine Nummer</span>'}</div>
         </div>
       </div>`).join('');
     dd.style.display = 'block';
@@ -484,7 +487,7 @@
 
   function selectContact(c) {
     _selectedContactId = c.id;
-    document.getElementById('contactSearch').value = c.name || c.email || '';
+    document.getElementById('contactSearch').value = cName(c);
     document.getElementById('to_email').value = c.email || '';
     document.getElementById('to_phone').value = c.mobile || '';
     document.getElementById('contactDropdown').style.display = 'none';

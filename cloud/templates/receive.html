@@ -98,6 +98,9 @@
   // ── Kontakt-Picker ──────────────────────────────────────────────────────────
   let _urContacts = [];
 
+  // Hilfsfunktion: Vollständigen Namen aus first_name + last_name bilden
+  function urCName(c) { return ((c.first_name||'') + ' ' + (c.last_name||'')).trim() || c.email || ''; }
+
   async function urLoadContacts() {
     try {
       const res = await apiFetch('/contacts');
@@ -111,7 +114,7 @@
     const dd = document.getElementById('urContactDropdown');
     const term = q.trim().toLowerCase();
     const matches = term
-      ? _urContacts.filter(c => (c.name||'').toLowerCase().includes(term) || (c.email||'').toLowerCase().includes(term))
+      ? _urContacts.filter(c => urCName(c).toLowerCase().includes(term) || (c.email||'').toLowerCase().includes(term))
       : _urContacts.slice(0, 8);
     if (!matches.length) { dd.style.display = 'none'; return; }
     dd.innerHTML = matches.map(c => `
@@ -119,10 +122,10 @@
            style="padding:0.5rem 0.875rem;cursor:pointer;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:0.625rem;"
            onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
         <div style="background:#dbeafe;border-radius:50%;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.75rem;font-weight:700;color:#374151;">
-          ${((c.name||c.email||'?')[0]).toUpperCase()}
+          ${urCName(c)[0]?.toUpperCase() || '?'}
         </div>
         <div style="min-width:0;">
-          <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">${esc(c.name||'')}</div>
+          <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">${esc(urCName(c))}</div>
           <div style="font-size:0.75rem;color:#64748b;">${esc(c.email||'')}</div>
         </div>
       </div>`).join('');
@@ -130,9 +133,9 @@
   }
 
   function urSelectContact(c) {
-    document.getElementById('urContactSearch').value = c.name || c.email || '';
+    document.getElementById('urContactSearch').value = urCName(c);
     document.getElementById('urEmail').value = c.email || '';
-    document.getElementById('urName').value = c.name || '';
+    document.getElementById('urName').value = urCName(c);
     document.getElementById('urContactDropdown').style.display = 'none';
   }
 
