@@ -55,7 +55,7 @@ docker compose up -d
 ```bash
 cd /opt/securesend
 git pull
-docker compose down && docker compose up -d
+docker compose up -d --build
 ```
 
 ### Datenbank zurücksetzen (Neustart)
