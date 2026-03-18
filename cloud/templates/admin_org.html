@@ -109,6 +109,23 @@
           <input id="smtpFromName" type="text" class="form-input" placeholder="SecureSend" />
         </div>
       </div>
+
+      <!-- SMTP Test -->
+      <div style="border-top:1px solid #f1f5f9;padding-top:1rem;display:flex;align-items:flex-end;gap:0.75rem;flex-wrap:wrap;">
+        <div style="flex:1;min-width:14rem;">
+          <label class="form-label">Test-E-Mail senden an</label>
+          <input id="smtpTestEmail" type="email" class="form-input" placeholder="ihre@email.de" />
+        </div>
+        <button type="button" id="smtpTestBtn" onclick="testSmtp()"
+                style="padding:0.625rem 1.25rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.5rem;font-size:0.875rem;font-weight:600;color:#374151;cursor:pointer;display:inline-flex;align-items:center;gap:0.5rem;white-space:nowrap;"
+                onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
+          <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+          </svg>
+          Test senden
+        </button>
+        <div id="smtpTestResult" style="font-size:0.8125rem;display:none;"></div>
+      </div>
     </div>
 
     <div class="card" style="margin-bottom:1rem;">
@@ -724,6 +741,45 @@
     const url = document.getElementById('regLinkWrap').dataset.url || document.getElementById('regLink').textContent;
     try { await navigator.clipboard.writeText(url); showToast('Link kopiert', 'success'); }
     catch(_) { showToast(url, 'success'); }
+  }
+
+  async function testSmtp() {
+    const testEmail = document.getElementById('smtpTestEmail').value.trim();
+    if (!testEmail) { showToast('Bitte Ziel-E-Mail-Adresse eingeben', 'error'); return; }
+    const btn = document.getElementById('smtpTestBtn');
+    const result = document.getElementById('smtpTestResult');
+    btn.disabled = true;
+    btn.innerHTML = '<svg style="width:1rem;height:1rem;animation:spin 1s linear infinite" viewBox="0 0 24 24" fill="currentColor"><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Sende…';
+    result.style.display = 'none';
+    const smtp = {
+      host: document.getElementById('smtpHost').value,
+      port: parseInt(document.getElementById('smtpPort').value) || 587,
+      mode: document.getElementById('smtpMode').value,
+      user: document.getElementById('smtpUser').value,
+      password: document.getElementById('smtpPassword').value,
+      from_addr: document.getElementById('smtpFromAddr').value,
+      from_name: document.getElementById('smtpFromName').value,
+    };
+    try {
+      const res = await apiFetch('/admin/org/smtp/test', { method: 'POST', body: JSON.stringify({ smtp, test_email: testEmail }) });
+      const data = await res.json();
+      if (data.ok) {
+        result.style.display = 'inline';
+        result.style.color = '#166534';
+        result.textContent = '✅ Test-E-Mail gesendet';
+        showToast('Test-E-Mail erfolgreich gesendet', 'success');
+      } else {
+        result.style.display = 'inline';
+        result.style.color = '#991b1b';
+        result.textContent = '❌ ' + (data.error || 'Fehler');
+        showToast('SMTP-Fehler: ' + (data.error || 'Unbekannt'), 'error');
+      }
+    } catch(e) {
+      showToast('Netzwerkfehler', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '<svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg> Test senden';
+    }
   }
 
   async function saveSettings() {

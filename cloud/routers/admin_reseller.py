@@ -199,6 +199,48 @@ async def update_reseller_settings(
     return reseller.settings_json or {}
 
 
+# ── SMTP Test ─────────────────────────────────────────────────────────────────
+
+@router.post("/admin/reseller/smtp/test")
+async def test_reseller_smtp(
+    body: dict,
+    current_user: User = Depends(reseller_admin_required()),
+) -> dict:
+    """Send a test e-mail using the supplied SMTP config.
+
+    Body: { smtp: {...}, test_email: "..." }
+    Returns: { ok: true } or { ok: false, error: "..." }
+    """
+    import asyncio
+    from core.email import send_email  # type: ignore[import]
+
+    smtp_cfg: dict = body.get("smtp") or {}
+    test_email: str = (body.get("test_email") or "").strip()
+
+    if not smtp_cfg.get("host"):
+        raise HTTPException(status_code=400, detail="SMTP-Host fehlt")
+    if not test_email or "@" not in test_email:
+        raise HTTPException(status_code=400, detail="Ungültige Ziel-E-Mail-Adresse")
+
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            send_email,
+            smtp_cfg,
+            test_email,
+            "SecureSend – SMTP-Test erfolgreich",
+            """<html><body style="font-family:Arial,sans-serif;color:#1e293b;max-width:600px;margin:0 auto;padding:2rem;">
+  <h2 style="color:#1a56db;">✅ SMTP-Test erfolgreich</h2>
+  <p>Diese E-Mail bestätigt, dass Ihre SMTP-Konfiguration in SecureSend Cloud korrekt eingerichtet ist.</p>
+  <p style="font-size:0.875rem;color:#64748b;">SecureSend Cloud – Sicheres Senden</p>
+</body></html>""",
+        )
+        return {"ok": True}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
 # ── Resellers (superadmin only) ────────────────────────────────────────────────
 
 @router.get("/admin/resellers", response_model=list[ResellerRead])

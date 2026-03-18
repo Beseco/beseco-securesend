@@ -440,6 +440,47 @@ async def get_org_settings(
     return data
 
 
+@router.post("/smtp/test")
+async def test_org_smtp(
+    body: dict,
+    current_user: User = Depends(org_admin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Send a test e-mail using the supplied SMTP config.
+
+    Body: { smtp: {...}, test_email: "..." }
+    Returns: { ok: true } or { ok: false, error: "..." }
+    """
+    import asyncio
+    from core.email import send_email  # type: ignore[import]
+
+    smtp_cfg: dict = body.get("smtp") or {}
+    test_email: str = (body.get("test_email") or "").strip()
+
+    if not smtp_cfg.get("host"):
+        raise HTTPException(status_code=400, detail="SMTP-Host fehlt")
+    if not test_email or "@" not in test_email:
+        raise HTTPException(status_code=400, detail="Ungültige Ziel-E-Mail-Adresse")
+
+    try:
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(
+            None,
+            send_email,
+            smtp_cfg,
+            test_email,
+            "SecureSend – SMTP-Test erfolgreich",
+            """<html><body style="font-family:Arial,sans-serif;color:#1e293b;max-width:600px;margin:0 auto;padding:2rem;">
+  <h2 style="color:#1a56db;">✅ SMTP-Test erfolgreich</h2>
+  <p>Diese E-Mail bestätigt, dass Ihre SMTP-Konfiguration in SecureSend Cloud korrekt eingerichtet ist.</p>
+  <p style="font-size:0.875rem;color:#64748b;">SecureSend Cloud – Sicheres Senden</p>
+</body></html>""",
+        )
+        return {"ok": True}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
 @router.put("/settings")
 async def update_org_settings(
     body: dict[str, Any],
