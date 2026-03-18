@@ -338,6 +338,14 @@ async def upload_submit(
     if not file_tuples:
         return RedirectResponse(url="/r/done?type=upload", status_code=303)
 
+    # ── Upload-Größenlimit ──────────────────────────────────────────────────
+    from config import settings as _cfg  # type: ignore[import]
+    max_bytes = _cfg.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    total_size = sum(len(d) for _, d, _ in file_tuples)
+    if total_size > max_bytes:
+        log.warning("Upload zu groß in UploadRequest %s: %d Bytes", upload_req.id, total_size)
+        return RedirectResponse(url="/r/done?type=upload&error=too_large", status_code=303)
+
     # Virenscanner
     from core.antivirus import scan_bytes  # type: ignore[import]
     for fname, data, mime in file_tuples:

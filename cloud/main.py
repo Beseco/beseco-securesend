@@ -27,6 +27,7 @@ if str(_ROOT) not in sys.path:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -50,6 +51,22 @@ from routers.tracking import router as tracking_router
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("securesend")
+
+
+# ── Security Headers Middleware ───────────────────────────────────────────────
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        # HSTS only if PUBLIC_BASE_URL uses HTTPS
+        if settings.PUBLIC_BASE_URL.startswith("https://"):
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
 
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
@@ -85,6 +102,12 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
         await _run_migrations(conn)
     log.info("SecureSend Cloud API ready.")
+    if settings.SECRET_KEY == "change-me-in-production":
+        log.critical("SECURITY: SECRET_KEY is default value! Change immediately.")
+    if not settings.SECURE_COOKIES and settings.PUBLIC_BASE_URL.startswith("https://"):
+        log.warning("SECURITY: SECURE_COOKIES=False but PUBLIC_BASE_URL is HTTPS. Set SECURE_COOKIES=True.")
+    if not settings.ALLOWED_ORIGINS:
+        log.warning("SECURITY: ALLOWED_ORIGINS not set — using localhost fallback.")
     yield
     await engine.dispose()
     log.info("SecureSend Cloud API shut down.")
@@ -105,14 +128,20 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# Allow all origins in development; tighten for production via env var
+# CORS — only allow configured origins (never wildcard + credentials)
+_allowed_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]
+if not _allowed_origins:
+    # Dev fallback: allow localhost only
+    _allowed_origins = ["http://localhost:8001", "http://127.0.0.1:8001"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
 )
+app.add_middleware(SecurityHeadersMiddleware)
 
 # ── Routers ───────────────────────────────────────────────────────────────────
 

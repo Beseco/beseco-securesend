@@ -51,6 +51,7 @@ from models.user import User, UserRole
 
 router = APIRouter(prefix="/ui", tags=["ui"])
 limiter = Limiter(key_func=get_remote_address)
+_sec_log = logging.getLogger("securesend.security")
 
 
 # ── Setup-Assistent ────────────────────────────────────────────────────────────
@@ -64,6 +65,7 @@ async def _needs_setup(db: AsyncSession) -> bool:
 
 
 @router.get("/setup", response_class=HTMLResponse)
+@limiter.limit("20/hour")
 async def setup_page(request: Request, db: AsyncSession = Depends(get_db)) -> HTMLResponse:
     if not await _needs_setup(db):
         return RedirectResponse(url="/ui/login", status_code=303)
@@ -75,6 +77,7 @@ async def setup_page(request: Request, db: AsyncSession = Depends(get_db)) -> HT
 
 
 @router.post("/setup")
+@limiter.limit("5/hour")
 async def setup_submit(
     request: Request,
     first_name: str = Form(...),
@@ -204,8 +207,8 @@ def _set_auth_cookie(response: RedirectResponse, token: str) -> None:
         value=token,
         max_age=_COOKIE_MAX_AGE,
         httponly=True,
-        samesite="lax",
-        secure=False,  # set to True in production behind HTTPS
+        samesite="strict",
+        secure=settings.SECURE_COOKIES,
         path="/",       # must be "/" so API routes at /admin/* also receive the cookie
     )
 
@@ -214,13 +217,66 @@ def _clear_auth_cookie(response: RedirectResponse) -> None:
     response.delete_cookie(key=_COOKIE_NAME, samesite="lax", path="/")
 
 
+def _safe_redirect(next_url: str, fallback: str = "/ui/") -> str:
+    """Validate redirect target to prevent open redirect attacks."""
+    from urllib.parse import urlparse
+    try:
+        parsed = urlparse(next_url)
+        # Must be relative (no scheme, no host) and start with /ui
+        if parsed.scheme or parsed.netloc:
+            return fallback
+        path = parsed.path
+        if not path.startswith("/ui"):
+            return fallback
+        # Prevent path traversal: resolve and check again
+        import posixpath
+        resolved = posixpath.normpath(path)
+        if not resolved.startswith("/ui"):
+            return fallback
+        return next_url
+    except Exception:
+        return fallback
+
+
+import hashlib
+import hmac as _hmac_mod
+
+
+def _ctx_sign(value: str) -> str:
+    """Return value:hmac_hex for context cookie."""
+    sig = _hmac_mod.new(
+        settings.SECRET_KEY.encode(),
+        value.encode(),
+        hashlib.sha256,
+    ).hexdigest()[:16]
+    return f"{value}:{sig}"
+
+
+def _ctx_verify(raw: str) -> str | None:
+    """Verify HMAC signature, return the value or None if invalid."""
+    if ":" not in raw:
+        return None
+    # Signature is always the last 16 chars after final ":"
+    idx = raw.rfind(":")
+    value, sig = raw[:idx], raw[idx + 1:]
+    expected = _hmac_mod.new(
+        settings.SECRET_KEY.encode(),
+        value.encode(),
+        hashlib.sha256,
+    ).hexdigest()[:16]
+    if not _hmac_mod.compare_digest(sig, expected):
+        return None
+    return value
+
+
 def _set_ctx_cookie(response: RedirectResponse, value: str) -> None:
     response.set_cookie(
         key=_CTX_COOKIE,
-        value=value,
+        value=_ctx_sign(value),
         max_age=86400 * 7,
-        httponly=False,   # JS-readable
+        httponly=False,
         samesite="lax",
+        secure=settings.SECURE_COOKIES,
         path="/",
     )
 
@@ -230,8 +286,9 @@ def _clear_ctx_cookie(response: RedirectResponse) -> None:
 
 
 def _read_ctx(request: Request) -> dict:
-    """Read context cookie and return ctx dict for templates."""
-    raw = request.cookies.get(_CTX_COOKIE, "")
+    """Read context cookie, verify HMAC, and return ctx dict for templates."""
+    raw_signed = request.cookies.get(_CTX_COOKIE, "")
+    raw = _ctx_verify(raw_signed) or ""
     if raw.startswith("o:"):
         parts = raw.split(":")
         if len(parts) >= 3:
@@ -453,7 +510,7 @@ async def login_submit(
                 status_code=401,
             )
         # TOTP OK → set cookie
-        safe_next = next if next.startswith("/ui") else "/ui/"
+        safe_next = _safe_redirect(next)
         response = RedirectResponse(url=safe_next, status_code=303)
         _set_auth_cookie(response, _make_access_token(user))
         return response
@@ -469,6 +526,11 @@ async def login_submit(
     error_msg = ""
     if user is None or not verify_password(password, user.password_hash):
         error_msg = "Ungültige E-Mail-Adresse oder Passwort."
+        _sec_log.warning(
+            "Failed UI login: email=%r ip=%s",
+            email,
+            request.client.host if request.client else "unknown",
+        )
     elif not user.is_active:
         error_msg = "Ihr Konto ist deaktiviert. Bitte wenden Sie sich an Ihren Administrator."
 
@@ -507,7 +569,7 @@ async def login_submit(
         )
 
     # ── No 2FA: set cookie ─────────────────────────────────────────────────────
-    safe_next = next if next.startswith("/ui") else "/ui/"
+    safe_next = _safe_redirect(next)
     response = RedirectResponse(url=safe_next, status_code=303)
     _set_auth_cookie(response, _make_access_token(user))
     return response
@@ -713,6 +775,8 @@ async def history_page(
 @router.get("/api/history")
 async def history_api(
     request: Request,
+    limit: int = 100,
+    offset: int = 0,
     db: AsyncSession = Depends(get_db),
 ) -> JSONResponse:
     """
@@ -723,10 +787,15 @@ async def history_api(
     if not user:
         return JSONResponse({"detail": "Not authenticated"}, status_code=401)
 
+    limit = max(1, min(limit, 500))
+    offset = max(0, offset)
+
     result = await db.execute(
         select(History)
         .where(History.user_id == user.id)
         .order_by(History.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     rows = result.scalars().all()
     return JSONResponse([

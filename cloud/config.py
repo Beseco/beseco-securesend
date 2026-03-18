@@ -4,6 +4,10 @@ cloud/config.py — Application settings via pydantic-settings.
 
 from __future__ import annotations
 
+import secrets
+from typing import Optional
+
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,11 +15,21 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "sqlite+aiosqlite:///./securesend.db"
 
-    # JWT
-    SECRET_KEY: str = "change-me-in-production"
+    # JWT — SECRET_KEY MUST be set in production
+    SECRET_KEY: str = ""
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     ALGORITHM: str = "HS256"
+
+    # Security
+    SECURE_COOKIES: bool = False  # Set to True in production (HTTPS)
+    ALLOWED_ORIGINS: str = ""     # Comma-separated, e.g. "https://app.example.com"
+    MAX_UPLOAD_SIZE_MB: int = 100  # Max total upload size in MB
+
+    # ClamAV
+    CLAMAV_HOST: str = "clamav"
+    CLAMAV_PORT: int = 3310
+    CLAMAV_FAIL_OPEN: bool = True  # Set to False in production to block on ClamAV failure
 
     # Public base URL (used in e-mails; override in .env for production)
     PUBLIC_BASE_URL: str = ""
@@ -25,6 +39,21 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def secret_key_must_be_strong(cls, v: str) -> str:
+        if not v:
+            # Auto-generate for dev, but warn
+            import logging
+            logging.getLogger("securesend").warning(
+                "SECRET_KEY not set — using auto-generated key. "
+                "Set SECRET_KEY in .env for production!"
+            )
+            return secrets.token_hex(32)
+        if len(v) < 32:
+            raise ValueError("SECRET_KEY must be at least 32 characters long")
+        return v
 
 
 settings = Settings()

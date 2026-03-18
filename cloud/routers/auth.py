@@ -11,10 +11,14 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import logging
+
 import pyotp
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from jose import jwt
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -22,6 +26,9 @@ from sqlalchemy.orm import selectinload
 from config import settings
 from database import get_db
 from pydantic import BaseModel
+
+_sec_log = logging.getLogger("securesend.security")
+limiter = Limiter(key_func=get_remote_address)
 
 from dependencies import (
     CREDENTIALS_EXCEPTION,
@@ -76,7 +83,8 @@ def _make_refresh_token(user: User) -> str:
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post("/login", response_model=TokenResponse)
-async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+@limiter.limit("10/minute")
+async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
     """Authenticate with email + password, receive JWT pair."""
     result = await db.execute(
         select(User)
@@ -86,6 +94,11 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)) -> Token
     user = result.scalar_one_or_none()
 
     if user is None or not verify_password(body.password, user.password_hash):
+        _sec_log.warning(
+            "Failed API login: email=%r ip=%s",
+            body.email,
+            request.client.host if request.client else "unknown",
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",

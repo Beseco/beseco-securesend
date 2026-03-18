@@ -170,6 +170,10 @@ async def send_secure(
             detail="Nur Organisations-Benutzer können Dateien senden",
         )
 
+    # ── Eingaben bereinigen (Header-Injection-Schutz) ───────────────────────
+    subject = subject.replace("\n", " ").replace("\r", " ").strip()[:200]
+    personal_message = personal_message[:2000]
+
     org_id = current_user.org_id
 
     # Sicherheitsstufe normalisieren
@@ -199,6 +203,16 @@ async def send_secure(
         for f in valid_files:
             data = await f.read()
             file_entries.append((f.filename, data, f.content_type or "application/octet-stream"))
+
+    # ── Upload-Größenlimit ──────────────────────────────────────────────────
+    from config import settings as _cfg  # type: ignore
+    max_bytes = _cfg.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+    total_size = sum(len(d) for _, d, _ in file_entries)
+    if total_size > max_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Gesamtgröße überschreitet das Maximum von {_cfg.MAX_UPLOAD_SIZE_MB} MB",
+        )
 
     # ── Virenscanner ───────────────────────────────────────────────────────
     from core.antivirus import scan_bytes  # type: ignore
@@ -281,9 +295,11 @@ async def send_secure(
     except HTTPException:
         raise
     except Exception as exc:
+        import logging as _log
+        _log.getLogger("securesend").exception("Upload fehlgeschlagen für User %s: %s", current_user.id, exc)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Cloud-Speicher Fehler: {exc}",
+            detail="Fehler beim Hochladen. Bitte versuchen Sie es erneut.",
         ) from exc
 
     # ── SMTP-Konfiguration ermitteln (Org → Reseller Fallback) ─────────────
@@ -396,6 +412,8 @@ async def send_secure(
                     sms_text = f"{subject}\nLink: {share_url}\nZIP-Passwort: {effective_password}"
                 else:
                     sms_text = f"{subject}\nLink: {share_url}\nPW: {effective_password}"
+                if len(sms_text) > 160:
+                    sms_text = sms_text[:157] + "..."
                 send_sms_sipgate(gateway.config_json, to_phone, sms_text)
             except Exception as exc:
                 import logging
