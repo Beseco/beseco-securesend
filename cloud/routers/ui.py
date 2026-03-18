@@ -564,6 +564,26 @@ async def send_page(
     )
 
 
+# ── Receive ───────────────────────────────────────────────────────────────────
+
+@router.get("/receive", response_class=HTMLResponse)
+async def receive_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> HTMLResponse:
+    user = await _get_user_from_cookie(request, db)
+    if not user:
+        return _login_redirect("/ui/receive")
+    if not user.org_id:
+        return RedirectResponse(url="/ui/", status_code=303)
+    ctx = _read_ctx(request)
+    rname, oname = await _resolve_ctx_names(ctx, db)
+    return templates.TemplateResponse(
+        "receive.html",
+        _ctx(request, user, "receive", ctx_reseller_name=rname, ctx_org_name=oname),
+    )
+
+
 # ── Contacts ──────────────────────────────────────────────────────────────────
 
 @router.get("/contacts", response_class=HTMLResponse)

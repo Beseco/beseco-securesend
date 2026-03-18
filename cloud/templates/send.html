@@ -24,41 +24,13 @@
   <div class="card">
     <form id="sendForm" enctype="multipart/form-data">
 
-      <!-- ── Dateien ──────────────────────────────────────────────────────── -->
-      <div style="margin-bottom:1rem;">
-        <label class="form-label">
-          Dateien
-          <span style="font-weight:400;color:#94a3b8;">(optional)</span>
-        </label>
-        <div id="dropzone"
-             style="border:2px dashed #cbd5e1;border-radius:0.625rem;padding:1.5rem 1rem;text-align:center;transition:border-color 0.15s,background 0.15s;cursor:pointer;"
-             onclick="document.getElementById('fileInput').click()"
-             ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
-          <svg style="width:2rem;height:2rem;color:#94a3b8;margin:0 auto 0.5rem;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-          </svg>
-          <p style="font-size:0.875rem;font-weight:600;color:#374151;" id="dropzoneText">Dateien hier ablegen oder klicken</p>
-          <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.25rem;">Mehrere Dateien möglich · keine ausführbaren Dateien (.exe, .bat, …)</p>
-          <input type="file" id="fileInput" name="files" style="display:none;" multiple onchange="onFilesSelected(this.files)"/>
-        </div>
-        <div id="fileList" style="display:none;margin-top:0.5rem;flex-direction:column;gap:0.375rem;"></div>
-        <div id="fileError" style="display:none;margin-top:0.5rem;padding:0.5rem 0.75rem;background:#fef2f2;border:1px solid #fecaca;border-radius:0.5rem;font-size:0.8125rem;color:#dc2626;"></div>
-      </div>
-
-      <!-- ── Nachricht hinzufügen ─────────────────────────────────────────── -->
+      <!-- ── Nachricht ────────────────────────────────────────────────────── -->
       <div style="margin-bottom:1.25rem;">
-        <button type="button" id="btnToggleMsg" onclick="toggleMessageSection()"
-                style="display:inline-flex;align-items:center;gap:0.375rem;font-size:0.8125rem;font-weight:600;color:#475569;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.5rem;padding:0.375rem 0.875rem;cursor:pointer;transition:background 0.15s;"
-                onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
-          <svg style="width:0.875rem;height:0.875rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-          </svg>
-          Nachricht hinzufügen
-        </button>
-
-        <div id="messageSection" style="display:none;margin-top:0.75rem;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.375rem;">
-            <label class="form-label" style="margin-bottom:0;">Nachricht (Markdown)</label>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.375rem;">
+          <label class="form-label" style="margin-bottom:0;">
+            Nachricht
+            <span style="font-weight:400;color:#94a3b8;">(optional)</span>
+          </label>
             <!-- Template picker -->
             <div id="templatePickerWrap" style="position:relative;">
               <button type="button" id="tplPickerBtn" onclick="toggleTemplateDropdown()"
@@ -85,9 +57,29 @@
               </div>
             </div>
           </div>
-          <div id="editorContainer"></div>
-          <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.375rem;">Wird zusammen mit den Dateien hochgeladen (als nachricht.md).</p>
+        <div id="editorContainer"></div>
+        <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.375rem;">Wird zusammen mit den Dateien hochgeladen (als nachricht.md).</p>
+      </div>
+
+      <!-- ── Dateien ──────────────────────────────────────────────────────── -->
+      <div style="margin-bottom:1.25rem;">
+        <label class="form-label">
+          Dateien
+          <span style="font-weight:400;color:#94a3b8;">(optional)</span>
+        </label>
+        <div id="dropzone"
+             style="border:2px dashed #cbd5e1;border-radius:0.625rem;padding:1.5rem 1rem;text-align:center;transition:border-color 0.15s,background 0.15s;cursor:pointer;"
+             onclick="document.getElementById('fileInput').click()"
+             ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+          <svg style="width:2rem;height:2rem;color:#94a3b8;margin:0 auto 0.5rem;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+          <p style="font-size:0.875rem;font-weight:600;color:#374151;" id="dropzoneText">Dateien hier ablegen oder klicken</p>
+          <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.25rem;">Mehrere Dateien möglich · keine ausführbaren Dateien (.exe, .bat, …)</p>
+          <input type="file" id="fileInput" name="files" style="display:none;" multiple onchange="onFilesSelected(this.files)"/>
         </div>
+        <div id="fileList" style="display:none;margin-top:0.5rem;flex-direction:column;gap:0.375rem;"></div>
+        <div id="fileError" style="display:none;margin-top:0.5rem;padding:0.5rem 0.75rem;background:#fef2f2;border:1px solid #fecaca;border-radius:0.5rem;font-size:0.8125rem;color:#dc2626;"></div>
       </div>
 
       <!-- ── Betreff ──────────────────────────────────────────────────────── -->
@@ -256,21 +248,8 @@
 <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
 <script>
   let editor = null;
-  let _msgVisible = false;
 
-  // ── Nachricht ein-/ausblenden ─────────────────────────────────────────────
-  function toggleMessageSection() {
-    _msgVisible = !_msgVisible;
-    document.getElementById('messageSection').style.display = _msgVisible ? 'block' : 'none';
-    const btn = document.getElementById('btnToggleMsg');
-    if (_msgVisible) {
-      btn.innerHTML = `<svg style="width:0.875rem;height:0.875rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 12H4"/></svg> Nachricht entfernen`;
-      initEditor();
-    } else {
-      btn.innerHTML = `<svg style="width:0.875rem;height:0.875rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg> Nachricht hinzufügen`;
-    }
-  }
-
+  // ── Editor initialisieren ─────────────────────────────────────────────────
   function initEditor() {
     if (editor) return;
     editor = new toastui.Editor({
@@ -288,6 +267,8 @@
       ],
     });
   }
+  // Editor sofort beim Laden starten
+  document.addEventListener('DOMContentLoaded', initEditor);
 
   // ── Sicherheitsstufe ─────────────────────────────────────────────────────
   function onSecLevelChange() {
@@ -473,7 +454,7 @@
   let _allContacts = [], _selectedContactId = null;
 
   async function loadContacts() {
-    try { const res = await apiFetch('/contacts/'); if (res.ok) _allContacts = await res.json(); } catch(e) {}
+    try { const res = await apiFetch('/contacts'); if (res.ok) _allContacts = await res.json(); } catch(e) {}
   }
   loadContacts();
 
@@ -565,7 +546,7 @@
     }
 
     const fd = new FormData(this);
-    fd.set('message', (_msgVisible && editor) ? editor.getMarkdown() : '');
+    fd.set('message', editor ? editor.getMarkdown() : '');
 
     try {
       const res = await apiFetch('/send', { method: 'POST', body: fd });
@@ -611,7 +592,6 @@
     document.getElementById('fileList').innerHTML = '';
     document.getElementById('fileError').style.display = 'none';
     document.getElementById('noPhoneWarning').style.display = 'none';
-    if (_msgVisible) toggleMessageSection();
     if (editor) editor.reset();
     selectSecLevel('secure');  // wird durch onSecLevelChange nicht aufgerufen bei reset
     onSecLevelChange();

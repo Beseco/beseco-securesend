@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Empfangen – SecureSend Cloud{% endblock %}
+{% block page_title %}Empfangen{% endblock %}
+
+{% block content %}
+<div style="max-width:42rem;margin:0 auto;">
+
+  <!-- Intro -->
+  <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:0.75rem;padding:1.25rem 1.5rem;margin-bottom:1.5rem;display:flex;gap:1rem;align-items:flex-start;">
+    <svg style="width:1.5rem;height:1.5rem;color:#1a56db;flex-shrink:0;margin-top:0.125rem;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+    </svg>
+    <div>
+      <div style="font-size:0.9375rem;font-weight:700;color:#1e3a8a;margin-bottom:0.25rem;">Upload-Link senden</div>
+      <div style="font-size:0.875rem;color:#1e40af;line-height:1.5;">
+        Empfänger erhalten einen sicheren Link, über den sie Dateien zu Ihnen hochladen können — ganz ohne Login.
+        Die Dateien landen direkt im Cloud-Speicher Ihrer Organisation.
+      </div>
+    </div>
+  </div>
+
+  <!-- Formular -->
+  <div class="card">
+    <form id="uploadReqForm">
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+        <div>
+          <label class="form-label" for="urEmail">E-Mail Empfänger *</label>
+          <input type="email" id="urEmail" class="form-input" placeholder="empfaenger@beispiel.de" required />
+        </div>
+        <div>
+          <label class="form-label" for="urName">Name (optional)</label>
+          <input type="text" id="urName" class="form-input" placeholder="Max Mustermann" />
+        </div>
+      </div>
+
+      <div style="margin-bottom:1rem;">
+        <label class="form-label" for="urMessage">Nachricht an Empfänger (optional)</label>
+        <textarea id="urMessage" class="form-input" rows="3"
+                  placeholder="Bitte laden Sie die angeforderten Dokumente hoch…"
+                  style="resize:vertical;"></textarea>
+      </div>
+
+      <div style="margin-bottom:1.5rem;">
+        <label class="form-label" for="urDays">Link gültig für</label>
+        <select id="urDays" class="form-input" style="max-width:14rem;">
+          <option value="7">7 Tage</option>
+          <option value="14" selected>14 Tage</option>
+          <option value="30">30 Tage</option>
+        </select>
+      </div>
+
+      <button type="submit" id="urSubmitBtn" class="btn-primary" style="width:100%;padding:0.75rem;font-size:0.9375rem;">
+        <span id="urBtnContent" style="display:flex;align-items:center;justify-content:center;gap:0.5rem;">
+          <svg style="width:1.125rem;height:1.125rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+          </svg>
+          Upload-Link senden
+        </span>
+      </button>
+    </form>
+  </div>
+
+  <!-- Erfolgs-Panel -->
+  <div id="urResultPanel" style="display:none;" class="card">
+    <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;">
+      <div style="background:#dcfce7;border-radius:50%;padding:0.625rem;">
+        <svg style="width:1.25rem;height:1.25rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+        </svg>
+      </div>
+      <div>
+        <div style="font-size:1rem;font-weight:700;color:#166534;">Upload-Link gesendet!</div>
+        <div style="font-size:0.8125rem;color:#4ade80;" id="urResultEmail"></div>
+      </div>
+    </div>
+    <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:0.5rem;padding:1rem;font-size:0.875rem;color:#166534;line-height:1.6;">
+      Der Empfänger erhält eine E-Mail mit einem sicheren Upload-Link. Die hochgeladenen Dateien erscheinen automatisch in Ihrem Cloud-Speicher.
+    </div>
+    <button onclick="urReset()" class="btn-secondary" style="width:100%;margin-top:1rem;">Weiteren Link senden</button>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.getElementById('uploadReqForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const email = document.getElementById('urEmail').value.trim();
+    if (!email) { showToast('Bitte E-Mail-Adresse eingeben', 'error'); return; }
+
+    const btn = document.getElementById('urSubmitBtn');
+    btn.disabled = true;
+    document.getElementById('urBtnContent').innerHTML =
+      '<svg style="width:1rem;height:1rem;animation:spin 1s linear infinite" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" fill="currentColor"/></svg> Senden…';
+
+    try {
+      const res = await apiFetch('/requests/upload', {
+        method: 'POST',
+        body: JSON.stringify({
+          recipient_email: email,
+          recipient_name: document.getElementById('urName').value.trim() || null,
+          message: document.getElementById('urMessage').value.trim() || null,
+          days: parseInt(document.getElementById('urDays').value, 10),
+        }),
+      });
+      if (res.ok) {
+        document.getElementById('uploadReqForm').style.display = 'none';
+        document.getElementById('urResultPanel').style.display = 'block';
+        document.getElementById('urResultEmail').textContent = email;
+        showToast('Upload-Link gesendet', 'success');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.detail || 'Fehler beim Senden', 'error');
+      }
+    } catch (e) {
+      showToast('Netzwerkfehler', 'error');
+    } finally {
+      btn.disabled = false;
+      document.getElementById('urBtnContent').innerHTML =
+        '<svg style="width:1.125rem;height:1.125rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg> Upload-Link senden';
+    }
+  });
+
+  function urReset() {
+    document.getElementById('uploadReqForm').reset();
+    document.getElementById('uploadReqForm').style.display = 'block';
+    document.getElementById('urResultPanel').style.display = 'none';
+  }
+</script>
+<style>
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}
