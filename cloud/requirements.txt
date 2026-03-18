@@ -11,6 +11,8 @@ python-jose[cryptography]>=3.3
 bcrypt>=4.0
 python-multipart
 httpx
+requests>=2.31
+msal>=1.28
 pyzipper
 pyotp>=2.9
 slowapi>=0.1.9
