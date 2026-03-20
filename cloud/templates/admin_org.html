@@ -645,6 +645,21 @@
     providers.forEach(p => checkProviderStatus(p.id));
   }
 
+  // Provider-Darstellungs-Hilfsfunktionen (ausgelagert um doppelte-Klammer-Konflikte zu vermeiden)
+  const _PROV_COLORS = {nextcloud:'#e0f2fe',onedrive:'#ede9fe',dropbox:'#dbeafe',hidrive:'#dcfce7',synology:'#fef3c7'};
+  const _PROV_LABELS = {nextcloud:'Nextcloud',onedrive:'OneDrive',dropbox:'Dropbox',hidrive:'HiDrive (Strato)',synology:'Synology Drive'};
+  const _PROV_ICONS  = {
+    nextcloud: '<svg style="width:1.25rem;height:1.25rem;color:#0369a1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
+    onedrive:  '<svg style="width:1.25rem;height:1.25rem;color:#7c3aed" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
+    dropbox:   '<svg style="width:1.25rem;height:1.25rem;color:#2563eb" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>',
+    hidrive:   '<svg style="width:1.25rem;height:1.25rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>',
+    synology:  '<svg style="width:1.25rem;height:1.25rem;color:#d97706" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>',
+  };
+  const _ICON_DEFAULT = '<svg style="width:1.25rem;height:1.25rem;color:#64748b" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>';
+  function _provColor(svc) { return _PROV_COLORS[svc] || '#f1f5f9'; }
+  function _provLabel(svc) { return _PROV_LABELS[svc] || svc; }
+  function _provIcon(svc)  { return _PROV_ICONS[svc]  || _ICON_DEFAULT; }
+
   function renderProviders(providers) {
     if (!providers.length) {
       document.getElementById('providerCards').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:#94a3b8;"><p>Kein Cloud-Anbieter konfiguriert.</p><p style="font-size:0.8125rem;margin-top:0.25rem;">Fügen Sie Nextcloud, OneDrive, Dropbox, HiDrive oder Synology Drive hinzu.</p></div>';
@@ -654,18 +669,12 @@
       <div class="card" style="position:relative;">
         ${p.is_default ? '<div style="position:absolute;top:0.75rem;right:0.75rem;background:#fef3c7;color:#92400e;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">Standard</div>' : ''}
         <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
-          <div style="background:${{'nextcloud':'#e0f2fe','onedrive':'#ede9fe','dropbox':'#dbeafe','hidrive':'#dcfce7','synology':'#fef3c7'}[p.service]||'#f1f5f9'};border-radius:0.5rem;padding:0.625rem;">
-            ${{
-              nextcloud: '<svg style="width:1.25rem;height:1.25rem;color:#0369a1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
-              onedrive:  '<svg style="width:1.25rem;height:1.25rem;color:#7c3aed" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
-              dropbox:   '<svg style="width:1.25rem;height:1.25rem;color:#2563eb" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>',
-              hidrive:   '<svg style="width:1.25rem;height:1.25rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>',
-              synology:  '<svg style="width:1.25rem;height:1.25rem;color:#d97706" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>',
-            }[p.service] || '<svg style="width:1.25rem;height:1.25rem;color:#64748b" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>'}
+          <div style="background:${_provColor(p.service)};border-radius:0.5rem;padding:0.625rem;">
+            ${_provIcon(p.service)}
           </div>
           <div>
             <div style="font-size:0.9375rem;font-weight:700;color:#1e293b;">${esc(p.name)}</div>
-            <div style="font-size:0.8125rem;color:#64748b;">${{'nextcloud':'Nextcloud','onedrive':'OneDrive','dropbox':'Dropbox','hidrive':'HiDrive (Strato)','synology':'Synology Drive'}[p.service]||esc(p.service)}</div>
+            <div style="font-size:0.8125rem;color:#64748b;">${_provLabel(p.service)}</div>
           </div>
         </div>
         <!-- Status-Panel -->

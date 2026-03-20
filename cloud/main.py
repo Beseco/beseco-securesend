@@ -85,13 +85,15 @@ async def _run_migrations(conn) -> None:
 
     migrations: list[tuple[str, str, str]] = [
         # (table, column, ALTER TABLE statement)
-        ("users",   "first_name",      "ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)"),
-        ("users",   "last_name",       "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)"),
-        ("history", "tracking_token",  "ALTER TABLE history ADD COLUMN IF NOT EXISTS tracking_token VARCHAR(32)"),
-        ("history", "opened_at",       "ALTER TABLE history ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP"),
-        ("history", "link_clicked_at", "ALTER TABLE history ADD COLUMN IF NOT EXISTS link_clicked_at TIMESTAMP"),
-        ("users",   "totp_secret",     "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64)"),
-        ("users",   "totp_enabled",    "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE"),
+        ("users",         "first_name",      "ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)"),
+        ("users",         "last_name",       "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)"),
+        ("history",       "tracking_token",  "ALTER TABLE history ADD COLUMN IF NOT EXISTS tracking_token VARCHAR(32)"),
+        ("history",       "opened_at",       "ALTER TABLE history ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP"),
+        ("history",       "link_clicked_at", "ALTER TABLE history ADD COLUMN IF NOT EXISTS link_clicked_at TIMESTAMP"),
+        ("users",         "totp_secret",     "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64)"),
+        ("users",         "totp_enabled",    "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE"),
+        ("resellers",     "settings_json",   "ALTER TABLE resellers ADD COLUMN IF NOT EXISTS settings_json JSONB"),
+        ("organizations", "settings_json",   "ALTER TABLE organizations ADD COLUMN IF NOT EXISTS settings_json JSONB"),
     ]
 
     if is_postgres:
@@ -112,8 +114,8 @@ async def _run_migrations(conn) -> None:
         for table, column, sql in migrations:
             existing = await _get_cols_sqlite(table)
             if column not in existing:
-                # SQLite-Syntax: ohne IF NOT EXISTS
-                sql_sqlite = sql.replace(" IF NOT EXISTS", "")
+                # SQLite-Syntax: ohne IF NOT EXISTS, JSONB → JSON (SQLite kennt kein JSONB)
+                sql_sqlite = sql.replace(" IF NOT EXISTS", "").replace(" JSONB", " JSON")
                 await conn.execute(text(sql_sqlite))
                 table_cols.pop(table, None)
                 log.info("Migration (SQLite) OK: %s", sql_sqlite)
