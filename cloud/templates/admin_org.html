@@ -333,7 +333,10 @@
           <label class="form-label">Dienst</label>
           <select id="pService" class="form-input" onchange="updateProviderFields()">
             <option value="nextcloud">Nextcloud</option>
-            <option value="onedrive">OneDrive</option>
+            <option value="onedrive">OneDrive (Microsoft 365)</option>
+            <option value="dropbox">Dropbox</option>
+            <option value="hidrive">HiDrive (Strato)</option>
+            <option value="synology">Synology Drive</option>
           </select>
         </div>
       </div>
@@ -378,6 +381,85 @@
           <div>
             <label class="form-label">Refresh Token</label>
             <input type="password" id="pOdRefreshToken" class="form-input" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Dropbox fields -->
+      <div id="dropboxFields" style="display:none;">
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#1e40af;">
+          <strong>Hinweis:</strong> App-Key und App-Secret aus dem <a href="https://www.dropbox.com/developers/apps" target="_blank" style="color:#1a56db;">Dropbox App Console</a>. Refresh-Token via OAuth2-Flow generieren.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
+          <div>
+            <label class="form-label">App-Key</label>
+            <input type="text" id="pDbAppKey" class="form-input" placeholder="xxxxxxxxxxxx" />
+          </div>
+          <div>
+            <label class="form-label">App-Secret</label>
+            <input type="password" id="pDbAppSecret" class="form-input" />
+          </div>
+        </div>
+        <div style="margin-bottom:0.875rem;">
+          <label class="form-label">Refresh-Token</label>
+          <input type="password" id="pDbRefreshToken" class="form-input" placeholder="sl.xxxxxx…" />
+        </div>
+        <div style="margin-bottom:0.875rem;">
+          <label class="form-label">Upload-Ordner</label>
+          <input type="text" id="pDbFolder" class="form-input" placeholder="/SecureSend" value="/SecureSend" />
+        </div>
+      </div>
+
+      <!-- HiDrive fields -->
+      <div id="hidriveFields" style="display:none;">
+        <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#166534;">
+          <strong>HiDrive (Strato):</strong> Benutzername und Passwort Ihres Strato HiDrive-Kontos.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
+          <div>
+            <label class="form-label">Benutzername</label>
+            <input type="text" id="pHdUsername" class="form-input" placeholder="mein-hidrive-user" />
+          </div>
+          <div>
+            <label class="form-label">Passwort</label>
+            <input type="password" id="pHdPassword" class="form-input" />
+          </div>
+        </div>
+        <div style="margin-bottom:0.875rem;">
+          <label class="form-label">Upload-Ordner</label>
+          <input type="text" id="pHdFolder" class="form-input" placeholder="SecureSend" value="SecureSend" />
+        </div>
+      </div>
+
+      <!-- Synology Drive fields -->
+      <div id="synologyFields" style="display:none;">
+        <div style="background:#fefce8;border:1px solid #fde68a;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#92400e;">
+          <strong>Synology Drive:</strong> URL Ihrer Synology-NAS (z.B. https://nas.example.com:5001). WebDAV und FileStation müssen aktiviert sein.
+        </div>
+        <div style="margin-bottom:0.875rem;">
+          <label class="form-label">NAS-URL</label>
+          <input type="url" id="pSyUrl" class="form-input" placeholder="https://nas.example.com:5001" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
+          <div>
+            <label class="form-label">Benutzername</label>
+            <input type="text" id="pSyUsername" class="form-input" />
+          </div>
+          <div>
+            <label class="form-label">Passwort</label>
+            <input type="password" id="pSyPassword" class="form-input" />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
+          <div>
+            <label class="form-label">Upload-Ordner</label>
+            <input type="text" id="pSyFolder" class="form-input" placeholder="SecureSend" value="SecureSend" />
+          </div>
+          <div style="display:flex;align-items:flex-end;padding-bottom:0.1rem;">
+            <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem;font-weight:500;color:#374151;cursor:pointer;">
+              <input type="checkbox" id="pSyVerifySSL" checked style="accent-color:#1a56db;width:1rem;height:1rem;" />
+              SSL-Zertifikat prüfen
+            </label>
           </div>
         </div>
       </div>
@@ -565,21 +647,25 @@
 
   function renderProviders(providers) {
     if (!providers.length) {
-      document.getElementById('providerCards').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:#94a3b8;"><p>Kein Cloud-Anbieter konfiguriert.</p><p style="font-size:0.8125rem;margin-top:0.25rem;">Fügen Sie einen Nextcloud- oder OneDrive-Anbieter hinzu.</p></div>';
+      document.getElementById('providerCards').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:#94a3b8;"><p>Kein Cloud-Anbieter konfiguriert.</p><p style="font-size:0.8125rem;margin-top:0.25rem;">Fügen Sie Nextcloud, OneDrive, Dropbox, HiDrive oder Synology Drive hinzu.</p></div>';
       return;
     }
     document.getElementById('providerCards').innerHTML = providers.map(p => `
       <div class="card" style="position:relative;">
         ${p.is_default ? '<div style="position:absolute;top:0.75rem;right:0.75rem;background:#fef3c7;color:#92400e;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">Standard</div>' : ''}
         <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
-          <div style="background:${p.service === 'nextcloud' ? '#e0f2fe' : '#ede9fe'};border-radius:0.5rem;padding:0.625rem;">
-            ${p.service === 'nextcloud'
-              ? '<svg style="width:1.25rem;height:1.25rem;color:#0369a1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>'
-              : '<svg style="width:1.25rem;height:1.25rem;color:#7c3aed" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>'}
+          <div style="background:${{'nextcloud':'#e0f2fe','onedrive':'#ede9fe','dropbox':'#dbeafe','hidrive':'#dcfce7','synology':'#fef3c7'}[p.service]||'#f1f5f9'};border-radius:0.5rem;padding:0.625rem;">
+            ${{
+              nextcloud: '<svg style="width:1.25rem;height:1.25rem;color:#0369a1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
+              onedrive:  '<svg style="width:1.25rem;height:1.25rem;color:#7c3aed" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
+              dropbox:   '<svg style="width:1.25rem;height:1.25rem;color:#2563eb" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>',
+              hidrive:   '<svg style="width:1.25rem;height:1.25rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>',
+              synology:  '<svg style="width:1.25rem;height:1.25rem;color:#d97706" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>',
+            }[p.service] || '<svg style="width:1.25rem;height:1.25rem;color:#64748b" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>'}
           </div>
           <div>
             <div style="font-size:0.9375rem;font-weight:700;color:#1e293b;">${esc(p.name)}</div>
-            <div style="font-size:0.8125rem;color:#64748b;">${esc(p.service)}</div>
+            <div style="font-size:0.8125rem;color:#64748b;">${{'nextcloud':'Nextcloud','onedrive':'OneDrive','dropbox':'Dropbox','hidrive':'HiDrive (Strato)','synology':'Synology Drive'}[p.service]||esc(p.service)}</div>
           </div>
         </div>
         <!-- Status-Panel -->
@@ -653,7 +739,10 @@
   function updateProviderFields() {
     const svc = document.getElementById('pService').value;
     document.getElementById('nextcloudFields').style.display = svc === 'nextcloud' ? 'block' : 'none';
-    document.getElementById('onedriveFields').style.display = svc === 'onedrive' ? 'block' : 'none';
+    document.getElementById('onedriveFields').style.display  = svc === 'onedrive'  ? 'block' : 'none';
+    document.getElementById('dropboxFields').style.display   = svc === 'dropbox'   ? 'block' : 'none';
+    document.getElementById('hidriveFields').style.display   = svc === 'hidrive'   ? 'block' : 'none';
+    document.getElementById('synologyFields').style.display  = svc === 'synology'  ? 'block' : 'none';
   }
 
   function openProviderModal(provider = null) {
@@ -663,14 +752,31 @@
     document.getElementById('pDefault').checked = provider ? provider.is_default : false;
     document.getElementById('pActive').checked = provider ? provider.is_active : true;
     const cfg = provider ? (provider.config_json || {}) : {};
+    // Nextcloud
     document.getElementById('pNcUrl').value = cfg.url || '';
     document.getElementById('pNcUser').value = cfg.user || cfg.username || '';
     document.getElementById('pNcPassword').value = cfg.password || '';
     document.getElementById('pNcFolder').value = cfg.folder || '/SecureSend';
+    // OneDrive
     document.getElementById('pOdClientId').value = cfg.client_id || '';
     document.getElementById('pOdClientSecret').value = cfg.client_secret || '';
     document.getElementById('pOdTenantId').value = cfg.tenant_id || '';
     document.getElementById('pOdRefreshToken').value = cfg.refresh_token || '';
+    // Dropbox
+    document.getElementById('pDbAppKey').value = cfg.app_key || '';
+    document.getElementById('pDbAppSecret').value = cfg.app_secret || '';
+    document.getElementById('pDbRefreshToken').value = cfg.refresh_token || '';
+    document.getElementById('pDbFolder').value = cfg.folder || '/SecureSend';
+    // HiDrive
+    document.getElementById('pHdUsername').value = cfg.username || cfg.user || '';
+    document.getElementById('pHdPassword').value = cfg.password || '';
+    document.getElementById('pHdFolder').value = cfg.folder || 'SecureSend';
+    // Synology
+    document.getElementById('pSyUrl').value = cfg.url || '';
+    document.getElementById('pSyUsername').value = cfg.username || cfg.user || '';
+    document.getElementById('pSyPassword').value = cfg.password || '';
+    document.getElementById('pSyFolder').value = cfg.folder || 'SecureSend';
+    document.getElementById('pSyVerifySSL').checked = cfg.verify_ssl !== false;
     document.getElementById('providerModalTitle').textContent = provider ? 'Anbieter bearbeiten' : 'Anbieter hinzufügen';
     updateProviderFields();
     openModal('providerModal');
@@ -685,8 +791,14 @@
     let config = {};
     if (svc === 'nextcloud') {
       config = { url: document.getElementById('pNcUrl').value, user: document.getElementById('pNcUser').value, password: document.getElementById('pNcPassword').value, folder: document.getElementById('pNcFolder').value };
-    } else {
+    } else if (svc === 'onedrive') {
       config = { client_id: document.getElementById('pOdClientId').value, client_secret: document.getElementById('pOdClientSecret').value, tenant_id: document.getElementById('pOdTenantId').value, refresh_token: document.getElementById('pOdRefreshToken').value };
+    } else if (svc === 'dropbox') {
+      config = { app_key: document.getElementById('pDbAppKey').value, app_secret: document.getElementById('pDbAppSecret').value, refresh_token: document.getElementById('pDbRefreshToken').value, folder: document.getElementById('pDbFolder').value };
+    } else if (svc === 'hidrive') {
+      config = { username: document.getElementById('pHdUsername').value, password: document.getElementById('pHdPassword').value, folder: document.getElementById('pHdFolder').value };
+    } else if (svc === 'synology') {
+      config = { url: document.getElementById('pSyUrl').value, username: document.getElementById('pSyUsername').value, password: document.getElementById('pSyPassword').value, folder: document.getElementById('pSyFolder').value, verify_ssl: document.getElementById('pSyVerifySSL').checked };
     }
     const body = { name: document.getElementById('pName').value, service: svc, config_json: config, is_default: document.getElementById('pDefault').checked, is_active: document.getElementById('pActive').checked };
     const btn = document.getElementById('saveProviderBtn');
