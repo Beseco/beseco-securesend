@@ -75,19 +75,38 @@ limiter = Limiter(key_func=get_remote_address)
 
 
 async def _run_migrations(conn) -> None:
-    """Lightweight inline migrations for new columns (idempotent via IF NOT EXISTS)."""
-    migrations = [
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)",
-        "ALTER TABLE history ADD COLUMN IF NOT EXISTS tracking_token VARCHAR(32)",
-        "ALTER TABLE history ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP",
-        "ALTER TABLE history ADD COLUMN IF NOT EXISTS link_clicked_at TIMESTAMP",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64)",
-        "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE",
+    """Lightweight inline migrations for new columns (idempotent — skips existing columns)."""
+    # SQLite does not support IF NOT EXISTS in ALTER TABLE.
+    # We check existing columns per table before adding.
+    migrations: list[tuple[str, str, str]] = [
+        # (table, column, ALTER TABLE statement)
+        ("users",   "first_name",       "ALTER TABLE users ADD COLUMN first_name VARCHAR(100)"),
+        ("users",   "last_name",        "ALTER TABLE users ADD COLUMN last_name VARCHAR(100)"),
+        ("history", "tracking_token",   "ALTER TABLE history ADD COLUMN tracking_token VARCHAR(32)"),
+        ("history", "opened_at",        "ALTER TABLE history ADD COLUMN opened_at TIMESTAMP"),
+        ("history", "link_clicked_at",  "ALTER TABLE history ADD COLUMN link_clicked_at TIMESTAMP"),
+        ("users",   "totp_secret",      "ALTER TABLE users ADD COLUMN totp_secret VARCHAR(64)"),
+        ("users",   "totp_enabled",     "ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN DEFAULT FALSE"),
     ]
-    for sql in migrations:
-        await conn.execute(text(sql))
-        log.info("Migration OK: %s", sql)
+
+    # Cache existing columns per table
+    table_cols: dict[str, set[str]] = {}
+
+    async def _get_cols(table: str) -> set[str]:
+        if table not in table_cols:
+            result = await conn.execute(text(f"PRAGMA table_info({table})"))
+            table_cols[table] = {row[1] for row in result.fetchall()}
+        return table_cols[table]
+
+    for table, column, sql in migrations:
+        existing = await _get_cols(table)
+        if column not in existing:
+            await conn.execute(text(sql))
+            # Invalidate cache for this table
+            table_cols.pop(table, None)
+            log.info("Migration OK: %s", sql)
+        else:
+            log.debug("Migration skipped (column exists): %s.%s", table, column)
 
 
 @asynccontextmanager

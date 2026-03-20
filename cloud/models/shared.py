@@ -231,6 +231,29 @@ class EmailVerification(Base):
         return f"<EmailVerification user_id={self.user_id!r}>"
 
 
+class PasswordReset(Base):
+    """Password-Reset-Token für 'Passwort vergessen'-Funktion."""
+
+    __tablename__ = "password_resets"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    user: Mapped["User"] = relationship("User")  # noqa: F821
+
+    def __repr__(self) -> str:
+        return f"<PasswordReset user_id={self.user_id!r}>"
+
+
 class PhoneRequest(Base):
     """Request to a contact to submit their mobile phone number."""
 

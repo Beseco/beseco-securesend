@@ -241,6 +241,124 @@ async def twofa_disable(
     return {"enabled": False}
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+@router.post("/forgot-password", status_code=202)
+async def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Sendet einen Passwort-Reset-Link an die angegebene E-Mail-Adresse.
+    Gibt immer 202 zurück (um User-Enumeration zu verhindern)."""
+    import asyncio
+    import secrets as _secrets
+    from datetime import datetime, timedelta
+    from models.shared import PasswordReset
+    from models.organization import Organization
+    from models.reseller import Reseller
+
+    result = await db.execute(
+        select(User)
+        .options(selectinload(User.organization))
+        .where(User.email == body.email.lower().strip())
+    )
+    user = result.scalar_one_or_none()
+
+    if user and user.is_active and user.org_id:
+        # Token erstellen (alte löschen)
+        from sqlalchemy import delete
+        await db.execute(delete(PasswordReset).where(PasswordReset.user_id == user.id))
+
+        token = _secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(hours=2)
+        reset = PasswordReset(user_id=user.id, token=token, expires_at=expires_at)
+        db.add(reset)
+        await db.commit()
+
+        # SMTP-Config laden (Org → Reseller fallback)
+        org_result = await db.execute(select(Organization).where(Organization.id == user.org_id))
+        org = org_result.scalar_one_or_none()
+        smtp_cfg = None
+        if org:
+            smtp_cfg = (org.settings_json or {}).get("smtp")
+            if not smtp_cfg:
+                res = await db.execute(select(Reseller).where(Reseller.id == org.reseller_id))
+                reseller = res.scalar_one_or_none()
+                if reseller and reseller.settings_json:
+                    smtp_cfg = reseller.settings_json.get("smtp")
+
+        if smtp_cfg:
+            try:
+                from core.email import send_email  # type: ignore[import]
+                from config import settings as _settings
+                base = getattr(_settings, "PUBLIC_BASE_URL", "").rstrip("/") or str(request.base_url).rstrip("/")
+                reset_url = f"{base}/ui/reset-password?token={token}"
+                org_name = org.name if org else "SecureSend"
+                html_body = (
+                    f"<p>Hallo,</p>"
+                    f"<p>Sie haben eine Passwort-Zurücksetzen-Anfrage für Ihr Konto bei "
+                    f"<strong>{org_name} – SecureSend Cloud</strong> gestellt.</p>"
+                    f"<p><a href='{reset_url}' style='color:#1a56db;font-weight:bold;'>"
+                    f"Passwort zurücksetzen</a></p>"
+                    f"<p style='color:#64748b;font-size:0.85em;'>Dieser Link ist 2 Stunden gültig. "
+                    f"Falls Sie diese Anfrage nicht gestellt haben, können Sie diese E-Mail ignorieren.</p>"
+                )
+                await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: send_email(smtp_cfg, body.email, f"Passwort zurücksetzen – {org_name}", html_body),
+                )
+            except Exception as exc:
+                _sec_log.warning("Password-Reset-E-Mail fehlgeschlagen für %s: %s", body.email, exc)
+
+    return {"detail": "Falls die E-Mail-Adresse registriert ist, erhalten Sie in Kürze eine E-Mail."}
+
+
+@router.post("/reset-password", status_code=204)
+async def reset_password(
+    body: ResetPasswordRequest,
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Setzt das Passwort anhand eines gültigen Reset-Tokens zurück."""
+    from datetime import datetime
+    from models.shared import PasswordReset
+
+    if len(body.new_password) < 8:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Neues Passwort muss mindestens 8 Zeichen haben",
+        )
+
+    result = await db.execute(
+        select(PasswordReset).where(PasswordReset.token == body.token)
+    )
+    reset = result.scalar_one_or_none()
+
+    if not reset:
+        raise HTTPException(status_code=400, detail="Ungültiger oder bereits verwendeter Reset-Link")
+
+    if reset.expires_at < datetime.utcnow():
+        await db.delete(reset)
+        await db.commit()
+        raise HTTPException(status_code=410, detail="Dieser Reset-Link ist abgelaufen")
+
+    user_result = await db.execute(select(User).where(User.id == reset.user_id))
+    user = user_result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=400, detail="Benutzer nicht gefunden")
+
+    user.password_hash = hash_password(body.new_password)
+    await db.delete(reset)
+    await db.commit()
+
+
 @router.get("/me", response_model=MeResponse)
 async def me(current_user: User = Depends(get_current_user)) -> MeResponse:
     """Return the authenticated user's profile."""

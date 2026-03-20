@@ -1,5 +1,6 @@
 """
 cloud/routers/admin_org.py — Organisation admin endpoints (org_admin+).
+# Fixes: first_name/last_name gespeichert, Welcome-E-Mail beim Anlegen
 
 Users:
   GET    /admin/org/users          → list users in org
@@ -106,6 +107,8 @@ async def create_org_user(
     user = User(
         org_id=org_id,
         email=body.email,
+        first_name=body.first_name,
+        last_name=body.last_name,
         password_hash=hash_password(body.password),
         role=body.role,
         is_active=body.is_active,
@@ -113,6 +116,45 @@ async def create_org_user(
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
+    # Welcome-E-Mail senden (wenn SMTP konfiguriert)
+    try:
+        import asyncio
+        from core.email import send_email  # type: ignore[import]
+        from models.organization import Organization
+        from models.reseller import Reseller
+
+        org_result = await db.execute(select(Organization).where(Organization.id == org_id))
+        org = org_result.scalar_one_or_none()
+        if org:
+            smtp_cfg = (org.settings_json or {}).get("smtp")
+            if not smtp_cfg:
+                res = await db.execute(select(Reseller).where(Reseller.id == org.reseller_id))
+                reseller = res.scalar_one_or_none()
+                if reseller and reseller.settings_json:
+                    smtp_cfg = reseller.settings_json.get("smtp")
+            if smtp_cfg:
+                display_name = ""
+                if body.first_name or body.last_name:
+                    display_name = f"{body.first_name or ''} {body.last_name or ''}".strip()
+                greeting = f"Hallo {display_name}," if display_name else "Hallo,"
+                html_body = (
+                    f"<p>{greeting}</p>"
+                    f"<p>Ihr Konto bei <strong>{org.name} – SecureSend Cloud</strong> wurde erstellt.</p>"
+                    f"<p><strong>E-Mail:</strong> {body.email}<br/>"
+                    f"<strong>Passwort:</strong> {body.password}</p>"
+                    f"<p>Bitte melden Sie sich unter <a href='https://securesend.io/ui/login'>SecureSend Cloud</a> an "
+                    f"und ändern Sie Ihr Passwort nach dem ersten Login.</p>"
+                    f"<p style='color:#64748b;font-size:0.85em;'>SecureSend Cloud – Sicheres Senden</p>"
+                )
+                await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: send_email(smtp_cfg, body.email, f"Ihr neues Konto – {org.name} SecureSend", html_body),
+                )
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("Welcome-E-Mail fehlgeschlagen für %s: %s", body.email, exc)
+
     return UserRead.model_validate(user)
 
 
@@ -134,6 +176,10 @@ async def update_org_user(
 
     if body.email is not None:
         user.email = body.email
+    if body.first_name is not None:
+        user.first_name = body.first_name
+    if body.last_name is not None:
+        user.last_name = body.last_name
     if body.password is not None:
         user.password_hash = hash_password(body.password)
     if body.role is not None:

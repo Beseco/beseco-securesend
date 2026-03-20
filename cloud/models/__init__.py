@@ -13,6 +13,7 @@ from models.shared import (
     MsgTemplate,
     EmailTemplate,
     EmailVerification,
+    PasswordReset,
     PhoneRequest,
     UploadRequest,
 )
@@ -29,6 +30,7 @@ __all__ = [
     "MsgTemplate",
     "EmailTemplate",
     "EmailVerification",
+    "PasswordReset",
     "PhoneRequest",
     "UploadRequest",
 ]

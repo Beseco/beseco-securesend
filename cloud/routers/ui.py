@@ -667,6 +667,38 @@ async def verify_email_page(
     return templates.TemplateResponse("verify_email.html", ctx)
 
 
+# ── Passwort vergessen ────────────────────────────────────────────────────────
+
+@router.get("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_page(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "forgot_password.html",
+        {"request": request, "current_year": datetime.now().year, "success": False, "error": None},
+    )
+
+
+@router.get("/reset-password", response_class=HTMLResponse)
+async def reset_password_page(
+    request: Request,
+    token: str = "",
+    db: AsyncSession = Depends(get_db),
+) -> HTMLResponse:
+    from models.shared import PasswordReset
+    ctx: dict = {"request": request, "current_year": datetime.now().year, "token": token, "error": None, "success": False}
+    if token:
+        result = await db.execute(select(PasswordReset).where(PasswordReset.token == token))
+        reset = result.scalar_one_or_none()
+        if not reset or reset.expires_at < datetime.utcnow():
+            ctx["error"] = "Dieser Reset-Link ist ungültig oder abgelaufen."
+            ctx["token"] = ""
+    else:
+        ctx["error"] = "Kein Reset-Token angegeben."
+    return templates.TemplateResponse("reset_password.html", ctx)
+
+
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 @router.get("/", response_class=HTMLResponse)
