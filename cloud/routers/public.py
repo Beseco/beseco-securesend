@@ -49,10 +49,10 @@ _BLOCKED_EXTENSIONS: frozenset[str] = frozenset({
     ".cpl", ".inf", ".ins", ".isp", ".msc", ".mst", ".application",
 })
 
-_ALPHABET = string.ascii_letters + string.digits
+_ALPHABET = string.ascii_letters + string.digits + "!@#$%&*"
 
 
-def _random_password(length: int = 8) -> str:
+def _random_password(length: int = 12) -> str:
     return "".join(secrets.choice(_ALPHABET) for _ in range(length))
 
 
@@ -356,7 +356,7 @@ async def upload_submit(
 
     # Upload to cloud storage
     folder_path = f"upload-requests/{upload_req.id}"
-    password = _random_password(8)
+    password = _random_password()
     days_remaining = max(1, (upload_req.expires_at - now).days)
 
     cfg = dict(provider.config_json)
