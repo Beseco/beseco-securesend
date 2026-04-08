@@ -112,12 +112,14 @@
       </div>
 
       <!-- ── Empfänger ────────────────────────────────────────────────────── -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0.5rem;">
+      <div class="form-grid">
         <div>
           <label class="form-label" for="to_email">E-Mail Empfänger</label>
-          <input type="email" id="to_email" name="to_email" class="form-input"
-                 placeholder="empfaenger@beispiel.de" oninput="checkPhoneWarning()" />
+          <input type="text" id="to_email" name="to_email" class="form-input"
+                 placeholder="empfaenger@beispiel.de (mehrere mit Komma)" oninput="checkPhoneWarning()" />
+          <span style="font-size:0.7rem;color:#94a3b8;">Mehrere mit Komma trennen</span>
         </div>
+        <div id="additionalEmails" style="display:flex;flex-direction:column;gap:0.25rem;"></div>
         <div>
           <label class="form-label" for="to_phone">
             Mobilnummer
@@ -638,6 +640,19 @@
     const level  = document.querySelector('input[name="security_level"]:checked')?.value || 'secure';
     const warn   = document.getElementById('noPhoneWarning');
     warn.style.display = (email && !phone && level !== 'normal') ? 'flex' : 'none';
+  }
+
+  function addRecipientField() {
+    const div = document.createElement('div');
+    div.innerHTML = `<input type="email" class="form-input additional-email" placeholder="weiterer@empfaenger.de" style="margin-bottom:0.25rem;">`;
+    document.getElementById('additionalEmails').appendChild(div);
+  }
+
+  function getAdditionalEmails() {
+    const inputs = document.querySelectorAll('.additional-email');
+    const emails = [];
+    inputs.forEach(inp => { if (inp.value.trim()) emails.push(inp.value.trim()); });
+    return emails;
   }
 
   async function requestPhoneFromSendPage() {

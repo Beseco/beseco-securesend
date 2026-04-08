@@ -129,7 +129,7 @@ async def setup_submit(
         return _err("Bitte Vor- und Nachname eingeben.")
     if "@" not in email:
         return _err("Ungültige E-Mail-Adresse.")
-    if len(password) < 8:
+    if len(password) < 12:
         return _err("Passwort muss mindestens 8 Zeichen haben.")
     if password != password2:
         return _err("Die Passwörter stimmen nicht überein.")
@@ -927,6 +927,10 @@ async def history_api(
                 "last_downloaded_at": h.last_downloaded_at.isoformat()
                 if h.last_downloaded_at
                 else None,
+                "is_revoked": h.is_revoked,
+                "revoked_at": h.revoked_at.isoformat() if h.revoked_at else None,
+                "revoked_by": h.revoked_by,
+                "files_json": h.files_json or [],
             }
             for h in rows
         ]

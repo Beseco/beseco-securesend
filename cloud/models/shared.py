@@ -169,8 +169,31 @@ class History(Base):
     last_downloaded_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True
     )
+    # Revoke functionality
+    is_revoked: Mapped[bool] = mapped_column(nullable=False, default=False)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    revoked_by: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
+    # Guest-Zuordnung (nach Registration)
+    guest_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("guests.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    # Multiple files support
+    files_json: Mapped[Optional[list[dict]]] = mapped_column(JSON, nullable=True)
+    # Access tracking
+    access_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    max_access_count: Mapped[Optional[int]] = mapped_column(nullable=True)
+    password_changed_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
 
     user: Mapped["User"] = relationship("User", back_populates="history")  # noqa: F821
+    guest: Mapped["Optional[Guest]"] = relationship(  # noqa: F821
+        "Guest",
+        primaryjoin="History.guest_id == Guest.id",
+    )
 
     def __repr__(self) -> str:
         return f"<History id={self.id!r} filename={self.filename!r}>"
@@ -401,3 +424,45 @@ class UploadRequest(Base):
 
     def __repr__(self) -> str:
         return f"<UploadRequest id={self.id!r} status={self.status!r}>"
+
+
+class Guest(Base):
+    """Gast-Konto für Empfänger-Portal (nach erstem Login erstellt)."""
+
+    __tablename__ = "guests"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    email: Mapped[str] = mapped_column(
+        String(320), nullable=False, unique=True, index=True
+    )
+    phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    totp_secret: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    totp_enabled: Mapped[bool] = mapped_column(nullable=False, default=False)
+    email_code: Mapped[Optional[str]] = mapped_column(String(6), nullable=True)
+    email_code_expires: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
+    is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    last_login: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    # Zuordnung zu History-Eintrag (für Zugriff)
+    history_id: Mapped[Optional[str]] = mapped_column(
+        String(36),
+        ForeignKey("history.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
+    history: Mapped["Optional[History]"] = relationship(  # noqa: F821
+        "History",
+        primaryjoin="Guest.history_id == History.id",
+    )
+
+    def __repr__(self) -> str:
+        return f"<Guest id={self.id!r} email={self.email!r}>"

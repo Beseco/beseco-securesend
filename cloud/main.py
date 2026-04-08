@@ -48,6 +48,7 @@ from routers.ui import router as ui_router
 from routers.requests_router import router as requests_router
 from routers.public import router as public_router
 from routers.tracking import router as tracking_router
+from routers.guest import router as guest_router
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("securesend")
@@ -129,6 +130,21 @@ async def _run_migrations(conn) -> None:
             "history",
             "last_downloaded_at",
             "ALTER TABLE history ADD COLUMN IF NOT EXISTS last_downloaded_at TIMESTAMP",
+        ),
+        (
+            "history",
+            "is_revoked",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS is_revoked BOOLEAN DEFAULT FALSE",
+        ),
+        (
+            "history",
+            "revoked_at",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMP",
+        ),
+        (
+            "history",
+            "revoked_by",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS revoked_by VARCHAR(36)",
         ),
         (
             "users",
@@ -247,6 +263,7 @@ app.include_router(ui_router)
 app.include_router(requests_router)
 app.include_router(public_router)
 app.include_router(tracking_router)
+app.include_router(guest_router)
 
 
 # ── Root redirect ─────────────────────────────────────────────────────────────

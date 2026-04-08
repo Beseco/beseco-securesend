@@ -19,6 +19,12 @@
       </svg>
       Neu senden
     </a>
+    <button onclick="exportHistoryCSV()" title="Als CSV exportieren" style="display:inline-flex;align-items:center;gap:0.375rem;font-size:0.875rem;text-decoration:none;padding:0.5rem 1rem;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:0.5rem;cursor:pointer;color:#475569;">
+      <svg style="width:0.875rem;height:0.875rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+      </svg>
+      Export
+    </button>
   </div>
 
   <!-- Table -->
@@ -28,7 +34,7 @@
         <tr class="table-header">
           <th style="padding:0.625rem 1.25rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Datum</th>
           <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Empfänger</th>
-          <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Dateiname</th>
+          <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;min-width:120px;">Dateien</th>
           <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Anbieter</th>
           <th style="padding:0.625rem 1rem;text-align:center;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Downloads</th>
           <th style="padding:0.625rem 1rem;text-align:center;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Ablauf</th>
@@ -142,26 +148,44 @@
         ? '<span style="background:#dcfce7;color:#16a34a;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">MinIO</span>'
         : '<span style="background:#ede9fe;color:#7c3aed;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">Cloud</span>';
 
-      return `<tr class="table-row" style="border-top:1px solid #f1f5f9;">
+      const isRevoked = h.is_revoked === true;
+      const rowStyle = isRevoked ? 'background:#fef2f2;opacity:0.7;' : '';
+      const revokeLabel = isRevoked ? '🔴 Zurückgerufen' : '↩️ Zurückrufen';
+      const revokeTitle = isRevoked ? 'Link wurde zurückgerufen' : 'Link zurückrufen';
+
+      return `<tr class="table-row" style="border-top:1px solid #f1f5f9;${rowStyle}">
         <td style="padding:0.75rem 1.25rem;white-space:nowrap;">
-          <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">${dateStr}</div>
+          <div style="font-size:0.875rem;font-weight:600;color:${isRevoked ? '#991b1b' : '#1e293b'};${isRevoked ? 'text-decoration:line-through;' : ''}">${dateStr}</div>
           <div style="font-size:0.75rem;color:#94a3b8;">${timeStr}</div>
+          ${isRevoked ? '<span style="font-size:0.65rem;background:#fee2e2;color:#dc2626;padding:0.1rem 0.375rem;border-radius:9999px;">Zurückgerufen</span>' : ''}
         </td>
         <td style="padding:0.75rem 1rem;font-size:0.875rem;color:#475569;max-width:12rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(recipientDisplay)}</td>
         <td style="padding:0.75rem 1rem;font-size:0.875rem;color:#1e293b;max-width:14rem;">
-          <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(h.filename)}">${esc(h.filename)}</div>
+          <div style="display:flex;flex-direction:column;gap:0.125rem;">
+            ${(h.files_json && h.files_json.length > 0) 
+              ? h.files_json.map(f => `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(f.name)}">${esc(f.name.split('/').pop())}</div>`).join('')
+              : `<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(h.filename)}">${esc(h.filename)}</div>`}
+          </div>
         </td>
         <td style="padding:0.75rem 1rem;">${providerIcon}</td>
         <td style="padding:0.75rem 1rem;text-align:center;">
           <span style="font-size:0.875rem;font-weight:600;color:${downloadCount > 0 ? '#16a34a' : '#94a3b8'};">${downloadCount}</span>
           ${downloadCount > 0 ? `<button onclick="showDownloadLogs('${h.id}')" style="display:block;margin:0.25rem auto 0;font-size:0.7rem;color:#1a56db;background:none;border:none;cursor:pointer;text-decoration:underline;">Details</button>` : ''}
         </td>
-        <td style="padding:0.75rem 1rem;text-align:center;font-size:0.875rem;color:#475569;">${h.expiry_days}d</td>
+        <td style="padding:0.75rem 1rem;text-align:center;font-size:0.875rem;color:#475569;">${h.expiry_days}d <button onclick="extendSend('${h.id}')" title="Verlängern" style="background:none;border:none;cursor:pointer;color:#16a34a;padding:0;color:0.125rem;font-size:0.625rem;">+7T</button></td>
         <td style="padding:0.75rem 1rem;text-align:center;">${secBadge}</td>
-        <td style="padding:0.75rem 1.25rem;text-align:center;">
+        <td style="padding:0.75rem 1.25rem;text-align:center;display:flex;gap:0.25rem;justify-content:center;">
+          <button onclick="copyLink('${h.share_url}')" title="Link kopieren" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:0.25rem;border-radius:0.25rem;" onmouseover="this.style.color='#16a34a'" onmouseout="this.style.color='#94a3b8'">
+            <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2v-2m0 0V5a2 2 0 012-2h2m-4 10v-2m4 2h2m-4 0h.01"/></svg>
+          </button>
           <button onclick="viewHistoryDetail('${h.id}')" title="Details anzeigen" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:0.25rem;border-radius:0.25rem;" onmouseover="this.style.color='#1a56db'" onmouseout="this.style.color='#94a3b8'">
             <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
           </button>
+          ${!isRevoked ? `<button onclick="revokeSend('${h.id}')" title="${revokeTitle}" style="background:none;border:none;cursor:pointer;color:#dc2626;padding:0.25rem;border-radius:0.25rem;" onmouseover="this.style.color='#991b1b'" onmouseout="this.style.color='#dc2626'">
+            <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-8a2 2 0 012-2h.93c.94 0 1.75.55 2.17 1.36l1.44 3.6a2 2 0 001.73 1.05h2.52c.94 0 1.75-.55 2.17-1.36l1.44-3.6a2 2 0 011.73-1.05H19a2 2 0 012 2v8"/></svg>
+          </button>` : `<button onclick="unrevokeSend('${h.id}')" title="Wiederherstellen" style="background:none;border:none;cursor:pointer;color:#16a34a;padding:0.25rem;border-radius:0.25rem;" onmouseover="this.style.color='#15803d'" onmouseout="this.style.color='#16a34a'">
+            <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          </button>`}
         </td>
       </tr>`;
     }).join('');
@@ -174,7 +198,7 @@
   function filterHistory() {
     const q = document.getElementById('searchInput').value.toLowerCase();
     const filtered = allHistory.filter(h =>
-      (h.to_email + h.to_phone + h.filename + h.provider).toLowerCase().includes(q)
+      (h.to_email + h.to_phone + h.filename + h.provider + (h.security_level || '')).toLowerCase().includes(q)
     );
     renderHistory(filtered);
     document.getElementById('historyCount').textContent = filtered.length + ' / ' + allHistory.length + ' Einträge';
@@ -211,10 +235,96 @@
     }
   }
 
+  function exportDownloadLogs(historyId) {
+    window.open('/admin/org/downloads/export?history_id=' + historyId, '_blank');
+  }
+  
+  // Also export from history detail - get history_id from selected
+  async function exportHistoryCSV() {
+    if (!confirm('Gesamten Verlauf als CSV exportieren?')) return;
+    // Simple export of current view
+    const rows = allHistory.map(h => [
+      h.created_at ? new Date(h.created_at).toLocaleDateString('de-DE') : '',
+      h.to_email || '',
+      h.filename || '',
+      h.provider || '',
+      h.download_count || 0,
+      h.security_level || ''
+    ]);
+    
+    let csv = 'Datum;Empfänger;Dateien;Anbieter;Downloads;Sicherheit\n';
+    rows.forEach(r => csv += r.join(';') + '\n');
+    
+    const blob = new Blob([csv], {type: 'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'securesend_verlauf.csv';
+    a.click();
+  }
+
   function viewHistoryDetail(historyId) {
     const h = allHistory.find(x => x.id === historyId);
     if (!h) return;
-    alert('Details für: ' + h.filename + '\nEmpfänger: ' + h.to_email + '\nDownloads: ' + (h.download_count || 0) + '\nLink: ' + h.share_url);
+    const status = h.is_revoked ? '\n🔴 ZURÜCKGERUFEN' : '';
+    alert('Details für: ' + h.filename + '\nEmpfänger: ' + h.to_email + '\nDownloads: ' + (h.download_count || 0) + '\nLink: ' + h.share_url + status);
+  }
+
+  async function revokeSend(historyId) {
+    if (!confirm('Möchten Sie diesen Link wirklich zurückrufen?\n\nDer Empfänger kann dann nicht mehr auf die Datei zugreifen.')) return;
+    try {
+      const res = await apiFetch('/admin/org/revoke/' + historyId, { method: 'POST' });
+      if (res.ok) {
+        showToast('Link zurückgerufen', 'success');
+        loadHistory();
+      } else {
+        const err = await res.json();
+        showToast(err.detail || 'Fehler', 'error');
+      }
+    } catch(e) {
+      showToast('Netzwerkfehler', 'error');
+    }
+  }
+
+  async function unrevokeSend(historyId) {
+    if (!confirm('Möchten Sie den zurückgerufenen Link wiederherstellen?')) return;
+    try {
+      const res = await apiFetch('/admin/org/unrevoke/' + historyId, { method: 'POST' });
+      if (res.ok) {
+        showToast('Link wiederhergestellt', 'success');
+        loadHistory();
+      } else {
+        const err = await res.json();
+        showToast(err.detail || 'Fehler', 'error');
+      }
+    } catch(e) {
+      showToast('Netzwerkfehler', 'error');
+    }
+  }
+
+  async function extendSend(historyId) {
+    if (!confirm('Link um 7 Tage verlängern?')) return;
+    try {
+      const res = await apiFetch('/admin/org/extend/' + historyId, { method: 'POST' });
+      if (res.ok) {
+        showToast('Link verlängert (max. 90 Tage)', 'success');
+        loadHistory();
+      } else {
+        const err = await res.json();
+        showToast(err.detail || 'Fehler', 'error');
+      }
+    } catch(e) {
+      showToast('Netzwerkfehler', 'error');
+    }
+  }
+
+  async function copyLink(url) {
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast('Link kopiert!', 'success');
+    } catch(e) {
+      showToast('Kopieren fehlgeschlagen', 'error');
+    }
   }
 
   loadHistory();

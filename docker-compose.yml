@@ -16,20 +16,14 @@ services:
       timeout: 5s
       retries: 10
 
-  clamav:
-    image: clamav/clamav:latest
-    container_name: securesend_clamav
-    restart: unless-stopped
-    environment:
-      CLAMAV_NO_FRESHCLAMD: "false"
-    volumes:
-      - clamav_data:/var/lib/clamav
-    healthcheck:
-      test: ["CMD", "clamdcheck"]
-      interval: 60s
-      timeout: 30s
-      retries: 5
-      start_period: 120s
+  # clamav:
+  #   image: clamav/clamav:latest
+  #   # ARM64 not supported - use on x86 only
+  #   restart: unless-stopped
+  #   environment:
+  #     CLAMAV_NO_FRESHCLAMD: "false"
+  #   volumes:
+  #     - clamav_data:/var/lib/clamav
 
   securesend:
     build: .

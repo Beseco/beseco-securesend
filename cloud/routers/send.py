@@ -216,6 +216,24 @@ async def send_secure(
             detail="Nur Organisations-Benutzer können Dateien senden",
         )
 
+    # ── Bulk: Mehrere E-Mails aufteilen ─────────────────────────────────────────
+    recipient_emails = []
+    if to_email:
+        # Split by comma, semicolon, or newline
+        import re
+
+        emails = re.split(r"[,\n;]+", to_email)
+        for e in emails:
+            e = e.strip()
+            if e and "@" in e:
+                # Basic validation
+                if len(e) < 320 and "." in e.split("@")[1]:
+                    recipient_emails.append(e)
+
+    # Use first email as primary, rest as additional tracking
+    if recipient_emails:
+        to_email = recipient_emails[0]
+
     # ── Eingaben bereinigen (Header-Injection-Schutz) ───────────────────────
     subject = subject.replace("\n", " ").replace("\r", " ").strip()[:200]
     personal_message = personal_message[:2000]
@@ -402,6 +420,20 @@ async def send_secure(
                 if len(valid_files) == 1
                 else f"{len(valid_files)} Dateien"
             )
+            # Build files_json for the history
+            files_json_list = []
+            for f in valid_files:
+                size = 0
+                if hasattr(f, "size"):
+                    size = f.size
+                files_json_list.append(
+                    {
+                        "name": f.filename,
+                        "size": size,
+                        "type": f.content_type or "application/octet-stream",
+                    }
+                )
+            files_json = files_json_list if files_json_list else None
 
         else:
             # Nur Textnachricht
@@ -483,6 +515,7 @@ async def send_secure(
         security_level=security_level,
         ip_address=client_ip,
         encrypted_files_json=encrypted_files_store,
+        files_json=files_json,
     )
     db.add(h)
     await db.commit()

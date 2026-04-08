@@ -1,247 +1,101 @@
-{% extends "base.html" %}
-{% block title %}Empfangen – SecureSend Cloud{% endblock %}
-{% block page_title %}Empfangen{% endblock %}
-
-{% block content %}
-<div style="max-width:52rem;margin:0 auto;display:flex;flex-direction:column;gap:1.5rem;">
-
-  <!-- ── Upload-Link senden ───────────────────────────────────────────────── -->
-  <div class="card">
-    <h2 style="font-size:0.9375rem;font-weight:700;color:#1e293b;margin-bottom:0.125rem;">
-      📤 Upload-Link senden
-    </h2>
-    <p style="font-size:0.8125rem;color:#64748b;margin-bottom:1.25rem;">
-      Empfänger erhalten einen sicheren Link, über den sie Dateien zu Ihnen hochladen können — ganz ohne Login.
-    </p>
-
-    <form id="uploadReqForm">
-
-      <!-- Kontakt-Picker -->
-      <div style="margin-bottom:1rem;position:relative;">
-        <label class="form-label">
-          Kontakt wählen
-          <span style="font-weight:400;color:#94a3b8;">(optional)</span>
-        </label>
-        <input type="text" id="urContactSearch" class="form-input"
-               placeholder="Name oder E-Mail suchen…" autocomplete="off"
-               oninput="urFilterContacts(this.value)" onfocus="urShowDropdown()" />
-        <div id="urContactDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:20;max-height:14rem;overflow-y:auto;margin-top:2px;"></div>
-      </div>
-
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
-        <div>
-          <label class="form-label" for="urEmail">E-Mail Empfänger *</label>
-          <input type="email" id="urEmail" class="form-input" placeholder="empfaenger@beispiel.de" required />
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sichere Nachricht – SecureSend</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; }
+        .sec-card { 
+            display: flex; align-items: center; gap: 0.75rem; 
+            padding: 1rem; border: 2px solid #e2e8f0; border-radius: 0.5rem;
+            cursor: pointer; transition: all 0.2s;
+        }
+        .sec-card:hover { border-color: #3b82f6; background: #f8fafc; }
+        .sec-card.selected { border-color: #2563eb; background: #eff6ff; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-lg max-w-md w-full p-8">
+        <!-- Logo / Header -->
+        <div class="text-center mb-6">
+            {% if reseller_name %}
+            <p class="text-sm text-gray-500">{{ reseller_name }}</p>
+            {% endif %}
+            <h1 class="text-2xl font-bold text-gray-900 mt-2">
+                🔒 Sichere Nachricht
+            </h1>
+            <p class="text-gray-600 mt-1">{{ subject }}</p>
         </div>
-        <div>
-          <label class="form-label" for="urName">Name (optional)</label>
-          <input type="text" id="urName" class="form-input" placeholder="Max Mustermann" />
+        
+        <!-- Error Message -->
+        {% if error %}
+        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+            {{ error }}
         </div>
-      </div>
-
-      <div style="margin-bottom:1rem;">
-        <label class="form-label" for="urMessage">Nachricht an Empfänger (optional)</label>
-        <textarea id="urMessage" class="form-input" rows="2"
-                  placeholder="Bitte laden Sie die angeforderten Dokumente hoch…"
-                  style="resize:vertical;"></textarea>
-      </div>
-
-      <div style="display:flex;align-items:flex-end;gap:1rem;">
-        <div style="flex:1;max-width:14rem;">
-          <label class="form-label" for="urDays">Link gültig für</label>
-          <select id="urDays" class="form-input">
-            <option value="7">7 Tage</option>
-            <option value="14" selected>14 Tage</option>
-            <option value="30">30 Tage</option>
-          </select>
-        </div>
-        <button type="submit" id="urSubmitBtn" class="btn-primary" style="padding:0.625rem 1.5rem;white-space:nowrap;">
-          <span id="urBtnContent" style="display:flex;align-items:center;gap:0.5rem;">
-            <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-            </svg>
-            Link senden
-          </span>
-        </button>
-      </div>
-
-    </form>
-  </div>
-
-  <!-- ── Gesendete Upload-Links ───────────────────────────────────────────── -->
-  <div class="card" style="padding:0;overflow:hidden;">
-    <div style="padding:1rem 1.25rem;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;justify-content:space-between;">
-      <h2 style="font-size:0.9375rem;font-weight:700;color:#1e293b;margin:0;">Gesendete Upload-Links</h2>
-      <button onclick="loadUploadRequests()" title="Aktualisieren"
-              style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:0.25rem;border-radius:0.25rem;transition:color 0.15s;"
-              onmouseover="this.style.color='#1a56db'" onmouseout="this.style.color='#94a3b8'">
-        <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-        </svg>
-      </button>
-    </div>
-    <div id="urList" style="min-height:6rem;">
-      <div style="padding:3rem;text-align:center;color:#94a3b8;">
-        <svg style="width:2rem;height:2rem;margin:0 auto 0.5rem;opacity:0.4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
-        </svg>
-        <div>Lade…</div>
-      </div>
-    </div>
-  </div>
-
-</div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-  // ── Kontakt-Picker ──────────────────────────────────────────────────────────
-  let _urContacts = [];
-
-  // Hilfsfunktion: Vollständigen Namen aus first_name + last_name bilden
-  function urCName(c) { return ((c.first_name||'') + ' ' + (c.last_name||'')).trim() || c.email || ''; }
-
-  async function urLoadContacts() {
-    try {
-      const res = await apiFetch('/contacts');
-      if (res.ok) _urContacts = await res.json();
-    } catch(e) {}
-  }
-
-  function urShowDropdown() { urFilterContacts(document.getElementById('urContactSearch').value); }
-
-  function urFilterContacts(q) {
-    const dd = document.getElementById('urContactDropdown');
-    const term = q.trim().toLowerCase();
-    const matches = term
-      ? _urContacts.filter(c => urCName(c).toLowerCase().includes(term) || (c.email||'').toLowerCase().includes(term))
-      : _urContacts.slice(0, 8);
-    if (!matches.length) { dd.style.display = 'none'; return; }
-    dd.innerHTML = matches.map(c => `
-      <div onclick="urSelectContact(${JSON.stringify(c).replace(/"/g,'&quot;')})"
-           style="padding:0.5rem 0.875rem;cursor:pointer;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:0.625rem;"
-           onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-        <div style="background:#dbeafe;border-radius:50%;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.75rem;font-weight:700;color:#374151;">
-          ${urCName(c)[0]?.toUpperCase() || '?'}
-        </div>
-        <div style="min-width:0;">
-          <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">${esc(urCName(c))}</div>
-          <div style="font-size:0.75rem;color:#64748b;">${esc(c.email||'')}</div>
-        </div>
-      </div>`).join('');
-    dd.style.display = 'block';
-  }
-
-  function urSelectContact(c) {
-    document.getElementById('urContactSearch').value = urCName(c);
-    document.getElementById('urEmail').value = c.email || '';
-    document.getElementById('urName').value = urCName(c);
-    document.getElementById('urContactDropdown').style.display = 'none';
-  }
-
-  document.addEventListener('click', function(e) {
-    if (!e.target.closest('#urContactSearch') && !e.target.closest('#urContactDropdown'))
-      document.getElementById('urContactDropdown').style.display = 'none';
-  });
-
-  // ── Formular senden ─────────────────────────────────────────────────────────
-  document.getElementById('uploadReqForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const email = document.getElementById('urEmail').value.trim();
-    if (!email) { showToast('Bitte E-Mail-Adresse eingeben', 'error'); return; }
-
-    const btn = document.getElementById('urSubmitBtn');
-    btn.disabled = true;
-    document.getElementById('urBtnContent').innerHTML =
-      '<svg style="width:1rem;height:1rem;animation:spin 1s linear infinite" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" fill="currentColor"/></svg> Senden…';
-
-    try {
-      const res = await apiFetch('/requests/upload', {
-        method: 'POST',
-        body: JSON.stringify({
-          recipient_email: email,
-          recipient_name: document.getElementById('urName').value.trim() || null,
-          message: document.getElementById('urMessage').value.trim() || null,
-          days: parseInt(document.getElementById('urDays').value, 10),
-        }),
-      });
-      if (res.ok) {
-        showToast('Upload-Link wurde an ' + email + ' gesendet', 'success');
-        // Form zurücksetzen
-        document.getElementById('uploadReqForm').reset();
-        document.getElementById('urContactSearch').value = '';
-        // Liste aktualisieren
-        await loadUploadRequests();
-      } else {
-        const err = await res.json().catch(() => ({}));
-        showToast(err.detail || 'Fehler beim Senden', 'error');
-      }
-    } catch (e) {
-      showToast('Netzwerkfehler', 'error');
-    } finally {
-      btn.disabled = false;
-      document.getElementById('urBtnContent').innerHTML =
-        '<svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg> Link senden';
-    }
-  });
-
-  // ── Upload-Requests laden ───────────────────────────────────────────────────
-  async function loadUploadRequests() {
-    const container = document.getElementById('urList');
-    try {
-      const res = await apiFetch('/requests/upload');
-      if (!res.ok) { container.innerHTML = '<div style="padding:2rem;text-align:center;color:#94a3b8;font-size:0.875rem;">Fehler beim Laden</div>'; return; }
-      const rows = await res.json();
-      if (!rows.length) {
-        container.innerHTML = '<div style="padding:3rem;text-align:center;color:#94a3b8;font-size:0.875rem;">Noch keine Upload-Links gesendet</div>';
-        return;
-      }
-      container.innerHTML = rows.map(r => {
-        const statusCfg = {
-          pending:   { bg:'#fef9c3', color:'#a16207', label:'Ausstehend' },
-          fulfilled: { bg:'#dcfce7', color:'#166534', label:'Hochgeladen' },
-          expired:   { bg:'#f1f5f9', color:'#64748b', label:'Abgelaufen' },
-        }[r.status] || { bg:'#f1f5f9', color:'#64748b', label: r.status };
-
-        const created = new Date(r.created_at).toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
-        const expires = new Date(r.expires_at).toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric' });
-
-        return `<div style="display:flex;align-items:center;gap:1rem;padding:0.875rem 1.25rem;border-bottom:1px solid #f8fafc;flex-wrap:wrap;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:0.875rem;font-weight:600;color:#1e293b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-              ${esc(r.recipient_name || r.recipient_email)}
+        {% endif %}
+        
+        <!-- Security Level Info -->
+        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <div class="flex items-center gap-2">
+                {% if security_level == 'normal' %}
+                <span class="text-2xl">📧</span>
+                <div>
+                    <p class="font-medium">Normal</p>
+                    <p class="text-sm text-gray-600">Kein Passwort erforderlich</p>
+                </div>
+                {% elif security_level == 'standard' %}
+                <span class="text-2xl">🔑</span>
+                <div>
+                    <p class="font-medium">Standard</p>
+                    <p class="text-sm text-gray-600">Manuelles Passwort erforderlich</p>
+                </div>
+                {% elif security_level in ['secure', 'extended', 'advanced', 'maximal'] %}
+                <span class="text-2xl">🔒</span>
+                <div>
+                    <p class="font-medium">Sicher ({{ security_level|e }})</p>
+                    <p class="text-sm text-gray-600">Passwort + SMS-Code erforderlich</p>
+                </div>
+                {% endif %}
             </div>
-            <div style="font-size:0.75rem;color:#94a3b8;margin-top:0.125rem;">
-              ${r.recipient_name ? esc(r.recipient_email) + ' · ' : ''}Gesendet: ${created} · Ablauf: ${expires}
+        </div>
+        
+        <!-- Password Form -->
+        <form method="POST" action="/r/{{ token }}/verify">
+            <div class="space-y-4">
+                {% if security_level != 'normal' %}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Passwort
+                    </label>
+                    <input 
+                        type="password" 
+                        name="password" 
+                        required
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Passwort eingeben"
+                    >
+                </div>
+                {% endif %}
+                
+                <button 
+                    type="submit"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition"
+                >
+                    {% if security_level == 'normal' %}
+                    Nachricht ansehen
+                    {% else %}
+                    Zugang
+                    {% endif %}
+                </button>
             </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:0.75rem;flex-shrink:0;">
-            ${r.result_url ? `<a href="${esc(r.result_url)}" target="_blank" title="Hochgeladene Dateien ansehen"
-              style="font-size:0.75rem;font-weight:600;color:#1a56db;text-decoration:none;display:inline-flex;align-items:center;gap:0.25rem;background:#eff6ff;padding:0.25rem 0.625rem;border-radius:0.375rem;"
-              onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background='#eff6ff'">
-              <svg style="width:0.75rem;height:0.75rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-              Dateien
-            </a>` : ''}
-            <span style="font-size:0.75rem;font-weight:600;padding:0.2rem 0.6rem;border-radius:9999px;background:${statusCfg.bg};color:${statusCfg.color};">
-              ${statusCfg.label}
-            </span>
-          </div>
-        </div>`;
-      }).join('');
-    } catch(e) {
-      container.innerHTML = '<div style="padding:2rem;text-align:center;color:#94a3b8;font-size:0.875rem;">Netzwerkfehler</div>';
-    }
-  }
-
-  function esc(s) {
-    return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  }
-
-  // Beim Laden
-  urLoadContacts();
-  loadUploadRequests();
-</script>
-<style>
-  @keyframes spin { to { transform: rotate(360deg); } }
-</style>
-{% endblock %}
+        </form>
+        
+        <!-- Footer -->
+        <p class="text-center text-sm text-gray-500 mt-6">
+            SecureSend Cloud – Sicheres Senden
+        </p>
+    </div>
+</body>
+</html>

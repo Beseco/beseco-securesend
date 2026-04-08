@@ -51,6 +51,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 # ── Token creation helpers ────────────────────────────────────────────────────
 
+
 def _make_access_token(user: User) -> str:
     reseller_id = user.reseller_id  # resolved via property on User
     expire = datetime.now(timezone.utc) + timedelta(
@@ -82,9 +83,12 @@ def _make_refresh_token(user: User) -> str:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
+
 @router.post("/login", response_model=TokenResponse)
 @limiter.limit("10/minute")
-async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends(get_db)) -> TokenResponse:
+async def login(
+    request: Request, body: LoginRequest, db: AsyncSession = Depends(get_db)
+) -> TokenResponse:
     """Authenticate with email + password, receive JWT pair."""
     result = await db.execute(
         select(User)
@@ -131,9 +135,7 @@ async def refresh_token(
         raise CREDENTIALS_EXCEPTION
 
     result = await db.execute(
-        select(User)
-        .options(selectinload(User.organization))
-        .where(User.id == user_id)
+        select(User).options(selectinload(User.organization)).where(User.id == user_id)
     )
     user = result.scalar_one_or_none()
 
@@ -169,11 +171,12 @@ async def change_password(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Aktuelles Passwort ist falsch",
         )
-    if len(body.new_password) < 8:
+    if len(body.new_password) < 12:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Neues Passwort muss mindestens 8 Zeichen haben",
+            detail="Neues Passwort muss mindestens 12 Zeichen haben",
         )
+    current_user.password_hash = hash_password(body.new_password)
     current_user.password_hash = hash_password(body.new_password)
     await db.commit()
 
@@ -275,6 +278,7 @@ async def forgot_password(
     if user and user.is_active and user.org_id:
         # Token erstellen (alte löschen)
         from sqlalchemy import delete
+
         await db.execute(delete(PasswordReset).where(PasswordReset.user_id == user.id))
 
         token = _secrets.token_urlsafe(32)
@@ -284,13 +288,17 @@ async def forgot_password(
         await db.commit()
 
         # SMTP-Config laden (Org → Reseller fallback)
-        org_result = await db.execute(select(Organization).where(Organization.id == user.org_id))
+        org_result = await db.execute(
+            select(Organization).where(Organization.id == user.org_id)
+        )
         org = org_result.scalar_one_or_none()
         smtp_cfg = None
         if org:
             smtp_cfg = (org.settings_json or {}).get("smtp")
             if not smtp_cfg:
-                res = await db.execute(select(Reseller).where(Reseller.id == org.reseller_id))
+                res = await db.execute(
+                    select(Reseller).where(Reseller.id == org.reseller_id)
+                )
                 reseller = res.scalar_one_or_none()
                 if reseller and reseller.settings_json:
                     smtp_cfg = reseller.settings_json.get("smtp")
@@ -299,7 +307,10 @@ async def forgot_password(
             try:
                 from core.email import send_email  # type: ignore[import]
                 from config import settings as _settings
-                base = getattr(_settings, "PUBLIC_BASE_URL", "").rstrip("/") or str(request.base_url).rstrip("/")
+
+                base = getattr(_settings, "PUBLIC_BASE_URL", "").rstrip("/") or str(
+                    request.base_url
+                ).rstrip("/")
                 reset_url = f"{base}/ui/reset-password?token={token}"
                 org_name = org.name if org else "SecureSend"
                 html_body = (
@@ -313,12 +324,21 @@ async def forgot_password(
                 )
                 await asyncio.get_event_loop().run_in_executor(
                     None,
-                    lambda: send_email(smtp_cfg, body.email, f"Passwort zurücksetzen – {org_name}", html_body),
+                    lambda: send_email(
+                        smtp_cfg,
+                        body.email,
+                        f"Passwort zurücksetzen – {org_name}",
+                        html_body,
+                    ),
                 )
             except Exception as exc:
-                _sec_log.warning("Password-Reset-E-Mail fehlgeschlagen für %s: %s", body.email, exc)
+                _sec_log.warning(
+                    "Password-Reset-E-Mail fehlgeschlagen für %s: %s", body.email, exc
+                )
 
-    return {"detail": "Falls die E-Mail-Adresse registriert ist, erhalten Sie in Kürze eine E-Mail."}
+    return {
+        "detail": "Falls die E-Mail-Adresse registriert ist, erhalten Sie in Kürze eine E-Mail."
+    }
 
 
 @router.post("/reset-password", status_code=204)
@@ -330,10 +350,10 @@ async def reset_password(
     from datetime import datetime
     from models.shared import PasswordReset
 
-    if len(body.new_password) < 8:
+    if len(body.new_password) < 12:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Neues Passwort muss mindestens 8 Zeichen haben",
+            detail="Neues Passwort muss mindestens 12 Zeichen haben",
         )
 
     result = await db.execute(
@@ -342,7 +362,9 @@ async def reset_password(
     reset = result.scalar_one_or_none()
 
     if not reset:
-        raise HTTPException(status_code=400, detail="Ungültiger oder bereits verwendeter Reset-Link")
+        raise HTTPException(
+            status_code=400, detail="Ungültiger oder bereits verwendeter Reset-Link"
+        )
 
     if reset.expires_at < datetime.utcnow():
         await db.delete(reset)

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ subject }} – SecureSend</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; }
+        .file-icon {
+            width: 40px; height: 40px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 0.5rem;
+            font-size: 1.5rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div>
+                <p class="text-sm text-gray-500">{{ reseller_name }}</p>
+                <h1 class="text-xl font-bold text-gray-900">{{ org_name }}</h1>
+            </div>
+            <div class="text-right">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+                    {% if security_level == 'normal' %}bg-green-100 text-green-800
+                    {% elif security_level == 'standard' %}bg-blue-100 text-blue-800
+                    {% elif security_level == 'secure' %}bg-yellow-100 text-yellow-800
+                    {% else %}bg-red-100 text-red-800{% endif %}">
+                    {{ security_level }}
+                </span>
+            </div>
+        </div>
+    </header>
+    
+    <main class="max-w-3xl mx-auto px-4 py-8">
+        <!-- Subject & Sender -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h2 class="text-2xl font-bold text-gray-900 mb-2">{{ subject }}</h2>
+            <div class="flex items-center gap-3 text-gray-600">
+                <div class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                    👤
+                </div>
+                <div>
+                    <p class="font-medium text-gray-900">{{ sender_name }}</p>
+                    <p class="text-sm">{{ sender_email }} • {{ created_at[:10] }}</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Message -->
+        {% if message %}
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h3 class="font-semibold text-gray-700 mb-2">Nachricht</h3>
+            <div class="prose max-w-none text-gray-700 whitespace-pre-wrap">
+{{ message }}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Files -->
+        <div class="bg-white rounded-lg shadow-sm p-6 mb-6">
+            <h3 class="font-semibold text-gray-700 mb-4">
+                📎 Dateien ({{ files|length }})
+            </h3>
+            
+            {% if files %}
+            <div class="space-y-3">
+                {% for f in files %}
+                <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                    <div class="flex items-center gap-3">
+                        <!-- File Icon based on type -->
+                        {% set ext = f.name.split('.')[-1].lower() if '.' in f.name else '' %}
+                        {% if ext in ['jpg','jpeg','png','gif','webp','bmp'] %}
+                        <div class="file-icon bg-purple-100">🖼️</div>
+                        {% elif ext == 'pdf' %}
+                        <div class="file-icon bg-red-100">📄</div>
+                        {% elif ext in ['doc','docx','odt'] %}
+                        <div class="file-icon bg-blue-100">📝</div>
+                        {% elif ext in ['xls','xlsx','ods'] %}
+                        <div class="file-icon bg-green-100">📊</div>
+                        {% elif ext in ['zip','7z','rar','tar','gz'] %}
+                        <div class="file-icon bg-yellow-100">📦</div>
+                        {% elif ext in ['txt','rtf'] %}
+                        <div class="file-icon bg-gray-100">📃</div>
+                        {% else %}
+                        <div class="file-icon bg-gray-200">📎</div>
+                        {% endif %}
+                        
+                        <div>
+                            <p class="font-medium text-gray-900">{{ f.name }}</p>
+                            <p class="text-sm text-gray-500">{{ f.size_str|default('—') }}</p>
+                        </div>
+                    </div>
+                    
+                    <a 
+                        href="/r/{{ token }}/download/{{ f.name|urlencode }}"
+                        class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition"
+                        onclick="fetch('/track/d/{{ token }}?filename={{ f.name|urlencode }}', {method:'POST'}).catch(()=>{})"
+                    >
+                        ⬇️ Download
+                    </a>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-gray-500 text-center py-4">Keine Dateien angehängt</p>
+            {% endif %}
+        </div>
+        
+        <!-- Stats -->
+        <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="bg-white rounded-lg shadow-sm p-4 text-center">
+                <p class="text-2xl font-bold text-gray-900">{{ download_count }}</p>
+                <p class="text-sm text-gray-500">Downloads</p>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm p-4 text-center">
+                <p class="text-2xl font-bold text-gray-900">—</p>
+                <p class="text-sm text-gray-500">Zuletzt abgerufen</p>
+            </div>
+        </div>
+        
+        <!-- Reply / Send Files Button -->
+        <div class="bg-white rounded-lg shadow-sm p-6">
+            <h3 class="font-semibold text-gray-700 mb-4">Eigene Dateien senden</h3>
+            <p class="text-gray-600 mb-4">Senden Sie dem Absender Dateien zurück.</p>
+            <a 
+                href="/r/upload/{{ token }}"
+                class="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition"
+            >
+                📤 Dateien senden
+            </a>
+        </div>
+    </main>
+    
+    <!-- Footer -->
+    <footer class="bg-white border-t mt-8">
+        <div class="max-w-3xl mx-auto px-4 py-4 text-center text-sm text-gray-500">
+            SecureSend Cloud – Sicheres Senden
+        </div>
+    </footer>
+</body>
+</html>

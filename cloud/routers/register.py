@@ -41,10 +41,9 @@ class RegisterRequest(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 async def _load_org(org_slug: str, db: AsyncSession) -> Organization:
-    result = await db.execute(
-        select(Organization).where(Organization.slug == org_slug)
-    )
+    result = await db.execute(select(Organization).where(Organization.slug == org_slug))
     org = result.scalar_one_or_none()
     if not org or not org.is_active:
         raise HTTPException(status_code=404, detail="Organisation nicht gefunden")
@@ -70,6 +69,7 @@ async def _smtp_cfg(org: Organization, db: AsyncSession) -> dict | None:
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
 
 @router.get("/{org_slug}/info")
 async def org_registration_info(
@@ -108,20 +108,22 @@ async def register(
             raise HTTPException(
                 status_code=400,
                 detail=f"E-Mail-Domain nicht erlaubt. Erlaubte Domains: "
-                       f"{', '.join('@' + d for d in clean_allowed)}",
+                f"{', '.join('@' + d for d in clean_allowed)}",
             )
 
     # ── Password length ───────────────────────────────────────────────────
-    if len(body.password) < 8:
+    if len(body.password) < 12:
         raise HTTPException(
-            status_code=400, detail="Passwort muss mindestens 8 Zeichen haben"
+            status_code=400, detail="Passwort muss mindestens 12 Zeichen haben"
         )
 
     # ── Duplicate check ───────────────────────────────────────────────────
     existing = await db.execute(select(User).where(User.email == body.email))
     if existing.scalar_one_or_none():
         # Return 202 anyway to avoid user enumeration
-        return {"detail": "Bitte prüfen Sie Ihre E-Mail und bestätigen Sie Ihre Adresse."}
+        return {
+            "detail": "Bitte prüfen Sie Ihre E-Mail und bestätigen Sie Ihre Adresse."
+        }
 
     # ── Create inactive user ──────────────────────────────────────────────
     user = User(
@@ -153,8 +155,9 @@ async def register(
             import asyncio
             from core.email import send_email  # type: ignore[import]
 
-            base = (settings.PUBLIC_BASE_URL.rstrip("/")
-                    or str(request.base_url).rstrip("/"))
+            base = settings.PUBLIC_BASE_URL.rstrip("/") or str(request.base_url).rstrip(
+                "/"
+            )
             verify_url = f"{base}/ui/verify-email?token={token}"
             html_body = (
                 f"<p>Hallo,</p>"

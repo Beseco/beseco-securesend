@@ -6,7 +6,13 @@
   <title>{% block title %}SecureSend Cloud{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
+    // Dark mode detection
+    const darkMode = localStorage.getItem('darkMode') === 'true' || 
+      (window.matchMedia('(prefers-color-scheme: dark)').matches && localStorage.getItem('darkMode') !== 'false');
+    if (darkMode) document.documentElement.classList.add('dark');
+    
     tailwind.config = {
+      darkMode: 'class',
       theme: {
         extend: {
           colors: {
@@ -26,6 +32,31 @@
           }
         }
       }
+    }
+  </script>
+  <style>
+    /* Dark mode color scheme */
+    .dark {
+      --bg-primary: #0f172a;
+      --bg-secondary: #1e293b;
+      --bg-card: #1e293b;
+      --text-primary: #f1f5f9;
+      --text-secondary: #94a3b8;
+      --border-color: #334155;
+    }
+    :root {
+      --bg-primary: #f8fafc;
+      --bg-secondary: #f1f5f9;
+      --bg-card: #ffffff;
+      --text-primary: #1e293b;
+      --text-secondary: #64748b;
+      --border-color: #e2e8f0;
+    }
+  </style>
+  <script>
+    // Apply dark mode class on load
+    if (localStorage.getItem('darkMode') === 'true') {
+      document.documentElement.classList.add('dark');
     }
   </script>
   <style>
@@ -278,6 +309,11 @@
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
         </svg>
       </button>
+      <button type="button" onclick="toggleDarkMode()" title="Dark Mode umschalten" style="background:none;border:none;cursor:pointer;color:#64748b;padding:0.25rem;border-radius:0.25rem;transition:color 0.15s;" onmouseover="this.style.color='#fbbf24'" onmouseout="this.style.color='#64748b'">
+        <svg id="darkModeIcon" style="width:1rem;height:1rem;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+        </svg>
+      </button>
       <button type="button" onclick="open2faModal()" title="Zwei-Faktor-Authentifizierung" style="background:none;border:none;cursor:pointer;color:#64748b;padding:0.25rem;border-radius:0.25rem;transition:color 0.15s;" onmouseover="this.style.color='#93c5fd'" onmouseout="this.style.color='#64748b'">
         <svg style="width:1rem;height:1rem;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
@@ -357,6 +393,23 @@
     el.textContent = msg;
     document.getElementById('toast').appendChild(el);
     setTimeout(() => el.remove(), 4000);
+  }
+
+  // Dark mode toggle
+  function toggleDarkMode() {
+    const isDark = document.documentElement.classList.toggle('dark');
+    localStorage.setItem('darkMode', isDark);
+    updateDarkModeIcon();
+  }
+  
+  function updateDarkModeIcon() {
+    const isDark = document.documentElement.classList.contains('dark');
+    const icon = document.getElementById('darkModeIcon');
+    if (icon) {
+      icon.innerHTML = isDark 
+        ? '<path stroke-linecap="round" stroke-linejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>'
+        : '<path stroke-linecap="round" stroke-linejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>';
+    }
   }
 
   function openModal(id) { document.getElementById(id).style.display = 'flex'; }
