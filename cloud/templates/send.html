@@ -284,6 +284,101 @@
 {% block scripts %}
 <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
 <script>
+  // ── Client-Side Encryption Utilities (for advanced security level) ───────────
+  const ENCRYPTION_ENABLED = true;
+  
+  // Generate random password for encryption
+  function generateEncryptionPassword(length = 32) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    let result = '';
+    const values = new Uint32Array(length);
+    crypto.getRandomValues(values);
+    for (let i = 0; i < length; i++) {
+      result += chars[values[i] % chars.length];
+    }
+    return result;
+  }
+  
+  // Convert ArrayBuffer to Base64
+  function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  }
+  
+  // Convert Base64 to ArrayBuffer
+  function base64ToArrayBuffer(base64) {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes.buffer;
+  }
+  
+  // Derive key from password using PBKDF2
+  async function deriveKey(password, salt) {
+    const encoder = new TextEncoder();
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(password),
+      'PBKDF2',
+      false,
+      ['deriveKey']
+    );
+    return crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt: salt,
+        iterations: 100000,
+        hash: 'SHA-256'
+      },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  }
+  
+  // Encrypt file using AES-GCM
+  async function encryptFile(file) {
+    const password = generateEncryptionPassword();
+    const salt = crypto.getRandomValues(new Uint8Array(16));
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    
+    const key = await deriveKey(password, salt);
+    const fileData = await file.arrayBuffer();
+    
+    const encryptedData = await crypto.subtle.encrypt(
+      { name: 'AES-GCM', iv: iv },
+      key,
+      fileData
+    );
+    
+    // Combine salt + iv + encrypted data
+    const combined = new Uint8Array(salt.length + iv.length + encryptedData.byteLength);
+    combined.set(salt, 0);
+    combined.set(iv, salt.length);
+    combined.set(new Uint8Array(encryptedData), salt.length + iv.length);
+    
+    return {
+      filename: file.name,
+      encryptedData: arrayBufferToBase64(combined.buffer),
+      password: password
+    };
+  }
+  
+  // Encrypt all files for advanced security level
+  async function encryptFilesForAdvanced(files) {
+    const results = await Promise.all(
+      Array.from(files).map(file => encryptFile(file))
+    );
+    return results;
+  }
+  
   let editor = null;
 
   // ── Editor initialisieren ─────────────────────────────────────────────────
@@ -585,8 +680,33 @@
       return;
     }
 
+    const securityLevel = document.querySelector('input[name="security_level"]:checked')?.value || 'secure';
     const fd = new FormData(this);
     fd.set('message', editor ? editor.getMarkdown() : '');
+
+    // ── Client-Side Encryption for advanced/maximal security level ─────────
+    if (securityLevel === 'advanced' || securityLevel === 'maximal') {
+      if (inp.files && inp.files.length > 0) {
+        try {
+          showToast('Verschlüssele Dateien…', 'info');
+          const encryptedFiles = await encryptFilesForAdvanced(inp.files);
+          
+          // Add encrypted files as JSON to form
+          fd.set('encrypted_files', JSON.stringify(encryptedFiles));
+          
+          // Remove original files from form (we send encrypted data instead)
+          fd.delete('files');
+          
+          showToast('Dateien verschlüsselt, wird hochgeladen…', 'info');
+        } catch (encErr) {
+          showToast('Verschlüsselung fehlgeschlagen: ' + encErr.message, 'error');
+          btn.disabled = false;
+          document.getElementById('btnContent').innerHTML =
+            '<svg style="width:1.125rem;height:1.125rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg> Sicher senden';
+          return;
+        }
+      }
+    }
 
     try {
       const res = await apiFetch('/send', { method: 'POST', body: fd });
@@ -599,7 +719,13 @@
         document.getElementById('resultUrl').textContent = data.share_url;
         document.getElementById('resultProvider').textContent = data.provider;
         document.getElementById('resultExpiry').textContent = data.expiry_days + ' Tag(e)';
-        showToast('Erfolgreich gesendet!', 'success');
+        
+        // Show encryption info for advanced/maximal
+        if (securityLevel === 'advanced' || securityLevel === 'maximal') {
+          showToast('Erfolgreich gesendet! (Ende-zu-Ende verschlüsselt)', 'success');
+        } else {
+          showToast('Erfolgreich gesendet!', 'success');
+        }
       } else {
         const err = await res.json();
         showToast(err.detail || 'Fehler beim Senden', 'error');

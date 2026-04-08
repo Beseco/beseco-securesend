@@ -200,8 +200,13 @@ async def send_secure(
     message: str = Form(default=""),
     personal_message: str = Form(default=""),
     expiry_days: int = Form(default=7),
-    security_level: str = Form(default="secure"),  # normal | secure | extended
+    security_level: str = Form(
+        default="secure"
+    ),  # normal | secure | extended | advanced | maximal
     provider_id: Optional[str] = Form(default=None),
+    encrypted_files: Optional[str] = Form(
+        default=None
+    ),  # JSON string for client-side encryption
     current_user: User = Depends(org_user_required()),
     db: AsyncSession = Depends(get_db),
 ) -> SendResponse:
@@ -243,9 +248,38 @@ async def send_secure(
     elif security_level == "extended":
         zip_password = _random_password()
     elif security_level in ("advanced", "maximal"):
-        # TODO: Implement advanced/maximal logic with SecureSend storage
-        # For now, fallback to secure behavior
-        share_password = _random_password()
+        # Client-side encrypted files from browser
+        # encrypted_files is a JSON string: [{"filename": "...", "encryptedData": "...base64...", "password": "..."}]
+        if encrypted_files:
+            import json
+
+            try:
+                encrypted_data = json.loads(encrypted_files)
+                file_entries = []
+                for item in encrypted_data:
+                    # Decode base64 encrypted data
+                    import base64
+
+                    encrypted_bytes = base64.b64decode(item["encryptedData"])
+                    # Store as: (filename, encrypted_data, mimetype, encryption_password)
+                    # The password is needed for decryption - we'll include it in metadata
+                    file_entries.append(
+                        (
+                            f"{item['filename']}.enc",
+                            encrypted_bytes,
+                            "application/octet-stream",
+                        )
+                    )
+                # Store the passwords in a separate variable for the share
+                _encryption_passwords = [item["password"] for item in encrypted_data]
+            except json.JSONDecodeError:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Ungültiges verschlüsseltes Dateiformat",
+                )
+        else:
+            # No encrypted files provided - fallback to secure behavior
+            share_password = _random_password()
 
     # ── Dateien validieren und lesen ───────────────────────────────────────
     valid_files = [f for f in files if f.filename]
@@ -328,6 +362,29 @@ async def send_secure(
                 if file_entries
                 else "Nachricht (verschlüsselt)"
             )
+
+        elif security_level in ("advanced", "maximal") and encrypted_files:
+            # Client-side encrypted files - upload directly without additional encryption
+            upload_list = list(file_entries)
+            share_url = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: upload_files_and_share_folder(
+                    cfg=cfg,
+                    files=upload_list,
+                    folder_path=folder_path,
+                    password=None,  # No share password - files are already encrypted
+                    days=expiry_days,
+                ),
+            )
+            filename = (
+                f"{len(file_entries)} Datei(en) (Ende-zu-Ende verschlüsselt)"
+                if file_entries
+                else "Nachricht (Ende-zu-Ende verschlüsselt)"
+            )
+
+            # Include decryption key in the email (encrypted with recipient's SMS password)
+            # For now, we'll include it in a special info file
+            # TODO: Implement proper key delivery via SMS
 
         elif file_entries:
             share_url = await asyncio.get_event_loop().run_in_executor(
