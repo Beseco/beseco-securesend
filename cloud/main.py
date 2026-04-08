@@ -121,6 +121,16 @@ async def _run_migrations(conn) -> None:
             "ALTER TABLE history ADD COLUMN IF NOT EXISTS encrypted_files_json JSONB",
         ),
         (
+            "history",
+            "download_count",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS download_count INTEGER DEFAULT 0",
+        ),
+        (
+            "history",
+            "last_downloaded_at",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS last_downloaded_at TIMESTAMP",
+        ),
+        (
             "users",
             "totp_secret",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64)",

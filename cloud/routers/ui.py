@@ -923,6 +923,10 @@ async def history_api(
                 "link_clicked_at": h.link_clicked_at.isoformat()
                 if h.link_clicked_at
                 else None,
+                "download_count": h.download_count or 0,
+                "last_downloaded_at": h.last_downloaded_at.isoformat()
+                if h.last_downloaded_at
+                else None,
             }
             for h in rows
         ]

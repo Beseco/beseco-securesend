@@ -6,13 +6,15 @@ import base64
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import Response, RedirectResponse, HTMLResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from models.shared import History
+from dependencies import org_admin_required
+from models.shared import History, DownloadLog
+from models.user import User, UserRole
 
 router = APIRouter(tags=["tracking"])
 
@@ -49,6 +51,109 @@ async def track_link(
             await db.commit()
         url = h.share_url or "#"
     return RedirectResponse(url=url, status_code=302)
+
+
+# ── Download Tracking ─────────────────────────────────────────────────────────
+
+
+@router.get("/track/d/{token}", include_in_schema=False)
+async def track_download(
+    token: str,
+    filename: str = "",
+    email: str = "",
+    request: Request = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """Track download event and log it."""
+    result = await db.execute(select(History).where(History.tracking_token == token))
+    h = result.scalar_one_or_none()
+
+    if not h:
+        return {"error": "Not found"}, 404
+
+    # Update download count on history
+    h.download_count = (h.download_count or 0) + 1
+    h.last_downloaded_at = datetime.now(timezone.utc).replace(tzinfo=None)
+
+    # Log detailed download info
+    client_ip = request.client.host if request else ""
+    user_agent = request.headers.get("user-agent", "")[:500] if request else ""
+
+    log = DownloadLog(
+        history_id=h.id,
+        ip_address=client_ip,
+        user_agent=user_agent,
+        email=email or h.to_email,
+        filename=filename or h.filename,
+    )
+    db.add(log)
+    await db.commit()
+
+    # Return OK for tracking (actual file download handled by cloud provider)
+    return {"ok": True, "download_count": h.download_count}
+
+
+# ── Download Logs API for Admin ────────────────────────────────────────────────
+
+
+@router.get("/admin/org/downloads", tags=["admin-org"])
+async def get_download_logs(
+    history_id: str,
+    org_id: Optional[str] = Query(None),
+    current_user: User = Depends(org_admin_required()),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get download logs for a history entry (admin only)."""
+    from models.organization import Organization
+
+    # Resolve org_id
+    if current_user.role == UserRole.superadmin:
+        if not org_id:
+            raise HTTPException(
+                status_code=400, detail="org_id required for superadmin"
+            )
+    else:
+        org_id = current_user.org_id
+
+    # Get history entry and verify it belongs to user's org
+    result = await db.execute(select(History).where(History.id == history_id))
+    history = result.scalar_one_or_none()
+
+    if not history:
+        raise HTTPException(status_code=404, detail="History not found")
+
+    # Verify org access
+    if current_user.role != UserRole.superadmin:
+        if history.user_id != current_user.id:
+            # Check if user belongs to same org
+            user_result = await db.execute(
+                select(User).where(User.id == history.user_id)
+            )
+            history_user = user_result.scalar_one_or_none()
+            if not history_user or history_user.org_id != org_id:
+                raise HTTPException(status_code=403, detail="Access denied")
+
+    # Get download logs
+    logs_result = await db.execute(
+        select(DownloadLog)
+        .where(DownloadLog.history_id == history_id)
+        .order_by(DownloadLog.downloaded_at.desc())
+    )
+    logs = logs_result.scalars().all()
+
+    return [
+        {
+            "id": log.id,
+            "downloaded_at": log.downloaded_at.isoformat()
+            if log.downloaded_at
+            else None,
+            "ip_address": log.ip_address,
+            "email": log.email,
+            "filename": log.filename,
+            "user_agent": log.user_agent,
+        }
+        for log in logs
+    ]
 
 
 # ── Decryption Portal for Client-Side Encrypted Files ────────────────────────

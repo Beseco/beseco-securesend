@@ -30,9 +30,10 @@
           <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Empfänger</th>
           <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Dateiname</th>
           <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Anbieter</th>
-          <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Link</th>
+          <th style="padding:0.625rem 1rem;text-align:center;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Downloads</th>
           <th style="padding:0.625rem 1rem;text-align:center;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Ablauf</th>
-          <th style="padding:0.625rem 1.25rem;text-align:center;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Sicherheit</th>
+          <th style="padding:0.625rem 1rem;text-align:center;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Sicherheit</th>
+          <th style="padding:0.625rem 1.25rem;text-align:center;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Aktionen</th>
         </tr>
       </thead>
       <tbody id="historyBody">
@@ -48,6 +49,36 @@
         </tr>
       </tbody>
     </table>
+  </div>
+</div>
+
+<!-- Download Logs Modal -->
+<div id="downloadLogsModal" class="modal-backdrop" style="display:none;">
+  <div class="modal-box" style="max-width:48rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem;">
+      <h3 style="font-size:1.0625rem;font-weight:700;color:#1e293b;">Download-Protokoll</h3>
+      <button type="button" onclick="document.getElementById('downloadLogsModal').style.display='none'" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:0.25rem;" onmouseover="this.style.color='#374151'" onmouseout="this.style.color='#94a3b8'">
+        <svg style="width:1.25rem;height:1.25rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div style="overflow-x:auto;border:1px solid #e2e8f0;border-radius:0.5rem;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr style="background:#f8fafc;">
+            <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;">Zeit</th>
+            <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;">E-Mail</th>
+            <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;">Datei</th>
+            <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;">IP-Adresse</th>
+          </tr>
+        </thead>
+        <tbody id="downloadLogsBody">
+          <tr><td colspan="4" style="padding:2rem;text-align:center;color:#94a3b8;">Lade…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="margin-top:1rem;text-align:right;">
+      <button type="button" onclick="document.getElementById('downloadLogsModal').style.display='none'" class="btn-secondary">Schließen</button>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -78,7 +109,7 @@
   function renderHistory(items) {
     const tbody = document.getElementById('historyBody');
     if (items.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" style="padding:3rem;text-align:center;color:#94a3b8;">
+      tbody.innerHTML = `<tr><td colspan="8" style="padding:3rem;text-align:center;color:#94a3b8;">
         <div style="display:flex;flex-direction:column;align-items:center;gap:0.75rem;">
           <svg style="width:2.5rem;height:2.5rem;opacity:0.4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -95,17 +126,21 @@
       const recipientDisplay = [h.to_email, h.to_phone].filter(Boolean).join(' / ') || '—';
       const openedStr = h.opened_at ? new Date(h.opened_at).toLocaleString('de-DE', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : null;
       const clickedStr = h.link_clicked_at ? new Date(h.link_clicked_at).toLocaleString('de-DE', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : null;
+      const downloadCount = h.download_count || 0;
       const secBadgeCfg = {
         'normal':         { bg:'#f1f5f9', color:'#475569', label:'📧 Normal' },
         'secure':         { bg:'#dbeafe', color:'#1e40af', label:'🔒 Sicher' },
         'extended':       { bg:'#fef3c7', color:'#92400e', label:'🛡️ Erweitert' },
+        'advanced':       { bg:'#fef3c7', color:'#92400e', label:'🔐 Fortgeschritten' },
+        'maximal':        { bg:'#fef3c7', color:'#92400e', label:'🏢 Maximal' },
         'upload-request': { bg:'#dcfce7', color:'#166534', label:'📤 Empfangen' },
-        'high':           { bg:'#fef3c7', color:'#92400e', label:'Erhöht' },
       }[h.security_level] || { bg:'#f1f5f9', color:'#64748b', label: h.security_level || '—' };
       const secBadge = `<span style="background:${secBadgeCfg.bg};color:${secBadgeCfg.color};font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;white-space:nowrap;">${secBadgeCfg.label}</span>`;
       const providerIcon = h.provider === 'nextcloud'
         ? '<span style="background:#e0f2fe;color:#0369a1;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">Nextcloud</span>'
-        : '<span style="background:#ede9fe;color:#7c3aed;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">OneDrive</span>';
+        : h.provider === 'minio'
+        ? '<span style="background:#dcfce7;color:#16a34a;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">MinIO</span>'
+        : '<span style="background:#ede9fe;color:#7c3aed;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">Cloud</span>';
 
       return `<tr class="table-row" style="border-top:1px solid #f1f5f9;">
         <td style="padding:0.75rem 1.25rem;white-space:nowrap;">
@@ -117,20 +152,17 @@
           <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(h.filename)}">${esc(h.filename)}</div>
         </td>
         <td style="padding:0.75rem 1rem;">${providerIcon}</td>
-        <td style="padding:0.75rem 1rem;max-width:10rem;">
-          ${h.share_url
-            ? `<a href="${esc(h.share_url)}" target="_blank" style="font-size:0.8125rem;color:#1a56db;text-decoration:none;display:flex;align-items:center;gap:0.25rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-                <svg style="width:0.75rem;height:0.75rem;flex-shrink:0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
-                Öffnen
-              </a>`
-            : '<span style="color:#cbd5e1;font-size:0.8125rem;">—</span>'}
-          <div style="font-size:0.7rem;color:#94a3b8;margin-top:0.25rem;display:flex;flex-direction:column;gap:0.1rem;">
-            ${openedStr ? `<span style="color:#16a34a;">&#10003; Geöffnet ${openedStr}</span>` : '<span style="color:#cbd5e1;">&#8211; Noch nicht geöffnet</span>'}
-            ${clickedStr ? `<span style="color:#1a56db;">&#8599; Link geklickt ${clickedStr}</span>` : ''}
-          </div>
+        <td style="padding:0.75rem 1rem;text-align:center;">
+          <span style="font-size:0.875rem;font-weight:600;color:${downloadCount > 0 ? '#16a34a' : '#94a3b8'};">${downloadCount}</span>
+          ${downloadCount > 0 ? `<button onclick="showDownloadLogs('${h.id}')" style="display:block;margin:0.25rem auto 0;font-size:0.7rem;color:#1a56db;background:none;border:none;cursor:pointer;text-decoration:underline;">Details</button>` : ''}
         </td>
         <td style="padding:0.75rem 1rem;text-align:center;font-size:0.875rem;color:#475569;">${h.expiry_days}d</td>
-        <td style="padding:0.75rem 1.25rem;text-align:center;">${secBadge}</td>
+        <td style="padding:0.75rem 1rem;text-align:center;">${secBadge}</td>
+        <td style="padding:0.75rem 1.25rem;text-align:center;">
+          <button onclick="viewHistoryDetail('${h.id}')" title="Details anzeigen" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:0.25rem;border-radius:0.25rem;" onmouseover="this.style.color='#1a56db'" onmouseout="this.style.color='#94a3b8'">
+            <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          </button>
+        </td>
       </tr>`;
     }).join('');
   }
@@ -146,6 +178,43 @@
     );
     renderHistory(filtered);
     document.getElementById('historyCount').textContent = filtered.length + ' / ' + allHistory.length + ' Einträge';
+  }
+
+  function renderEmpty(msg) {
+    document.getElementById('historyBody').innerHTML = `<tr><td colspan="8" style="padding:3rem;text-align:center;color:#94a3b8;">${msg}</td></tr>`;
+  }
+
+  // Download logs modal
+  async function showDownloadLogs(historyId) {
+    try {
+      const res = await apiFetch('/admin/org/downloads?history_id=' + historyId);
+      if (!res.ok) throw new Error('Failed to load');
+      const logs = await res.json();
+      
+      const tbody = document.getElementById('downloadLogsBody');
+      if (logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="padding:1rem;text-align:center;color:#94a3b8;">Keine Downloads</td></tr>';
+      } else {
+        tbody.innerHTML = logs.map(log => {
+          const dt = new Date(log.downloaded_at);
+          return `<tr style="border-top:1px solid #f1f5f9;">
+            <td style="padding:0.5rem 1rem;font-size:0.8125rem;">${dt.toLocaleString('de-DE')}</td>
+            <td style="padding:0.5rem 1rem;font-size:0.8125rem;">${esc(log.email)}</td>
+            <td style="padding:0.5rem 1rem;font-size:0.8125rem;max-width:12rem;overflow:hidden;text-overflow:ellipsis;">${esc(log.filename)}</td>
+            <td style="padding:0.5rem 1rem;font-size:0.75rem;color:#64748b;">${esc(log.ip_address)}</td>
+          </tr>`;
+        }).join('');
+      }
+      document.getElementById('downloadLogsModal').style.display = 'flex';
+    } catch(e) {
+      showToast('Fehler beim Laden der Downloads', 'error');
+    }
+  }
+
+  function viewHistoryDetail(historyId) {
+    const h = allHistory.find(x => x.id === historyId);
+    if (!h) return;
+    alert('Details für: ' + h.filename + '\nEmpfänger: ' + h.to_email + '\nDownloads: ' + (h.download_count || 0) + '\nLink: ' + h.share_url);
   }
 
   loadHistory();

@@ -164,11 +164,39 @@ class History(Base):
     )
     opened_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     link_clicked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # Download tracking
+    download_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    last_downloaded_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )
 
     user: Mapped["User"] = relationship("User", back_populates="history")  # noqa: F821
 
     def __repr__(self) -> str:
         return f"<History id={self.id!r} filename={self.filename!r}>"
+
+
+class DownloadLog(Base):
+    """Detailed download logs for audit trail."""
+
+    __tablename__ = "download_logs"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    history_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("history.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    downloaded_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    ip_address: Mapped[str] = mapped_column(String(45), nullable=False, default="")
+    user_agent: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    email: Mapped[str] = mapped_column(String(320), nullable=False, default="")
+    filename: Mapped[str] = mapped_column(String(500), nullable=False, default="")
 
 
 class MsgTemplate(Base):
