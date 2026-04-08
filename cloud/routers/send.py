@@ -453,6 +453,24 @@ async def send_secure(
     # ── Verlauf speichern (vor E-Mail, damit tracking_token verfügbar) ─────
     client_ip = request.client.host if request.client else ""
     history_id = str(uuid.uuid4())
+
+    # Store encrypted files data if advanced/maximal
+    encrypted_files_store = None
+    if security_level in ("advanced", "maximal") and encrypted_files:
+        import json
+
+        try:
+            enc_data = json.loads(encrypted_files)
+            # Store filename -> password mapping for decryption
+            encrypted_files_store = {
+                "files": [
+                    {"filename": item["filename"], "password": item["password"]}
+                    for item in enc_data
+                ]
+            }
+        except json.JSONDecodeError:
+            pass
+
     h = History(
         id=history_id,
         user_id=current_user.id,
@@ -464,6 +482,7 @@ async def send_secure(
         expiry_days=expiry_days,
         security_level=security_level,
         ip_address=client_ip,
+        encrypted_files_json=encrypted_files_store,
     )
     db.add(h)
     await db.commit()

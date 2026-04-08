@@ -26,13 +26,21 @@ class CloudProvider(Base):
     )
     # Either org-level or user-level (both nullable for flexibility)
     org_id: Mapped[Optional[str]] = mapped_column(
-        String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True, index=True
+        String(36),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
     )
     user_id: Mapped[Optional[str]] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    service: Mapped[str] = mapped_column(String(50), nullable=False)  # "nextcloud" | "onedrive"
+    service: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # "nextcloud" | "onedrive"
     config_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -64,7 +72,10 @@ class SmsGateway(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     org_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+        String(36),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     service: Mapped[str] = mapped_column(String(50), nullable=False, default="sipgate")
@@ -92,7 +103,10 @@ class Contact(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     user_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     company: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     last_name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
@@ -121,7 +135,10 @@ class History(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     user_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     to_email: Mapped[str] = mapped_column(String(320), nullable=False, default="")
     to_phone: Mapped[str] = mapped_column(String(50), nullable=False, default="")
@@ -129,13 +146,21 @@ class History(Base):
     share_url: Mapped[str] = mapped_column(String(2048), nullable=False, default="")
     provider: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     expiry_days: Mapped[int] = mapped_column(nullable=False, default=7)
-    security_level: Mapped[str] = mapped_column(String(50), nullable=False, default="standard")
+    security_level: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="standard"
+    )
     ip_address: Mapped[str] = mapped_column(String(45), nullable=False, default="")
+    # For client-side encrypted files (advanced/maximal)
+    encrypted_files_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
     tracking_token: Mapped[str] = mapped_column(
-        String(64), nullable=False, default=lambda: secrets.token_urlsafe(32), unique=True, index=True
+        String(64),
+        nullable=False,
+        default=lambda: secrets.token_urlsafe(32),
+        unique=True,
+        index=True,
     )
     opened_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     link_clicked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
@@ -155,10 +180,16 @@ class MsgTemplate(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     org_id: Mapped[Optional[str]] = mapped_column(
-        String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=True, index=True
+        String(36),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
     )
     user_id: Mapped[Optional[str]] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -190,7 +221,10 @@ class EmailTemplate(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     org_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+        String(36),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     html_body: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -216,9 +250,14 @@ class EmailVerification(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     user_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
-    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    token: Mapped[str] = mapped_column(
+        String(64), unique=True, nullable=False, index=True
+    )
     # stored as UTC-naive datetime
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -240,9 +279,14 @@ class PasswordReset(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     user_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
-    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    token: Mapped[str] = mapped_column(
+        String(64), unique=True, nullable=False, index=True
+    )
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
@@ -263,12 +307,20 @@ class PhoneRequest(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     sender_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     contact_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False, index=True
+        String(36),
+        ForeignKey("contacts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
-    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    token: Mapped[str] = mapped_column(
+        String(64), unique=True, nullable=False, index=True
+    )
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     # pending | fulfilled | expired
     created_at: Mapped[datetime] = mapped_column(
@@ -296,12 +348,17 @@ class UploadRequest(Base):
         String(36), primary_key=True, default=lambda: str(uuid.uuid4())
     )
     sender_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+        String(36),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     recipient_email: Mapped[str] = mapped_column(String(320), nullable=False)
     recipient_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    token: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    token: Mapped[str] = mapped_column(
+        String(64), unique=True, nullable=False, index=True
+    )
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
     # pending | fulfilled | expired
     result_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)

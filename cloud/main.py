@@ -55,6 +55,7 @@ log = logging.getLogger("securesend")
 
 # ── Security Headers Middleware ───────────────────────────────────────────────
 
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         response = await call_next(request)
@@ -62,10 +63,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(), microphone=(), camera=()"
+        )
         # HSTS only if PUBLIC_BASE_URL uses HTTPS
         if settings.PUBLIC_BASE_URL.startswith("https://"):
-            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
         return response
 
 
@@ -85,15 +90,56 @@ async def _run_migrations(conn) -> None:
 
     migrations: list[tuple[str, str, str]] = [
         # (table, column, ALTER TABLE statement)
-        ("users",         "first_name",      "ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)"),
-        ("users",         "last_name",       "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)"),
-        ("history",       "tracking_token",  "ALTER TABLE history ADD COLUMN IF NOT EXISTS tracking_token VARCHAR(32)"),
-        ("history",       "opened_at",       "ALTER TABLE history ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP"),
-        ("history",       "link_clicked_at", "ALTER TABLE history ADD COLUMN IF NOT EXISTS link_clicked_at TIMESTAMP"),
-        ("users",         "totp_secret",     "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64)"),
-        ("users",         "totp_enabled",    "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE"),
-        ("resellers",     "settings_json",   "ALTER TABLE resellers ADD COLUMN IF NOT EXISTS settings_json JSONB"),
-        ("organizations", "settings_json",   "ALTER TABLE organizations ADD COLUMN IF NOT EXISTS settings_json JSONB"),
+        (
+            "users",
+            "first_name",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(100)",
+        ),
+        (
+            "users",
+            "last_name",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(100)",
+        ),
+        (
+            "history",
+            "tracking_token",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS tracking_token VARCHAR(32)",
+        ),
+        (
+            "history",
+            "opened_at",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS opened_at TIMESTAMP",
+        ),
+        (
+            "history",
+            "link_clicked_at",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS link_clicked_at TIMESTAMP",
+        ),
+        (
+            "history",
+            "encrypted_files_json",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS encrypted_files_json JSONB",
+        ),
+        (
+            "users",
+            "totp_secret",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64)",
+        ),
+        (
+            "users",
+            "totp_enabled",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN DEFAULT FALSE",
+        ),
+        (
+            "resellers",
+            "settings_json",
+            "ALTER TABLE resellers ADD COLUMN IF NOT EXISTS settings_json JSONB",
+        ),
+        (
+            "organizations",
+            "settings_json",
+            "ALTER TABLE organizations ADD COLUMN IF NOT EXISTS settings_json JSONB",
+        ),
     ]
 
     if is_postgres:
@@ -115,7 +161,9 @@ async def _run_migrations(conn) -> None:
             existing = await _get_cols_sqlite(table)
             if column not in existing:
                 # SQLite-Syntax: ohne IF NOT EXISTS, JSONB → JSON (SQLite kennt kein JSONB)
-                sql_sqlite = sql.replace(" IF NOT EXISTS", "").replace(" JSONB", " JSON")
+                sql_sqlite = sql.replace(" IF NOT EXISTS", "").replace(
+                    " JSONB", " JSON"
+                )
                 await conn.execute(text(sql_sqlite))
                 table_cols.pop(table, None)
                 log.info("Migration (SQLite) OK: %s", sql_sqlite)
@@ -129,13 +177,16 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         # Import all models so Base.metadata is populated
         import models  # noqa: F401 — triggers __init__.py imports
+
         await conn.run_sync(Base.metadata.create_all)
         await _run_migrations(conn)
     log.info("SecureSend Cloud API ready.")
     if settings.SECRET_KEY == "change-me-in-production":
         log.critical("SECURITY: SECRET_KEY is default value! Change immediately.")
     if not settings.SECURE_COOKIES and settings.PUBLIC_BASE_URL.startswith("https://"):
-        log.warning("SECURITY: SECURE_COOKIES=False but PUBLIC_BASE_URL is HTTPS. Set SECURE_COOKIES=True.")
+        log.warning(
+            "SECURITY: SECURE_COOKIES=False but PUBLIC_BASE_URL is HTTPS. Set SECURE_COOKIES=True."
+        )
     if not settings.ALLOWED_ORIGINS:
         log.warning("SECURITY: ALLOWED_ORIGINS not set — using localhost fallback.")
     yield
@@ -190,6 +241,7 @@ app.include_router(tracking_router)
 
 # ── Root redirect ─────────────────────────────────────────────────────────────
 
+
 @app.get("/", include_in_schema=False)
 async def root_redirect() -> RedirectResponse:
     """Redirect browser root to the UI login page."""
@@ -197,6 +249,7 @@ async def root_redirect() -> RedirectResponse:
 
 
 # ── Health check ─────────────────────────────────────────────────────────────
+
 
 @app.get("/health", tags=["meta"])
 async def health() -> dict:
