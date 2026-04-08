@@ -1,6 +1,6 @@
 """
 core/storage.py — Cloud-Storage Upload & Share-Link
-Unterstützte Anbieter: Nextcloud, OneDrive, Dropbox, HiDrive, Synology Drive
+Unterstützte Anbieter: Nextcloud, OneDrive, Dropbox, HiDrive, Synology Drive, MinIO
 
 Alle Funktionen erhalten die Konfiguration als `cfg: dict`.
 Keine Flask-Abhängigkeit, keine globalen Variablen.
@@ -17,15 +17,24 @@ from urllib.parse import quote
 
 try:
     import msal as _msal
+
     _MSAL_AVAILABLE = True
 except ImportError:
     _MSAL_AVAILABLE = False
+
+try:
+    import boto3 as _boto3
+
+    _BOTO3_AVAILABLE = True
+except ImportError:
+    _BOTO3_AVAILABLE = False
 
 # Interner Cache: (nc_url, nc_user) → interne User-ID (z.B. UUID bei LDAP)
 _nc_user_id_cache: dict[tuple, str] = {}
 
 
 # ── Nextcloud ────────────────────────────────────────────────────────────────
+
 
 def _nc_user_id(cfg: dict) -> str:
     """Gibt die interne Nextcloud-User-ID zurück (per OCS-API, wird gecacht)."""
@@ -59,15 +68,20 @@ def nc_ensure_folder(cfg: dict, folder_path: str):
     for part in parts:
         current = f"{current}/{part}" if current else part
         url = _nc_webdav_url(cfg, current)
-        resp = requests.request("MKCOL", url,
-                                auth=(cfg["user"], cfg["password"]), timeout=15)
+        resp = requests.request(
+            "MKCOL", url, auth=(cfg["user"], cfg["password"]), timeout=15
+        )
         if resp.status_code not in (201, 405, 409):
             resp.raise_for_status()
 
 
-def upload_to_nextcloud(cfg: dict, filename: str, content: bytes,
-                        content_type: str = "text/markdown; charset=utf-8",
-                        subfolder: str = "") -> str:
+def upload_to_nextcloud(
+    cfg: dict,
+    filename: str,
+    content: bytes,
+    content_type: str = "text/markdown; charset=utf-8",
+    subfolder: str = "",
+) -> str:
     """Lädt Datei hoch, gibt den Datei-Pfad zurück."""
     base_folder = cfg.get("folder", "SecureSend")
     folder_path = f"{base_folder}/{subfolder}" if subfolder else base_folder
@@ -85,7 +99,9 @@ def upload_to_nextcloud(cfg: dict, filename: str, content: bytes,
     return path
 
 
-def create_nextcloud_share_link(cfg: dict, file_path: str, password: Optional[str], days: int) -> str:
+def create_nextcloud_share_link(
+    cfg: dict, file_path: str, password: Optional[str], days: int
+) -> str:
     """Erstellt Share via OCS API, gibt die öffentliche URL zurück.
     Wird password=None übergeben, wird kein Passwortschutz gesetzt."""
     base = cfg["url"].rstrip("/")
@@ -93,10 +109,10 @@ def create_nextcloud_share_link(cfg: dict, file_path: str, password: Optional[st
     expiry_str = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
 
     data: dict = {
-        "path":        f"/{file_path}",
-        "shareType":   3,
+        "path": f"/{file_path}",
+        "shareType": 3,
         "permissions": 1,
-        "expireDate":  expiry_str,
+        "expireDate": expiry_str,
     }
     if password:
         data["password"] = password
@@ -118,10 +134,13 @@ def create_nextcloud_share_link(cfg: dict, file_path: str, password: Optional[st
 
 # ── OneDrive ─────────────────────────────────────────────────────────────────
 
+
 def get_graph_token(cfg: dict) -> str:
     """Holt ein Microsoft Graph Access Token via MSAL."""
     if not _MSAL_AVAILABLE:
-        raise RuntimeError("msal ist nicht installiert. Bitte 'pip install msal' ausführen.")
+        raise RuntimeError(
+            "msal ist nicht installiert. Bitte 'pip install msal' ausführen."
+        )
     authority = f"https://login.microsoftonline.com/{cfg['tenant_id']}"
     app_msal = _msal.ConfidentialClientApplication(
         cfg["client_id"],
@@ -136,12 +155,21 @@ def get_graph_token(cfg: dict) -> str:
     return result["access_token"]
 
 
-def upload_to_onedrive(cfg: dict, token: str, filename: str, content: bytes,
-                       content_type: str = "text/markdown; charset=utf-8",
-                       subfolder: str = "") -> str:
+def upload_to_onedrive(
+    cfg: dict,
+    token: str,
+    filename: str,
+    content: bytes,
+    content_type: str = "text/markdown; charset=utf-8",
+    subfolder: str = "",
+) -> str:
     """Lädt Datei hoch, gibt die Item-ID zurück."""
     base_folder = cfg.get("folder", "SecureSend")
-    path = f"{base_folder}/{subfolder}/{filename}" if subfolder else f"{base_folder}/{filename}"
+    path = (
+        f"{base_folder}/{subfolder}/{filename}"
+        if subfolder
+        else f"{base_folder}/{filename}"
+    )
     url = (
         f"https://graph.microsoft.com/v1.0/users/{cfg['user']}"
         f"/drive/root:/{path}:/content"
@@ -155,10 +183,13 @@ def upload_to_onedrive(cfg: dict, token: str, filename: str, content: bytes,
     return resp.json()["id"]
 
 
-def create_onedrive_share_link(cfg: dict, token: str, item_id: str,
-                               password: str, days: int) -> str:
+def create_onedrive_share_link(
+    cfg: dict, token: str, item_id: str, password: str, days: int
+) -> str:
     """Erstellt passwortgeschützten Freigabe-Link."""
-    expiry = (datetime.now(timezone.utc) + timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    expiry = (datetime.now(timezone.utc) + timedelta(days=days)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
     url = (
         f"https://graph.microsoft.com/v1.0/users/{cfg['user']}"
         f"/drive/items/{item_id}/createLink"
@@ -171,7 +202,10 @@ def create_onedrive_share_link(cfg: dict, token: str, item_id: str,
     }
     resp = requests.post(
         url,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        },
         json=payload,
         timeout=30,
     )
@@ -181,11 +215,12 @@ def create_onedrive_share_link(cfg: dict, token: str, item_id: str,
 
 # ── Dropbox ──────────────────────────────────────────────────────────────────
 
+
 def _dropbox_token(cfg: dict) -> str:
     """Holt ein frisches Dropbox Access-Token via Refresh-Token."""
-    app_key    = cfg.get("app_key", "")
+    app_key = cfg.get("app_key", "")
     app_secret = cfg.get("app_secret", "")
-    refresh    = cfg.get("refresh_token", "")
+    refresh = cfg.get("refresh_token", "")
 
     if refresh and app_key and app_secret:
         resp = requests.post(
@@ -208,8 +243,9 @@ def _dropbox_headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-def upload_to_dropbox(cfg: dict, token: str, filename: str, content: bytes,
-                      subfolder: str = "") -> str:
+def upload_to_dropbox(
+    cfg: dict, token: str, filename: str, content: bytes, subfolder: str = ""
+) -> str:
     """Lädt Datei zu Dropbox hoch. Gibt den Dropbox-Pfad zurück."""
     base = cfg.get("folder", "/SecureSend").rstrip("/")
     path = f"{base}/{subfolder}/{filename}" if subfolder else f"{base}/{filename}"
@@ -219,11 +255,13 @@ def upload_to_dropbox(cfg: dict, token: str, filename: str, content: bytes,
         headers={
             **_dropbox_headers(token),
             "Content-Type": "application/octet-stream",
-            "Dropbox-API-Arg": _json.dumps({
-                "path": path,
-                "mode": "add",
-                "autorename": True,
-            }),
+            "Dropbox-API-Arg": _json.dumps(
+                {
+                    "path": path,
+                    "mode": "add",
+                    "autorename": True,
+                }
+            ),
         },
         data=content,
         timeout=60,
@@ -234,11 +272,16 @@ def upload_to_dropbox(cfg: dict, token: str, filename: str, content: bytes,
 
 def create_dropbox_share_link(cfg: dict, token: str, path: str, days: int) -> str:
     """Erstellt einen Dropbox-Freigabe-Link (kein Passwortschutz via API)."""
-    expiry = (datetime.now(timezone.utc) + timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    expiry = (datetime.now(timezone.utc) + timedelta(days=days)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
     resp = requests.post(
         "https://api.dropboxapi.com/2/sharing/create_shared_link_with_settings",
         headers={**_dropbox_headers(token), "Content-Type": "application/json"},
-        json={"path": path, "settings": {"requested_visibility": "public", "expires": expiry}},
+        json={
+            "path": path,
+            "settings": {"requested_visibility": "public", "expires": expiry},
+        },
         timeout=30,
     )
     if resp.status_code == 409:
@@ -262,6 +305,7 @@ def create_dropbox_share_link(cfg: dict, token: str, path: str, days: int) -> st
 
 # ── HiDrive ───────────────────────────────────────────────────────────────────
 
+
 def _hidrive_webdav_url(cfg: dict, path: str) -> str:
     username = cfg.get("username") or cfg.get("user", "")
     return f"https://webdav.hidrive.strato.com/users/{quote(username, safe='')}/{path.lstrip('/')}"
@@ -284,9 +328,13 @@ def hidrive_ensure_folder(cfg: dict, folder_path: str):
             resp.raise_for_status()
 
 
-def upload_to_hidrive(cfg: dict, filename: str, content: bytes,
-                      content_type: str = "application/octet-stream",
-                      subfolder: str = "") -> str:
+def upload_to_hidrive(
+    cfg: dict,
+    filename: str,
+    content: bytes,
+    content_type: str = "application/octet-stream",
+    subfolder: str = "",
+) -> str:
     """Lädt Datei zu HiDrive via WebDAV hoch. Gibt den Pfad zurück."""
     base = cfg.get("folder", "SecureSend")
     folder = f"{base}/{subfolder}" if subfolder else base
@@ -304,7 +352,9 @@ def upload_to_hidrive(cfg: dict, filename: str, content: bytes,
     return path
 
 
-def create_hidrive_share_link(cfg: dict, file_path: str, password: Optional[str], days: int) -> str:
+def create_hidrive_share_link(
+    cfg: dict, file_path: str, password: Optional[str], days: int
+) -> str:
     """Erstellt einen HiDrive-Freigabe-Link via REST-API."""
     username = cfg.get("username") or cfg.get("user", "")
     full_path = f"/users/{username}/{file_path.lstrip('/')}"
@@ -333,18 +383,19 @@ def create_hidrive_share_link(cfg: dict, file_path: str, password: Optional[str]
 
 # ── Synology Drive ────────────────────────────────────────────────────────────
 
+
 def _syno_login(cfg: dict) -> str:
     """Meldet sich bei Synology an und gibt die Session-ID (sid) zurück."""
     base = cfg["url"].rstrip("/")
     resp = requests.get(
         f"{base}/webapi/auth.cgi",
         params={
-            "api":     "SYNO.API.Auth",
-            "method":  "login",
+            "api": "SYNO.API.Auth",
+            "method": "login",
             "version": "3",
             "account": cfg.get("username") or cfg.get("user", ""),
-            "passwd":  cfg.get("password", ""),
-            "format":  "sid",
+            "passwd": cfg.get("password", ""),
+            "format": "sid",
         },
         verify=cfg.get("verify_ssl", True),
         timeout=15,
@@ -380,9 +431,13 @@ def synology_ensure_folder(cfg: dict, folder_path: str):
             resp.raise_for_status()
 
 
-def upload_to_synology(cfg: dict, filename: str, content: bytes,
-                       content_type: str = "application/octet-stream",
-                       subfolder: str = "") -> str:
+def upload_to_synology(
+    cfg: dict,
+    filename: str,
+    content: bytes,
+    content_type: str = "application/octet-stream",
+    subfolder: str = "",
+) -> str:
     """Lädt Datei zu Synology Drive via WebDAV hoch. Gibt den Pfad zurück."""
     base = cfg.get("folder", "SecureSend")
     folder = f"{base}/{subfolder}" if subfolder else base
@@ -401,8 +456,9 @@ def upload_to_synology(cfg: dict, filename: str, content: bytes,
     return path
 
 
-def create_synology_share_link(cfg: dict, sid: str, file_path: str,
-                                password: Optional[str], days: int) -> str:
+def create_synology_share_link(
+    cfg: dict, sid: str, file_path: str, password: Optional[str], days: int
+) -> str:
     """Erstellt einen Synology FileStation Freigabe-Link."""
     base = cfg["url"].rstrip("/")
     # Absoluter Pfad für FileStation (/homes/{user}/... oder /home/...)
@@ -411,11 +467,11 @@ def create_synology_share_link(cfg: dict, sid: str, file_path: str,
 
     expiry = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
     params: dict = {
-        "api":          "SYNO.FileStation.Sharing",
-        "method":       "create",
-        "version":      "3",
-        "_sid":         sid,
-        "path":         abs_path,
+        "api": "SYNO.FileStation.Sharing",
+        "method": "create",
+        "version": "3",
+        "_sid": sid,
+        "path": abs_path,
         "date_expired": expiry,
     }
     if password:
@@ -438,12 +494,144 @@ def create_synology_share_link(cfg: dict, sid: str, file_path: str,
     return f"{base}/sharing/{link_id}"
 
 
+# ── MinIO / S3 Storage ─────────────────────────────────────────────────────────
+
+
+def _get_s3_client(cfg: dict):
+    """Erstellt einen boto3 S3-Client für MinIO oder AWS S3."""
+    if not _BOTO3_AVAILABLE:
+        raise RuntimeError(
+            "boto3 ist nicht installiert. Bitte 'pip install boto3' ausführen."
+        )
+
+    import boto3
+    from botocore.config import Config
+
+    endpoint = cfg.get("endpoint", "")
+    region = cfg.get("region", "us-east-1")
+    access_key = cfg.get("access_key", "")
+    secret_key = cfg.get("secret_key", "")
+    use_ssl = cfg.get("use_ssl", True)
+
+    # MinIO can use path-style or virtual-hosted style
+    s3_kwargs = {
+        "aws_access_key_id": access_key,
+        "aws_secret_access_key": secret_key,
+        "region_name": region,
+    }
+
+    # Only add endpoint_url if MinIO (not AWS S3)
+    if endpoint:
+        s3_kwargs["endpoint_url"] = endpoint
+
+    # Configure signature version for MinIO (S3v4)
+    if endpoint:  # MinIO
+        s3_kwargs["config"] = Config(signature_version="s3v4")
+
+    return boto3.client("s3", **s3_kwargs)
+
+
+def upload_to_minio(
+    cfg: dict,
+    filename: str,
+    content: bytes,
+    content_type: str = "application/octet-stream",
+    subfolder: str = "",
+) -> str:
+    """Lädt Datei zu MinIO/S3 hoch. Gibt den Object Key zurück."""
+    s3 = _get_s3_client(cfg)
+    bucket = cfg.get("bucket", "securesend")
+    base_folder = cfg.get("folder", "SecureSend")
+    key = (
+        f"{base_folder}/{subfolder}/{filename}"
+        if subfolder
+        else f"{base_folder}/{filename}"
+    )
+
+    s3.put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=content,
+        ContentType=content_type,
+    )
+    return key
+
+
+def create_minio_share_link(
+    cfg: dict,
+    object_key: str,
+    password: Optional[str],
+    days: int,
+) -> str:
+    """Erstellt einen vorgefertigten Share-Link für MinIO/S3 (via Presigned URL)."""
+    s3 = _get_s3_client(cfg)
+    bucket = cfg.get("bucket", "securesend")
+    base_url = cfg.get("base_url", "")  # Optional: public base URL for the bucket
+
+    # Generate presigned URL
+    expiry_seconds = days * 24 * 60 * 60
+    presigned_url = s3.generate_presigned_url(
+        "get_object",
+        Params={"Bucket": bucket, "Key": object_key},
+        ExpiresIn=expiry_seconds,
+    )
+
+    # If base_url is provided, we can also create a public link (if bucket is public)
+    # Otherwise, return the presigned URL
+    if base_url and not password:
+        # For public buckets, construct direct link
+        return f"{base_url.rstrip('/')}/{object_key}"
+
+    return presigned_url
+
+
+def get_minio_status(cfg: dict) -> dict:
+    """Prüft MinIO-Verbindung und liefert Bucket-Informationen."""
+    result = {
+        "ok": False,
+        "service": "minio",
+        "display_name": None,
+        "quota": None,
+        "error": None,
+    }
+
+    try:
+        s3 = _get_s3_client(cfg)
+        bucket = cfg.get("bucket", "securesend")
+
+        # Check bucket existence
+        s3.head_bucket(Bucket=bucket)
+
+        result["display_name"] = f"MinIO: {bucket}"
+        result["ok"] = True
+
+        # Try to get bucket encryption status
+        try:
+            enc = s3.get_bucket_encryption(Bucket=bucket)
+            result["encryption"] = enc.get("ServerSideEncryptionRules", [{}])[0].get(
+                "SSEAlgorithm"
+            )
+        except Exception:
+            pass
+
+    except Exception as e:
+        result["error"] = str(e)
+
+    return result
+
+
 # ── Dispatcher ───────────────────────────────────────────────────────────────
 
-def upload_and_share(cfg: dict, filename: str, content: bytes,
-                     password: str, days: int,
-                     content_type: str = "text/markdown; charset=utf-8",
-                     subfolder: str = "") -> str:
+
+def upload_and_share(
+    cfg: dict,
+    filename: str,
+    content: bytes,
+    password: str,
+    days: int,
+    content_type: str = "text/markdown; charset=utf-8",
+    subfolder: str = "",
+) -> str:
     """Lädt Datei hoch und gibt passwortgeschützten Link zurück.
 
     cfg muss enthalten:
@@ -454,37 +642,55 @@ def upload_and_share(cfg: dict, filename: str, content: bytes,
     service = cfg.get("service", "nextcloud")
 
     if service == "nextcloud":
-        file_path = upload_to_nextcloud(cfg, filename, content,
-                                        content_type=content_type, subfolder=subfolder)
+        file_path = upload_to_nextcloud(
+            cfg, filename, content, content_type=content_type, subfolder=subfolder
+        )
         return create_nextcloud_share_link(cfg, file_path, password, days)
 
     elif service == "onedrive":
         token = get_graph_token(cfg)
-        item_id = upload_to_onedrive(cfg, token, filename, content,
-                                     content_type=content_type, subfolder=subfolder)
+        item_id = upload_to_onedrive(
+            cfg,
+            token,
+            filename,
+            content,
+            content_type=content_type,
+            subfolder=subfolder,
+        )
         return create_onedrive_share_link(cfg, token, item_id, password, days)
 
     elif service == "dropbox":
         token = _dropbox_token(cfg)
-        file_path = upload_to_dropbox(cfg, token, filename, content, subfolder=subfolder)
+        file_path = upload_to_dropbox(
+            cfg, token, filename, content, subfolder=subfolder
+        )
         return create_dropbox_share_link(cfg, token, file_path, days)
 
     elif service == "hidrive":
-        file_path = upload_to_hidrive(cfg, filename, content,
-                                      content_type=content_type, subfolder=subfolder)
+        file_path = upload_to_hidrive(
+            cfg, filename, content, content_type=content_type, subfolder=subfolder
+        )
         return create_hidrive_share_link(cfg, file_path, password, days)
 
     elif service == "synology":
-        file_path = upload_to_synology(cfg, filename, content,
-                                       content_type=content_type, subfolder=subfolder)
+        file_path = upload_to_synology(
+            cfg, filename, content, content_type=content_type, subfolder=subfolder
+        )
         sid = _syno_login(cfg)
         return create_synology_share_link(cfg, sid, file_path, password, days)
+
+    elif service == "minio":
+        file_path = upload_to_minio(
+            cfg, filename, content, content_type=content_type, subfolder=subfolder
+        )
+        return create_minio_share_link(cfg, file_path, password, days)
 
     else:
         raise ValueError(f"Unbekannter Storage-Service: {service!r}")
 
 
 # ── Multi-File Upload + Folder-Share ─────────────────────────────────────────
+
 
 def upload_files_and_share_folder(
     cfg: dict,
@@ -521,8 +727,14 @@ def upload_files_and_share_folder(
     elif service == "onedrive":
         token = get_graph_token(cfg)
         for filename, content, content_type in files:
-            upload_to_onedrive(cfg, token, filename, content,
-                               content_type=content_type, subfolder=folder_path)
+            upload_to_onedrive(
+                cfg,
+                token,
+                filename,
+                content,
+                content_type=content_type,
+                subfolder=folder_path,
+            )
         r = requests.get(
             f"https://graph.microsoft.com/v1.0/me/drive/root:/{folder_path}",
             headers={"Authorization": f"Bearer {token}"},
@@ -536,19 +748,22 @@ def upload_files_and_share_folder(
         token = _dropbox_token(cfg)
         for filename, content, content_type in files:
             upload_to_dropbox(cfg, token, filename, content, subfolder=folder_path)
-        return create_dropbox_share_link(cfg, token,
-                                         f"{cfg.get('folder', '/SecureSend')}/{folder_path}", days)
+        return create_dropbox_share_link(
+            cfg, token, f"{cfg.get('folder', '/SecureSend')}/{folder_path}", days
+        )
 
     elif service == "hidrive":
         for filename, content, content_type in files:
-            upload_to_hidrive(cfg, filename, content,
-                              content_type=content_type, subfolder=folder_path)
+            upload_to_hidrive(
+                cfg, filename, content, content_type=content_type, subfolder=folder_path
+            )
         return create_hidrive_share_link(cfg, folder_path, password, days)
 
     elif service == "synology":
         for filename, content, content_type in files:
-            upload_to_synology(cfg, filename, content,
-                               content_type=content_type, subfolder=folder_path)
+            upload_to_synology(
+                cfg, filename, content, content_type=content_type, subfolder=folder_path
+            )
         sid = _syno_login(cfg)
         return create_synology_share_link(cfg, sid, folder_path, password, days)
 
@@ -557,6 +772,7 @@ def upload_files_and_share_folder(
 
 
 # ── Status & Quota ────────────────────────────────────────────────────────────
+
 
 def get_provider_status(cfg: dict) -> dict:
     """Prüft Verbindung und liefert Quota-Informationen.
@@ -571,7 +787,13 @@ def get_provider_status(cfg: dict) -> dict:
       }
     """
     service = cfg.get("service", "nextcloud")
-    result: dict = {"ok": False, "service": service, "display_name": None, "quota": None, "error": None}
+    result: dict = {
+        "ok": False,
+        "service": service,
+        "display_name": None,
+        "quota": None,
+        "error": None,
+    }
 
     if service == "nextcloud":
         try:
@@ -590,7 +812,9 @@ def get_provider_status(cfg: dict) -> dict:
                 return result
             r.raise_for_status()
             data = r.json()["ocs"]["data"]
-            result["display_name"] = data.get("display-name") or data.get("displayname") or data.get("id")
+            result["display_name"] = (
+                data.get("display-name") or data.get("displayname") or data.get("id")
+            )
 
             # Quota via WebDAV PROPFIND
             uid = data.get("id", quote(cfg.get("user", ""), safe=""))
@@ -598,11 +822,12 @@ def get_provider_status(cfg: dict) -> dict:
             propfind_body = (
                 '<?xml version="1.0"?>'
                 '<d:propfind xmlns:d="DAV:">'
-                '<d:prop><d:quota-available-bytes/><d:quota-used-bytes/></d:prop>'
-                '</d:propfind>'
+                "<d:prop><d:quota-available-bytes/><d:quota-used-bytes/></d:prop>"
+                "</d:propfind>"
             )
             rq = requests.request(
-                "PROPFIND", webdav_url,
+                "PROPFIND",
+                webdav_url,
                 auth=auth,
                 data=propfind_body,
                 headers={"Depth": "0", "Content-Type": "application/xml"},
@@ -610,18 +835,25 @@ def get_provider_status(cfg: dict) -> dict:
             )
             if rq.ok:
                 import xml.etree.ElementTree as ET
+
                 root = ET.fromstring(rq.text)
                 ns = {"d": "DAV:"}
                 avail = root.findtext(".//d:quota-available-bytes", namespaces=ns)
-                used  = root.findtext(".//d:quota-used-bytes",      namespaces=ns)
+                used = root.findtext(".//d:quota-used-bytes", namespaces=ns)
                 avail_i = int(avail) if avail and avail.lstrip("-").isdigit() else None
-                used_i  = int(used)  if used  and used.lstrip("-").isdigit()  else None
+                used_i = int(used) if used and used.lstrip("-").isdigit() else None
                 if used_i is not None:
-                    total = (used_i + avail_i) if (avail_i is not None and avail_i >= 0) else None
+                    total = (
+                        (used_i + avail_i)
+                        if (avail_i is not None and avail_i >= 0)
+                        else None
+                    )
                     result["quota"] = {
-                        "used":      used_i,
-                        "available": avail_i if avail_i is not None and avail_i >= 0 else None,
-                        "total":     total,
+                        "used": used_i,
+                        "available": avail_i
+                        if avail_i is not None and avail_i >= 0
+                        else None,
+                        "total": total,
                     }
             result["ok"] = True
 
@@ -638,9 +870,11 @@ def get_provider_status(cfg: dict) -> dict:
             )
             r.raise_for_status()
             d = r.json()
-            result["display_name"] = d.get("owner", {}).get("user", {}).get("displayName")
+            result["display_name"] = (
+                d.get("owner", {}).get("user", {}).get("displayName")
+            )
             quota = d.get("quota", {})
-            used  = quota.get("used")
+            used = quota.get("used")
             total = quota.get("total")
             avail = quota.get("remaining")
             if used is not None:
@@ -675,7 +909,9 @@ def get_provider_status(cfg: dict) -> dict:
                 total = alloc.get("allocated")
                 result["quota"] = {
                     "used": used,
-                    "available": (total - used) if (total and used is not None) else None,
+                    "available": (total - used)
+                    if (total and used is not None)
+                    else None,
                     "total": total,
                 }
             result["ok"] = True
@@ -697,7 +933,9 @@ def get_provider_status(cfg: dict) -> dict:
                 return result
             r.raise_for_status()
             d = r.json()
-            result["display_name"] = d.get("alias") or d.get("account") or d.get("email")
+            result["display_name"] = (
+                d.get("alias") or d.get("account") or d.get("email")
+            )
             # Quota via /api/user/quota
             rq = requests.get(
                 "https://my.hidrive.com/api/user/quota",
@@ -706,11 +944,13 @@ def get_provider_status(cfg: dict) -> dict:
             )
             if rq.ok:
                 qd = rq.json()
-                used  = qd.get("used_quota")
+                used = qd.get("used_quota")
                 total = qd.get("quota")
                 result["quota"] = {
                     "used": used,
-                    "available": (total - used) if (total and used is not None) else None,
+                    "available": (total - used)
+                    if (total and used is not None)
+                    else None,
                     "total": total,
                 }
             result["ok"] = True
@@ -723,7 +963,12 @@ def get_provider_status(cfg: dict) -> dict:
             base = cfg["url"].rstrip("/")
             r = requests.get(
                 f"{base}/webapi/entry.cgi",
-                params={"api": "SYNO.FileStation.Info", "method": "get", "version": "2", "_sid": sid},
+                params={
+                    "api": "SYNO.FileStation.Info",
+                    "method": "get",
+                    "version": "2",
+                    "_sid": sid,
+                },
                 verify=cfg.get("verify_ssl", True),
                 timeout=10,
             )
@@ -737,6 +982,9 @@ def get_provider_status(cfg: dict) -> dict:
             result["ok"] = True
         except Exception as e:
             result["error"] = str(e)
+
+    elif service == "minio":
+        return get_minio_status(cfg)
 
     else:
         result["error"] = f"Unbekannter Service: {service!r}"

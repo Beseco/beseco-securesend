@@ -414,6 +414,7 @@
             <option value="dropbox">Dropbox</option>
             <option value="hidrive">HiDrive (Strato)</option>
             <option value="synology">Synology Drive</option>
+            <option value="minio">MinIO (S3-kompatibel)</option>
           </select>
         </div>
       </div>
@@ -538,6 +539,51 @@
               SSL-Zertifikat prüfen
             </label>
           </div>
+          </div>
+        </div>
+
+      <!-- MinIO / S3 fields -->
+      <div id="minioFields" style="display:none;">
+        <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#0369a1;">
+          <strong>MinIO (S3-kompatibel):</strong> Eigener SecureSend Storage. Alternativ auch AWS S3 nutzbar.
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
+          <div>
+            <label class="form-label">Endpoint URL</label>
+            <input type="url" id="pMinioEndpoint" class="form-input" placeholder="https://minio.example.com:9000" />
+          </div>
+          <div>
+            <label class="form-label">Bucket-Name</label>
+            <input type="text" id="pMinioBucket" class="form-input" placeholder="securesend" />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
+          <div>
+            <label class="form-label">Access Key</label>
+            <input type="text" id="pMinioAccessKey" class="form-input" />
+          </div>
+          <div>
+            <label class="form-label">Secret Key</label>
+            <input type="password" id="pMinioSecretKey" class="form-input" />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
+          <div>
+            <label class="form-label">Region</label>
+            <input type="text" id="pMinioRegion" class="form-input" placeholder="us-east-1" value="us-east-1" />
+          </div>
+          <div>
+            <label class="form-label">Base URL <span style="font-weight:400;color:#94a3b8;font-size:0.8rem;">(optional)</span></label>
+            <input type="url" id="pMinioBaseUrl" class="form-input" placeholder="https://minio.example.com/securesend" />
+          </div>
+        </div>
+        <div style="margin-bottom:0.875rem;">
+          <label class="form-label">Upload-Ordner</label>
+          <input type="text" id="pMinioFolder" class="form-input" placeholder="SecureSend" value="SecureSend" />
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
+          <input type="checkbox" id="pMinioSSL" checked style="accent-color:#1a56db;width:1rem;height:1rem;" />
+          <label style="font-size:0.875rem;font-weight:500;color:#374151;">SSL/TLS verwenden</label>
         </div>
       </div>
 
@@ -723,14 +769,15 @@
   }
 
   // Provider-Darstellungs-Hilfsfunktionen (ausgelagert um doppelte-Klammer-Konflikte zu vermeiden)
-  const _PROV_COLORS = {nextcloud:'#e0f2fe',onedrive:'#ede9fe',dropbox:'#dbeafe',hidrive:'#dcfce7',synology:'#fef3c7'};
-  const _PROV_LABELS = {nextcloud:'Nextcloud',onedrive:'OneDrive',dropbox:'Dropbox',hidrive:'HiDrive (Strato)',synology:'Synology Drive'};
+  const _PROV_COLORS = {nextcloud:'#e0f2fe',onedrive:'#ede9fe',dropbox:'#dbeafe',hidrive:'#dcfce7',synology:'#fef3c7',minio:'#f0fdf4'};
+  const _PROV_LABELS = {nextcloud:'Nextcloud',onedrive:'OneDrive',dropbox:'Dropbox',hidrive:'HiDrive (Strato)',synology:'Synology Drive',minio:'MinIO (S3)'};
   const _PROV_ICONS  = {
     nextcloud: '<svg style="width:1.25rem;height:1.25rem;color:#0369a1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
     onedrive:  '<svg style="width:1.25rem;height:1.25rem;color:#7c3aed" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
     dropbox:   '<svg style="width:1.25rem;height:1.25rem;color:#2563eb" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>',
     hidrive:   '<svg style="width:1.25rem;height:1.25rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>',
     synology:  '<svg style="width:1.25rem;height:1.25rem;color:#d97706" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>',
+    minio:     '<svg style="width:1.25rem;height:1.25rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>',
   };
   const _ICON_DEFAULT = '<svg style="width:1.25rem;height:1.25rem;color:#64748b" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>';
   function _provColor(svc) { return _PROV_COLORS[svc] || '#f1f5f9'; }
@@ -829,6 +876,7 @@
     document.getElementById('dropboxFields').style.display   = svc === 'dropbox'   ? 'block' : 'none';
     document.getElementById('hidriveFields').style.display   = svc === 'hidrive'   ? 'block' : 'none';
     document.getElementById('synologyFields').style.display  = svc === 'synology'  ? 'block' : 'none';
+    document.getElementById('minioFields').style.display    = svc === 'minio'    ? 'block' : 'none';
   }
 
   function openProviderModal(provider = null) {
@@ -863,6 +911,15 @@
     document.getElementById('pSyPassword').value = cfg.password || '';
     document.getElementById('pSyFolder').value = cfg.folder || 'SecureSend';
     document.getElementById('pSyVerifySSL').checked = cfg.verify_ssl !== false;
+    // MinIO
+    document.getElementById('pMinioEndpoint').value = cfg.endpoint || '';
+    document.getElementById('pMinioBucket').value = cfg.bucket || 'securesend';
+    document.getElementById('pMinioAccessKey').value = cfg.access_key || '';
+    document.getElementById('pMinioSecretKey').value = cfg.secret_key || '';
+    document.getElementById('pMinioRegion').value = cfg.region || 'us-east-1';
+    document.getElementById('pMinioBaseUrl').value = cfg.base_url || '';
+    document.getElementById('pMinioFolder').value = cfg.folder || 'SecureSend';
+    document.getElementById('pMinioSSL').checked = cfg.use_ssl !== false;
     document.getElementById('providerModalTitle').textContent = provider ? 'Anbieter bearbeiten' : 'Anbieter hinzufügen';
     updateProviderFields();
     openModal('providerModal');
@@ -885,6 +942,17 @@
       config = { username: document.getElementById('pHdUsername').value, password: document.getElementById('pHdPassword').value, folder: document.getElementById('pHdFolder').value };
     } else if (svc === 'synology') {
       config = { url: document.getElementById('pSyUrl').value, username: document.getElementById('pSyUsername').value, password: document.getElementById('pSyPassword').value, folder: document.getElementById('pSyFolder').value, verify_ssl: document.getElementById('pSyVerifySSL').checked };
+    } else if (svc === 'minio') {
+      config = { 
+        endpoint: document.getElementById('pMinioEndpoint').value, 
+        bucket: document.getElementById('pMinioBucket').value,
+        access_key: document.getElementById('pMinioAccessKey').value,
+        secret_key: document.getElementById('pMinioSecretKey').value,
+        region: document.getElementById('pMinioRegion').value,
+        base_url: document.getElementById('pMinioBaseUrl').value,
+        folder: document.getElementById('pMinioFolder').value,
+        use_ssl: document.getElementById('pMinioSSL').checked,
+      };
     }
     const body = { name: document.getElementById('pName').value, service: svc, config_json: config, is_default: document.getElementById('pDefault').checked, is_active: document.getElementById('pActive').checked };
     const btn = document.getElementById('saveProviderBtn');
