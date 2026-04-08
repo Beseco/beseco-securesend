@@ -17,7 +17,16 @@ from datetime import datetime, timezone
 from pathlib import PurePosixPath
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Request,
+    UploadFile,
+    status,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -32,12 +41,41 @@ router = APIRouter(prefix="/send", tags=["send"])
 
 _ALPHABET = string.ascii_letters + string.digits
 
-BLOCKED_EXTENSIONS: frozenset[str] = frozenset({
-    ".exe", ".bat", ".cmd", ".com", ".msi", ".ps1", ".vbs", ".vbe",
-    ".sh", ".bash", ".zsh", ".jar", ".scr", ".pif", ".reg", ".dll",
-    ".hta", ".lnk", ".js", ".jse", ".wsf", ".wsh", ".msp", ".gadget",
-    ".cpl", ".inf", ".ins", ".isp", ".msc", ".mst", ".application",
-})
+BLOCKED_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".exe",
+        ".bat",
+        ".cmd",
+        ".com",
+        ".msi",
+        ".ps1",
+        ".vbs",
+        ".vbe",
+        ".sh",
+        ".bash",
+        ".zsh",
+        ".jar",
+        ".scr",
+        ".pif",
+        ".reg",
+        ".dll",
+        ".hta",
+        ".lnk",
+        ".js",
+        ".jse",
+        ".wsf",
+        ".wsh",
+        ".msp",
+        ".gadget",
+        ".cpl",
+        ".inf",
+        ".ins",
+        ".isp",
+        ".msc",
+        ".mst",
+        ".application",
+    }
+)
 
 _INFO_TXT = """\
 === SecureSend – Sicherheitshinweis ===
@@ -82,8 +120,10 @@ def _build_encrypted_zip(
     buf = io.BytesIO()
     try:
         import pyzipper
+
         with pyzipper.AESZipFile(
-            buf, "w",
+            buf,
+            "w",
             compression=pyzipper.ZIP_DEFLATED,
             encryption=pyzipper.WZ_AES,
         ) as zf:
@@ -95,6 +135,7 @@ def _build_encrypted_zip(
     except ImportError:
         import zipfile
         import logging
+
         logging.getLogger("send").warning(
             "pyzipper not installed – falling back to unencrypted ZIP"
         )
@@ -126,7 +167,7 @@ async def _get_provider(
         select(CloudProvider).where(
             CloudProvider.org_id == org_id,
             CloudProvider.is_default == True,  # noqa: E712
-            CloudProvider.is_active == True,   # noqa: E712
+            CloudProvider.is_active == True,  # noqa: E712
         )
     )
     provider = result.scalar_one_or_none()
@@ -143,7 +184,7 @@ async def _get_sms_gateway(db: AsyncSession, org_id: str) -> Optional[SmsGateway
         select(SmsGateway).where(
             SmsGateway.org_id == org_id,
             SmsGateway.is_default == True,  # noqa: E712
-            SmsGateway.is_active == True,    # noqa: E712
+            SmsGateway.is_active == True,  # noqa: E712
         )
     )
     return result.scalar_one_or_none()
@@ -176,11 +217,24 @@ async def send_secure(
 
     org_id = current_user.org_id
 
-    # Sicherheitsstufe normalisieren
-    if security_level not in ("normal", "secure", "extended"):
+    # ── Sicherheitsstufe validieren (gegen erlaubte Stufen der Org) ─────────
+    org_settings = {}
+    if current_user.organization and current_user.organization.settings_json:
+        org_settings = current_user.organization.settings_json
+
+    allowed_levels = org_settings.get("allowed_security_levels", ["secure", "extended"])
+    if security_level not in allowed_levels:
+        security_level = org_settings.get("default_security_level", "secure")
+        if security_level not in allowed_levels:
+            security_level = allowed_levels[0] if allowed_levels else "secure"
+
+    # Sicherheitsstufe normalisieren (alle bekannten Stufen)
+    valid_levels = ["normal", "standard", "secure", "extended", "advanced", "maximal"]
+    if security_level not in valid_levels:
         security_level = "secure"
 
-    use_sms = security_level in ("secure", "extended")
+    # use_sms für Stufen die SMS benötigen
+    use_sms = security_level in ("secure", "extended", "advanced", "maximal")
     share_password: Optional[str] = None
     zip_password: Optional[str] = None
 
@@ -188,6 +242,10 @@ async def send_secure(
         share_password = _random_password()
     elif security_level == "extended":
         zip_password = _random_password()
+    elif security_level in ("advanced", "maximal"):
+        # TODO: Implement advanced/maximal logic with SecureSend storage
+        # For now, fallback to secure behavior
+        share_password = _random_password()
 
     # ── Dateien validieren und lesen ───────────────────────────────────────
     valid_files = [f for f in files if f.filename]
@@ -202,10 +260,13 @@ async def send_secure(
                 )
         for f in valid_files:
             data = await f.read()
-            file_entries.append((f.filename, data, f.content_type or "application/octet-stream"))
+            file_entries.append(
+                (f.filename, data, f.content_type or "application/octet-stream")
+            )
 
     # ── Upload-Größenlimit ──────────────────────────────────────────────────
     from config import settings as _cfg  # type: ignore
+
     max_bytes = _cfg.MAX_UPLOAD_SIZE_MB * 1024 * 1024
     total_size = sum(len(d) for _, d, _ in file_entries)
     if total_size > max_bytes:
@@ -216,6 +277,7 @@ async def send_secure(
 
     # ── Virenscanner ───────────────────────────────────────────────────────
     from core.antivirus import scan_bytes  # type: ignore
+
     for fname, data, mime in file_entries:
         is_clean, msg = scan_bytes(data, fname)
         if not is_clean:
@@ -261,7 +323,11 @@ async def send_secure(
                     days=expiry_days,
                 ),
             )
-            filename = f"{len(file_entries)} Datei(en) (verschlüsselt)" if file_entries else "Nachricht (verschlüsselt)"
+            filename = (
+                f"{len(file_entries)} Datei(en) (verschlüsselt)"
+                if file_entries
+                else "Nachricht (verschlüsselt)"
+            )
 
         elif file_entries:
             share_url = await asyncio.get_event_loop().run_in_executor(
@@ -274,7 +340,11 @@ async def send_secure(
                     days=expiry_days,
                 ),
             )
-            filename = valid_files[0].filename if len(valid_files) == 1 else f"{len(valid_files)} Dateien"
+            filename = (
+                valid_files[0].filename
+                if len(valid_files) == 1
+                else f"{len(valid_files)} Dateien"
+            )
 
         else:
             # Nur Textnachricht
@@ -296,7 +366,10 @@ async def send_secure(
         raise
     except Exception as exc:
         import logging as _log
-        _log.getLogger("securesend").exception("Upload fehlgeschlagen für User %s: %s", current_user.id, exc)
+
+        _log.getLogger("securesend").exception(
+            "Upload fehlgeschlagen für User %s: %s", current_user.id, exc
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Fehler beim Hochladen. Bitte versuchen Sie es erneut.",
@@ -346,7 +419,9 @@ async def send_secure(
         f"{current_user.first_name or ''} {current_user.last_name or ''}".strip()
         or current_user.email
     )
-    org_name = (current_user.organization.name if current_user.organization else "") or ""
+    org_name = (
+        current_user.organization.name if current_user.organization else ""
+    ) or ""
 
     if to_email and smtp_cfg:
         try:
@@ -356,7 +431,8 @@ async def send_secure(
                 f"<div style='background:#f8fafc;border-left:3px solid #1a56db;"
                 f"padding:0.75rem 1rem;margin-bottom:1.5rem;border-radius:0 0.375rem 0.375rem 0;"
                 f"font-style:italic;color:#475569;'>{personal_message}</div>"
-                if personal_message else ""
+                if personal_message
+                else ""
             )
 
             if security_level == "normal":
@@ -379,7 +455,7 @@ async def send_secure(
             <div style="font-family:sans-serif;color:#1e293b;max-width:540px;">
               <h2 style="color:#1a56db;margin-bottom:0.5rem;">{subject}</h2>
               <p style="color:#64748b;margin-bottom:1.5rem;">
-                {sender_name}{' · ' + org_name if org_name else ''} hat eine Datei sicher für Sie bereitgestellt.
+                {sender_name}{" · " + org_name if org_name else ""} hat eine Datei sicher für Sie bereitgestellt.
               </p>
               {personal_block}
               <p>
@@ -393,13 +469,14 @@ async def send_secure(
               </p>
               {pw_hint}{link_hint}
               <p style="font-size:0.8125rem;color:#94a3b8;">Gültig für {expiry_days} Tag(e).</p>
-              {'<hr style="border:none;border-top:1px solid #e2e8f0;margin-top:1.5rem;"/>' + f'<p style="font-size:0.8125rem;color:#94a3b8;">{signature}</p>' if signature else ''}
+              {'<hr style="border:none;border-top:1px solid #e2e8f0;margin-top:1.5rem;"/>' + f'<p style="font-size:0.8125rem;color:#94a3b8;">{signature}</p>' if signature else ""}
               {tracking_pixel}
             </div>
             """
             send_email(smtp_cfg, to_email, subject, body_html)
         except Exception as exc:
             import logging
+
             logging.getLogger("send").warning("Email send failed: %s", exc)
 
     # ── SMS senden ─────────────────────────────────────────────────────────
@@ -408,6 +485,7 @@ async def send_secure(
         if gateway and gateway.config_json:
             try:
                 from core.sms import send_sms_sipgate  # type: ignore
+
                 if security_level == "extended":
                     sms_text = f"{subject}\nLink: {share_url}\nZIP-Passwort: {effective_password}"
                 else:
@@ -417,6 +495,7 @@ async def send_secure(
                 send_sms_sipgate(gateway.config_json, to_phone, sms_text)
             except Exception as exc:
                 import logging
+
                 logging.getLogger("send").warning("SMS send failed: %s", exc)
 
     return SendResponse(

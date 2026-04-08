@@ -57,6 +57,7 @@ _sec_log = logging.getLogger("securesend.security")
 
 # ── Setup-Assistent ────────────────────────────────────────────────────────────
 
+
 async def _needs_setup(db: AsyncSession) -> bool:
     """Gibt True zurück wenn noch kein Superadmin existiert."""
     res = await db.execute(
@@ -67,14 +68,19 @@ async def _needs_setup(db: AsyncSession) -> bool:
 
 @router.get("/setup", response_class=HTMLResponse)
 @limiter.limit("20/hour")
-async def setup_page(request: Request, db: AsyncSession = Depends(get_db)) -> HTMLResponse:
+async def setup_page(
+    request: Request, db: AsyncSession = Depends(get_db)
+) -> HTMLResponse:
     if not await _needs_setup(db):
         return RedirectResponse(url="/ui/login", status_code=303)
-    return templates.TemplateResponse("setup.html", {
-        "request": request,
-        "current_year": datetime.now().year,
-        "error": "",
-    })
+    return templates.TemplateResponse(
+        "setup.html",
+        {
+            "request": request,
+            "current_year": datetime.now().year,
+            "error": "",
+        },
+    )
 
 
 @router.post("/setup")
@@ -100,13 +106,20 @@ async def setup_submit(
     org_slug = reseller_slug
 
     def _err(msg: str):
-        return templates.TemplateResponse("setup.html", {
-            "request": request,
-            "current_year": datetime.now().year,
-            "error": msg,
-            "first_name": first_name, "last_name": last_name, "email": email,
-            "reseller_name": reseller_name, "reseller_slug": reseller_slug,
-        }, status_code=422)
+        return templates.TemplateResponse(
+            "setup.html",
+            {
+                "request": request,
+                "current_year": datetime.now().year,
+                "error": msg,
+                "first_name": first_name,
+                "last_name": last_name,
+                "email": email,
+                "reseller_name": reseller_name,
+                "reseller_slug": reseller_slug,
+            },
+            status_code=422,
+        )
 
     if not await _needs_setup(db):
         return RedirectResponse(url="/ui/login", status_code=303)
@@ -170,6 +183,7 @@ async def setup_submit(
 
     return RedirectResponse(url="/ui/login?setup=1", status_code=303)
 
+
 # ── Template engine ───────────────────────────────────────────────────────────
 
 _ROLE_LABELS = {
@@ -210,7 +224,7 @@ def _set_auth_cookie(response: RedirectResponse, token: str) -> None:
         httponly=True,
         samesite="strict",
         secure=settings.SECURE_COOKIES,
-        path="/",       # must be "/" so API routes at /admin/* also receive the cookie
+        path="/",  # must be "/" so API routes at /admin/* also receive the cookie
     )
 
 
@@ -221,6 +235,7 @@ def _clear_auth_cookie(response: RedirectResponse) -> None:
 def _safe_redirect(next_url: str, fallback: str = "/ui/") -> str:
     """Validate redirect target to prevent open redirect attacks."""
     from urllib.parse import urlparse
+
     try:
         parsed = urlparse(next_url)
         # Must be relative (no scheme, no host) and start with /ui
@@ -231,6 +246,7 @@ def _safe_redirect(next_url: str, fallback: str = "/ui/") -> str:
             return fallback
         # Prevent path traversal: resolve and check again
         import posixpath
+
         resolved = posixpath.normpath(path)
         if not resolved.startswith("/ui"):
             return fallback
@@ -259,7 +275,7 @@ def _ctx_verify(raw: str) -> str | None:
         return None
     # Signature is always the last 16 chars after final ":"
     idx = raw.rfind(":")
-    value, sig = raw[:idx], raw[idx + 1:]
+    value, sig = raw[:idx], raw[idx + 1 :]
     expected = _hmac_mod.new(
         settings.SECRET_KEY.encode(),
         value.encode(),
@@ -293,7 +309,12 @@ def _read_ctx(request: Request) -> dict:
     if raw.startswith("o:"):
         parts = raw.split(":")
         if len(parts) >= 3:
-            return {"type": "org", "reseller_id": parts[1], "org_id": parts[2], "raw": raw}
+            return {
+                "type": "org",
+                "reseller_id": parts[1],
+                "org_id": parts[2],
+                "raw": raw,
+            }
     if raw.startswith("r:"):
         return {"type": "reseller", "reseller_id": raw[2:], "raw": raw}
     return {"type": "none", "raw": ""}
@@ -301,9 +322,8 @@ def _read_ctx(request: Request) -> dict:
 
 # ── Auth helpers ──────────────────────────────────────────────────────────────
 
-async def _get_user_from_cookie(
-    request: Request, db: AsyncSession
-) -> Optional[User]:
+
+async def _get_user_from_cookie(request: Request, db: AsyncSession) -> Optional[User]:
     """
     Try to extract and validate the JWT from the `access_token` cookie.
     Returns the User ORM object, or None on any failure.
@@ -312,7 +332,9 @@ async def _get_user_from_cookie(
     if not token:
         return None
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+        )
     except JWTError:
         return None
 
@@ -324,9 +346,7 @@ async def _get_user_from_cookie(
         return None
 
     result = await db.execute(
-        select(User)
-        .options(selectinload(User.organization))
-        .where(User.id == user_id)
+        select(User).options(selectinload(User.organization)).where(User.id == user_id)
     )
     user = result.scalar_one_or_none()
     if user is None or not user.is_active:
@@ -382,9 +402,7 @@ def _ctx(
     }
 
 
-async def _resolve_ctx_names(
-    ctx: dict, db: AsyncSession
-) -> tuple[str, str]:
+async def _resolve_ctx_names(ctx: dict, db: AsyncSession) -> tuple[str, str]:
     """Fetch reseller_name and org_name for a given ctx dict."""
     reseller_name = ""
     org_name = ""
@@ -394,7 +412,9 @@ async def _resolve_ctx_names(
         if res:
             reseller_name = res.name
     if ctx["type"] == "org":
-        o = await db.execute(select(Organization).where(Organization.id == ctx["org_id"]))
+        o = await db.execute(
+            select(Organization).where(Organization.id == ctx["org_id"])
+        )
         org = o.scalar_one_or_none()
         if org:
             org_name = org.name
@@ -402,6 +422,7 @@ async def _resolve_ctx_names(
 
 
 # ── Login / Logout ────────────────────────────────────────────────────────────
+
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(
@@ -421,9 +442,8 @@ async def login_page(
 
     # Orgs with self-registration enabled → show registration links
     from models.organization import Organization as OrgModel
-    orgs_result = await db.execute(
-        select(OrgModel).where(OrgModel.is_active == True)
-    )
+
+    orgs_result = await db.execute(select(OrgModel).where(OrgModel.is_active == True))
     reg_orgs = [
         {"name": o.name, "slug": o.slug}
         for o in orgs_result.scalars().all()
@@ -462,7 +482,9 @@ async def login_submit(
     # ── Step 2: TOTP verification (pending_token present) ──────────────────────
     if pending_token:
         try:
-            payload = jwt.decode(pending_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+            payload = jwt.decode(
+                pending_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            )
             if payload.get("type") != "2fa_pending":
                 raise JWTError("wrong type")
             user_id = payload["sub"]
@@ -478,13 +500,20 @@ async def login_submit(
                 status_code=401,
             )
         result = await db.execute(
-            select(User).options(selectinload(User.organization)).where(User.id == user_id)
+            select(User)
+            .options(selectinload(User.organization))
+            .where(User.id == user_id)
         )
         user = result.scalar_one_or_none()
         if not user or not user.totp_secret:
             return templates.TemplateResponse(
                 "login.html",
-                {"request": request, "error": "Fehler.", "current_year": datetime.now().year, "reg_orgs": []},
+                {
+                    "request": request,
+                    "error": "Fehler.",
+                    "current_year": datetime.now().year,
+                    "reg_orgs": [],
+                },
                 status_code=401,
             )
 
@@ -518,9 +547,7 @@ async def login_submit(
 
     # ── Step 1: Password verification ──────────────────────────────────────────
     result = await db.execute(
-        select(User)
-        .options(selectinload(User.organization))
-        .where(User.email == email)
+        select(User).options(selectinload(User.organization)).where(User.email == email)
     )
     user = result.scalar_one_or_none()
 
@@ -533,7 +560,9 @@ async def login_submit(
             request.client.host if request.client else "unknown",
         )
     elif not user.is_active:
-        error_msg = "Ihr Konto ist deaktiviert. Bitte wenden Sie sich an Ihren Administrator."
+        error_msg = (
+            "Ihr Konto ist deaktiviert. Bitte wenden Sie sich an Ihren Administrator."
+        )
 
     if error_msg:
         return templates.TemplateResponse(
@@ -587,6 +616,7 @@ async def logout(request: Request) -> RedirectResponse:
 
 # ── Self-registration ─────────────────────────────────────────────────────────
 
+
 @router.get("/register/{org_slug}", response_class=HTMLResponse)
 async def register_page(
     request: Request,
@@ -594,9 +624,7 @@ async def register_page(
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     """Public registration page for a specific org slug."""
-    result = await db.execute(
-        select(Organization).where(Organization.slug == org_slug)
-    )
+    result = await db.execute(select(Organization).where(Organization.slug == org_slug))
     org = result.scalar_one_or_none()
     settings_j = (org.settings_json or {}) if org else {}
     if not org or not org.is_active or not settings_j.get("allow_registration"):
@@ -644,30 +672,38 @@ async def verify_email_page(
     verification = result.scalar_one_or_none()
 
     if not verification:
-        ctx.update(success=False, message="Ungültiger oder bereits verwendeter Bestätigungslink.")
+        ctx.update(
+            success=False,
+            message="Ungültiger oder bereits verwendeter Bestätigungslink.",
+        )
         return templates.TemplateResponse("verify_email.html", ctx, status_code=404)
 
     if verification.expires_at < datetime.utcnow():
         await db.delete(verification)
         await db.commit()
-        ctx.update(success=False, message="Der Bestätigungslink ist abgelaufen. Bitte registrieren Sie sich erneut.")
+        ctx.update(
+            success=False,
+            message="Der Bestätigungslink ist abgelaufen. Bitte registrieren Sie sich erneut.",
+        )
         return templates.TemplateResponse("verify_email.html", ctx, status_code=410)
 
     # Activate user
-    user_result = await db.execute(
-        select(User).where(User.id == verification.user_id)
-    )
+    user_result = await db.execute(select(User).where(User.id == verification.user_id))
     user = user_result.scalar_one_or_none()
     if user:
         user.is_active = True
     await db.delete(verification)
     await db.commit()
 
-    ctx.update(success=True, message="Ihre E-Mail-Adresse wurde bestätigt. Sie können sich jetzt anmelden.")
+    ctx.update(
+        success=True,
+        message="Ihre E-Mail-Adresse wurde bestätigt. Sie können sich jetzt anmelden.",
+    )
     return templates.TemplateResponse("verify_email.html", ctx)
 
 
 # ── Passwort vergessen ────────────────────────────────────────────────────────
+
 
 @router.get("/forgot-password", response_class=HTMLResponse)
 async def forgot_password_page(
@@ -676,7 +712,12 @@ async def forgot_password_page(
 ) -> HTMLResponse:
     return templates.TemplateResponse(
         "forgot_password.html",
-        {"request": request, "current_year": datetime.now().year, "success": False, "error": None},
+        {
+            "request": request,
+            "current_year": datetime.now().year,
+            "success": False,
+            "error": None,
+        },
     )
 
 
@@ -687,9 +728,18 @@ async def reset_password_page(
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     from models.shared import PasswordReset
-    ctx: dict = {"request": request, "current_year": datetime.now().year, "token": token, "error": None, "success": False}
+
+    ctx: dict = {
+        "request": request,
+        "current_year": datetime.now().year,
+        "token": token,
+        "error": None,
+        "success": False,
+    }
     if token:
-        result = await db.execute(select(PasswordReset).where(PasswordReset.token == token))
+        result = await db.execute(
+            select(PasswordReset).where(PasswordReset.token == token)
+        )
         reset = result.scalar_one_or_none()
         if not reset or reset.expires_at < datetime.utcnow():
             ctx["error"] = "Dieser Reset-Link ist ungültig oder abgelaufen."
@@ -700,6 +750,7 @@ async def reset_password_page(
 
 
 # ── Dashboard ─────────────────────────────────────────────────────────────────
+
 
 @router.get("/", response_class=HTMLResponse)
 async def dashboard(
@@ -719,6 +770,7 @@ async def dashboard(
 
 # ── Send ──────────────────────────────────────────────────────────────────────
 
+
 @router.get("/send", response_class=HTMLResponse)
 async def send_page(
     request: Request,
@@ -733,19 +785,40 @@ async def send_page(
         return templates.TemplateResponse(
             "dashboard.html",
             _ctx(
-                request, user, "dashboard",
-                ctx_reseller_name=rname, ctx_org_name=oname,
+                request,
+                user,
+                "dashboard",
+                ctx_reseller_name=rname,
+                ctx_org_name=oname,
                 flash_message="Das Senden ist nur für Organisationsbenutzer verfügbar.",
                 flash_type="error",
             ),
         )
+
+    # Fetch organization security settings
+    org_settings = {}
+    if user.organization and user.organization.settings_json:
+        org_settings = user.organization.settings_json
+
+    allowed_levels = org_settings.get("allowed_security_levels", ["secure", "extended"])
+    default_level = org_settings.get("default_security_level", "secure")
+
     return templates.TemplateResponse(
         "send.html",
-        _ctx(request, user, "send", ctx_reseller_name=rname, ctx_org_name=oname),
+        _ctx(
+            request,
+            user,
+            "send",
+            ctx_reseller_name=rname,
+            ctx_org_name=oname,
+            allowed_security_levels=allowed_levels,
+            default_security_level=default_level,
+        ),
     )
 
 
 # ── Receive ───────────────────────────────────────────────────────────────────
+
 
 @router.get("/receive", response_class=HTMLResponse)
 async def receive_page(
@@ -767,6 +840,7 @@ async def receive_page(
 
 # ── Contacts ──────────────────────────────────────────────────────────────────
 
+
 @router.get("/contacts", response_class=HTMLResponse)
 async def contacts_page(
     request: Request,
@@ -786,6 +860,7 @@ async def contacts_page(
 
 
 # ── History ───────────────────────────────────────────────────────────────────
+
 
 @router.get("/history", response_class=HTMLResponse)
 async def history_page(
@@ -831,26 +906,31 @@ async def history_api(
         .offset(offset)
     )
     rows = result.scalars().all()
-    return JSONResponse([
-        {
-            "id": h.id,
-            "to_email": h.to_email,
-            "to_phone": h.to_phone,
-            "filename": h.filename,
-            "share_url": h.share_url,
-            "provider": h.provider,
-            "expiry_days": h.expiry_days,
-            "security_level": h.security_level,
-            "ip_address": h.ip_address,
-            "created_at": h.created_at.isoformat(),
-            "opened_at": h.opened_at.isoformat() if h.opened_at else None,
-            "link_clicked_at": h.link_clicked_at.isoformat() if h.link_clicked_at else None,
-        }
-        for h in rows
-    ])
+    return JSONResponse(
+        [
+            {
+                "id": h.id,
+                "to_email": h.to_email,
+                "to_phone": h.to_phone,
+                "filename": h.filename,
+                "share_url": h.share_url,
+                "provider": h.provider,
+                "expiry_days": h.expiry_days,
+                "security_level": h.security_level,
+                "ip_address": h.ip_address,
+                "created_at": h.created_at.isoformat(),
+                "opened_at": h.opened_at.isoformat() if h.opened_at else None,
+                "link_clicked_at": h.link_clicked_at.isoformat()
+                if h.link_clicked_at
+                else None,
+            }
+            for h in rows
+        ]
+    )
 
 
 # ── Admin: Organisation ───────────────────────────────────────────────────────
+
 
 @router.get("/admin/org", response_class=HTMLResponse)
 async def admin_org_page(
@@ -864,7 +944,9 @@ async def admin_org_page(
         return templates.TemplateResponse(
             "dashboard.html",
             _ctx(
-                request, user, "dashboard",
+                request,
+                user,
+                "dashboard",
                 flash_message="Sie haben keine Berechtigung für diese Seite.",
                 flash_type="error",
             ),
@@ -881,17 +963,29 @@ async def admin_org_page(
             ctx_org_id = ctx["org_id"]
         else:
             from models.organization import Organization
-            result = await db.execute(select(Organization).where(Organization.is_active == True).order_by(Organization.name))  # noqa: E712
+
+            result = await db.execute(
+                select(Organization)
+                .where(Organization.is_active == True)
+                .order_by(Organization.name)
+            )  # noqa: E712
             orgs = [{"id": o.id, "name": o.name} for o in result.scalars().all()]
     return templates.TemplateResponse(
         "admin_org.html",
-        _ctx(request, user, "admin_org",
-             ctx_reseller_name=rname, ctx_org_name=oname,
-             orgs=orgs, ctx_org_id=ctx_org_id),
+        _ctx(
+            request,
+            user,
+            "admin_org",
+            ctx_reseller_name=rname,
+            ctx_org_name=oname,
+            orgs=orgs,
+            ctx_org_id=ctx_org_id,
+        ),
     )
 
 
 # ── Admin: Reseller ───────────────────────────────────────────────────────────
+
 
 @router.get("/admin/reseller", response_class=HTMLResponse)
 async def admin_reseller_page(
@@ -905,7 +999,9 @@ async def admin_reseller_page(
         return templates.TemplateResponse(
             "dashboard.html",
             _ctx(
-                request, user, "dashboard",
+                request,
+                user,
+                "dashboard",
                 flash_message="Sie haben keine Berechtigung für diese Seite.",
                 flash_type="error",
             ),
@@ -915,17 +1011,26 @@ async def admin_reseller_page(
     # For superadmin: pass all resellers for org creation modal + settings selector
     resellers = []
     if user.role == UserRole.superadmin:
-        result = await db.execute(select(Reseller).where(Reseller.is_active == True).order_by(Reseller.name))  # noqa: E712
+        result = await db.execute(
+            select(Reseller).where(Reseller.is_active == True).order_by(Reseller.name)
+        )  # noqa: E712
         resellers = [{"id": r.id, "name": r.name} for r in result.scalars().all()]
     return templates.TemplateResponse(
         "admin_reseller.html",
-        _ctx(request, user, "admin_reseller",
-             ctx_reseller_name=rname, ctx_org_name=oname,
-             resellers=resellers, reseller_id=user.reseller_id or ""),
+        _ctx(
+            request,
+            user,
+            "admin_reseller",
+            ctx_reseller_name=rname,
+            ctx_org_name=oname,
+            resellers=resellers,
+            reseller_id=user.reseller_id or "",
+        ),
     )
 
 
 # ── Admin: Super ──────────────────────────────────────────────────────────────
+
 
 @router.get("/admin/super", response_class=HTMLResponse)
 async def admin_super_page(
@@ -939,7 +1044,9 @@ async def admin_super_page(
         return templates.TemplateResponse(
             "dashboard.html",
             _ctx(
-                request, user, "dashboard",
+                request,
+                user,
+                "dashboard",
                 flash_message="Diese Seite ist nur für Superadministratoren zugänglich.",
                 flash_type="error",
             ),
@@ -954,6 +1061,7 @@ async def admin_super_page(
 
 # ── Admin: Resellers list ──────────────────────────────────────────────────────
 
+
 @router.get("/admin/resellers", response_class=HTMLResponse)
 async def admin_resellers_page(
     request: Request,
@@ -966,7 +1074,9 @@ async def admin_resellers_page(
         return templates.TemplateResponse(
             "dashboard.html",
             _ctx(
-                request, user, "dashboard",
+                request,
+                user,
+                "dashboard",
                 flash_message="Diese Seite ist nur für Superadministratoren zugänglich.",
                 flash_type="error",
             ),
@@ -975,11 +1085,18 @@ async def admin_resellers_page(
     rname, oname = await _resolve_ctx_names(ctx, db)
     return templates.TemplateResponse(
         "admin_resellers.html",
-        _ctx(request, user, "admin_resellers", ctx_reseller_name=rname, ctx_org_name=oname),
+        _ctx(
+            request,
+            user,
+            "admin_resellers",
+            ctx_reseller_name=rname,
+            ctx_org_name=oname,
+        ),
     )
 
 
 # ── Admin: Reseller context CP ────────────────────────────────────────────────
+
 
 @router.get("/admin/reseller-cp", response_class=HTMLResponse)
 async def admin_reseller_cp_page(
@@ -994,7 +1111,9 @@ async def admin_reseller_cp_page(
         return templates.TemplateResponse(
             "dashboard.html",
             _ctx(
-                request, user, "dashboard",
+                request,
+                user,
+                "dashboard",
                 flash_message="Sie haben keine Berechtigung für diese Seite.",
                 flash_type="error",
             ),
@@ -1019,20 +1138,30 @@ async def admin_reseller_cp_page(
 
     # Fetch orgs for this reseller
     orgs_result = await db.execute(
-        select(Organization).where(Organization.reseller_id == reseller_id).order_by(Organization.name)
+        select(Organization)
+        .where(Organization.reseller_id == reseller_id)
+        .order_by(Organization.name)
     )
     orgs = orgs_result.scalars().all()
 
     return templates.TemplateResponse(
         "admin_reseller_cp.html",
-        _ctx(request, user, "admin_reseller_cp" if tab != "orgs" else "admin_reseller_orgs",
-             ctx_reseller_name=rname, ctx_org_name=oname,
-             reseller=reseller, orgs=orgs, active_tab=tab,
-             reseller_id=reseller_id),
+        _ctx(
+            request,
+            user,
+            "admin_reseller_cp" if tab != "orgs" else "admin_reseller_orgs",
+            ctx_reseller_name=rname,
+            ctx_org_name=oname,
+            reseller=reseller,
+            orgs=orgs,
+            active_tab=tab,
+            reseller_id=reseller_id,
+        ),
     )
 
 
 # ── Context switching routes ───────────────────────────────────────────────────
+
 
 @router.post("/ctx/reseller/{reseller_id}")
 async def ctx_enter_reseller(

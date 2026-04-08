@@ -39,10 +39,11 @@ class OrgRead(BaseModel):
 
 # ---- Org settings sub-schema (what lives inside settings_json) ----
 
+
 class SmtpSettings(BaseModel):
     host: str = ""
     port: int = 587
-    mode: str = "starttls"          # none | starttls | ssl
+    mode: str = "starttls"  # none | starttls | ssl
     user: str = ""
     password: str = ""
     from_addr: str = ""
@@ -55,3 +56,11 @@ class OrgSettings(BaseModel):
     expiry_days: int = 7
     branding_color: str = "#2563eb"
     default_subject: str = "Ihr sicheres Dokument"
+
+    # Security levels configuration
+    allowed_security_levels: list[str] = [
+        "secure",
+        "extended",
+    ]  # default: only secure and extended
+    default_security_level: str = "secure"
+    storage_preference: str = "customer_cloud"  # "customer_cloud" or "securesend_cloud"

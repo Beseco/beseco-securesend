@@ -183,6 +183,83 @@
       </div>
     </div>
 
+    <!-- Security Levels Configuration -->
+    <div class="card" style="margin-bottom:1rem;">
+      <h3 style="font-size:0.9375rem;font-weight:700;color:#1e293b;margin-bottom:1.25rem;display:flex;align-items:center;gap:0.5rem;">
+        <svg style="width:1rem;height:1rem;color:#1a56db" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        Sicherheitsstufen
+      </h3>
+      <p style="font-size:0.8125rem;color:#64748b;margin-bottom:1rem;">Wählen Sie, welche Sicherheitsstufen Ihre Benutzer beim Senden auswählen können.</p>
+      
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:0.75rem;margin-bottom:1.25rem;">
+        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.5rem;">
+          <input type="checkbox" id="secLevelNormal" style="accent-color:#1a56db;width:1rem;height:1rem;" />
+          <div>
+            <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">Basis</div>
+            <div style="font-size:0.75rem;color:#64748b;">Nur Link, kein Passwort</div>
+          </div>
+        </label>
+        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.5rem;">
+          <input type="checkbox" id="secLevelStandard" style="accent-color:#1a56db;width:1rem;height:1rem;" />
+          <div>
+            <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">Standard</div>
+            <div style="font-size:0.75rem;color:#64748b;">Manuelles Passwort</div>
+          </div>
+        </label>
+        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.5rem;">
+          <input type="checkbox" id="secLevelSecure" style="accent-color:#1a56db;width:1rem;height:1rem;" />
+          <div>
+            <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">Sicher</div>
+            <div style="font-size:0.75rem;color:#64748b;">SMS-Passwort</div>
+          </div>
+        </label>
+        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.5rem;">
+          <input type="checkbox" id="secLevelExtended" style="accent-color:#1a56db;width:1rem;height:1rem;" />
+          <div>
+            <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">Erweitert</div>
+            <div style="font-size:0.75rem;color:#64748b;">Verschlüsseltes ZIP</div>
+          </div>
+        </label>
+        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;background:#fef3c7;border:1px solid #fde68a;border-radius:0.5rem;">
+          <input type="checkbox" id="secLevelAdvanced" style="accent-color:#1a56db;width:1rem;height:1rem;" />
+          <div>
+            <div style="font-size:0.875rem;font-weight:600;color:#92400e;">Fortgeschritten</div>
+            <div style="font-size:0.75rem;color:#92400e;">SecureSend Storage</div>
+          </div>
+        </label>
+        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;background:#fef3c7;border:1px solid #fde68a;border-radius:0.5rem;">
+          <input type="checkbox" id="secLevelMax" style="accent-color:#1a56db;width:1rem;height:1rem;" />
+          <div>
+            <div style="font-size:0.875rem;font-weight:600;color:#92400e;">Maximal</div>
+            <div style="font-size:0.75rem;color:#92400e;">E2E + Audit Trail</div>
+          </div>
+        </label>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
+        <div>
+          <label class="form-label">Standard-Sicherheitsstufe</label>
+          <select id="defaultSecurityLevel" class="form-input">
+            <option value="normal">Basis</option>
+            <option value="standard">Standard</option>
+            <option value="secure" selected>Sicher</option>
+            <option value="extended">Erweitert</option>
+            <option value="advanced">Fortgeschritten</option>
+            <option value="maximal">Maximal</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Speichereinstellung</label>
+          <select id="storagePreference" class="form-input">
+            <option value="customer_cloud">Immer Kunden-Cloud (Stufe 1-4)</option>
+            <option value="securesend_cloud">Immer SecureSend Cloud (Stufe 5-6)</option>
+            <option value="user_choice">Benutzer kann wählen</option>
+          </select>
+        </div>
+      </div>
+      <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.25rem;">Fortgeschritten und Maximal erfordern SecureSend Cloud Storage.</p>
+    </div>
+
     <button onclick="saveSettings()" class="btn-primary" style="display:inline-flex;align-items:center;gap:0.5rem;" id="saveSettingsBtn">
       <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
       Einstellungen speichern
@@ -853,6 +930,17 @@
     document.getElementById('allowedDomains').value = rawDomains.join(', ');
     document.getElementById('regDetails').style.display = allowReg ? 'block' : 'none';
     if (allowReg) _updateRegLink(data.org_slug);
+    
+    // Security levels settings
+    const allowedLevels = data.allowed_security_levels || ['secure', 'extended'];
+    document.getElementById('secLevelNormal').checked = allowedLevels.includes('normal');
+    document.getElementById('secLevelStandard').checked = allowedLevels.includes('standard');
+    document.getElementById('secLevelSecure').checked = allowedLevels.includes('secure');
+    document.getElementById('secLevelExtended').checked = allowedLevels.includes('extended');
+    document.getElementById('secLevelAdvanced').checked = allowedLevels.includes('advanced');
+    document.getElementById('secLevelMax').checked = allowedLevels.includes('maximal');
+    document.getElementById('defaultSecurityLevel').value = data.default_security_level || 'secure';
+    document.getElementById('storagePreference').value = data.storage_preference || 'customer_cloud';
   }
 
   function onRegToggle() {
@@ -913,6 +1001,21 @@
   }
 
   async function saveSettings() {
+    // Collect security levels
+    const allowedLevels = [];
+    if (document.getElementById('secLevelNormal').checked) allowedLevels.push('normal');
+    if (document.getElementById('secLevelStandard').checked) allowedLevels.push('standard');
+    if (document.getElementById('secLevelSecure').checked) allowedLevels.push('secure');
+    if (document.getElementById('secLevelExtended').checked) allowedLevels.push('extended');
+    if (document.getElementById('secLevelAdvanced').checked) allowedLevels.push('advanced');
+    if (document.getElementById('secLevelMax').checked) allowedLevels.push('maximal');
+    
+    // Ensure at least one level is selected
+    if (allowedLevels.length === 0) {
+      showToast('Bitte mindestens eine Sicherheitsstufe auswählen', 'error');
+      return;
+    }
+    
     const body = {
       smtp: {
         host: document.getElementById('smtpHost').value,
@@ -929,6 +1032,9 @@
       allow_registration: document.getElementById('allowRegistration').checked,
       allowed_domains: document.getElementById('allowedDomains').value
         .split(',').map(s => s.trim().replace(/^@/, '')).filter(Boolean),
+      allowed_security_levels: allowedLevels,
+      default_security_level: document.getElementById('defaultSecurityLevel').value,
+      storage_preference: document.getElementById('storagePreference').value,
     };
     const btn = document.getElementById('saveSettingsBtn');
     btn.disabled = true; btn.textContent = 'Speichern…';

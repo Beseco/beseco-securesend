@@ -145,8 +145,8 @@
         <label class="form-label">Sicherheitsstufe</label>
         <div style="display:flex;flex-direction:column;gap:0.5rem;">
 
-          <label class="sec-card" id="lvl_normal">
-            <input type="radio" name="security_level" value="normal" onchange="onSecLevelChange()" />
+          <label class="sec-card" id="lvl_normal" {% if 'normal' not in allowed_security_levels %}style="display:none;"{% endif %}>
+            <input type="radio" name="security_level" value="normal" {% if default_security_level == 'normal' %}checked{% endif %} onchange="onSecLevelChange()" />
             <span style="font-size:1.375rem;line-height:1.2;flex-shrink:0;">📧</span>
             <div>
               <div style="font-size:0.875rem;font-weight:700;color:#1e293b;">Normal</div>
@@ -154,25 +154,62 @@
             </div>
           </label>
 
-          <label class="sec-card selected" id="lvl_secure">
-            <input type="radio" name="security_level" value="secure" checked onchange="onSecLevelChange()" />
+          <label class="sec-card" id="lvl_standard" {% if 'standard' not in allowed_security_levels %}style="display:none;"{% endif %}>
+            <input type="radio" name="security_level" value="standard" {% if default_security_level == 'standard' %}checked{% endif %} onchange="onSecLevelChange()" />
+            <span style="font-size:1.375rem;line-height:1.2;flex-shrink:0;">🔑</span>
+            <div>
+              <div style="font-size:0.875rem;font-weight:700;color:#1e293b;">Standard</div>
+              <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">Manuelles Passwort (selbst vergeben)</div>
+            </div>
+          </label>
+
+          <label class="sec-card {% if default_security_level == 'secure' %}selected{% endif %}" id="lvl_secure" {% if 'secure' not in allowed_security_levels %}style="display:none;"{% endif %}>
+            <input type="radio" name="security_level" value="secure" {% if default_security_level == 'secure' %}checked{% endif %} onchange="onSecLevelChange()" />
             <span style="font-size:1.375rem;line-height:1.2;flex-shrink:0;">🔒</span>
             <div>
               <div style="font-size:0.875rem;font-weight:700;color:#1e293b;">
                 Sicher
-                <span style="font-size:0.7rem;background:#dbeafe;color:#1e40af;padding:0.1rem 0.4rem;border-radius:9999px;font-weight:600;margin-left:0.375rem;">Standard</span>
+                {% if default_security_level == 'secure' %}<span style="font-size:0.7rem;background:#dbeafe;color:#1e40af;padding:0.1rem 0.4rem;border-radius:9999px;font-weight:600;margin-left:0.375rem;">Standard</span>{% endif %}
               </div>
               <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">Passwortgeschützter Link per E-Mail + Passwort per SMS</div>
             </div>
           </label>
 
-          <label class="sec-card" id="lvl_extended">
-            <input type="radio" name="security_level" value="extended" onchange="onSecLevelChange()" />
+          <label class="sec-card" id="lvl_extended" {% if 'extended' not in allowed_security_levels %}style="display:none;"{% endif %}>
+            <input type="radio" name="security_level" value="extended" {% if default_security_level == 'extended' %}checked{% endif %} onchange="onSecLevelChange()" />
             <span style="font-size:1.375rem;line-height:1.2;flex-shrink:0;">🛡️</span>
             <div>
               <div style="font-size:0.875rem;font-weight:700;color:#1e293b;">Erweiterte Sicherheit</div>
               <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">
                 Dateien in AES-256-verschlüsseltem ZIP · Link per E-Mail + Passwort per SMS · inkl. Info.txt
+              </div>
+            </div>
+          </label>
+
+          <label class="sec-card" id="lvl_advanced" {% if 'advanced' not in allowed_security_levels %}style="display:none;"{% endif %}>
+            <input type="radio" name="security_level" value="advanced" {% if default_security_level == 'advanced' %}checked{% endif %} onchange="onSecLevelChange()" />
+            <span style="font-size:1.375rem;line-height:1.2;flex-shrink:0;">🔐</span>
+            <div>
+              <div style="font-size:0.875rem;font-weight:700;color:#92400e;">
+                Fortgeschritten
+                <span style="font-size:0.7rem;background:#fef3c7;color:#92400e;padding:0.1rem 0.4rem;border-radius:9999px;font-weight:600;margin-left:0.375rem;">SecureSend Storage</span>
+              </div>
+              <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">
+                Client-Side Verschlüsselung · Zero-Knowledge · Rückruf möglich
+              </div>
+            </div>
+          </label>
+
+          <label class="sec-card" id="lvl_maximal" {% if 'maximal' not in allowed_security_levels %}style="display:none;"{% endif %}>
+            <input type="radio" name="security_level" value="maximal" {% if default_security_level == 'maximal' %}checked{% endif %} onchange="onSecLevelChange()" />
+            <span style="font-size:1.375rem;line-height:1.2;flex-shrink:0;">🏢</span>
+            <div>
+              <div style="font-size:0.875rem;font-weight:700;color:#92400e;">
+                Maximal
+                <span style="font-size:0.7rem;background:#fef3c7;color:#92400e;padding:0.1rem 0.4rem;border-radius:9999px;font-weight:600;margin-left:0.375rem;">E2E + Audit</span>
+              </div>
+              <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">
+                Ende-zu-Ende-Verschlüsselung · Vollständiger Audit Trail · Für Behörden
               </div>
             </div>
           </label>
