@@ -424,6 +424,7 @@ async def send_secure(
                 else f"{len(valid_files)} Dateien"
             )
             # Build files_json for the history
+            files_json = None
             files_json_list = []
             for f in valid_files:
                 size = 0
