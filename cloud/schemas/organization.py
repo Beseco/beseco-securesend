@@ -59,8 +59,12 @@ class OrgSettings(BaseModel):
 
     # Security levels configuration
     allowed_security_levels: list[str] = [
+        "normal",
+        "standard",
         "secure",
         "extended",
-    ]  # default: only secure and extended
+        "advanced",
+        "maximal",
+    ]  # default: all 6 levels
     default_security_level: str = "secure"
     storage_preference: str = "customer_cloud"  # "customer_cloud" or "securesend_cloud"

@@ -800,7 +800,10 @@ async def send_page(
     if user.organization and user.organization.settings_json:
         org_settings = user.organization.settings_json
 
-    allowed_levels = org_settings.get("allowed_security_levels", ["secure", "extended"])
+    allowed_levels = org_settings.get(
+        "allowed_security_levels",
+        ["normal", "standard", "secure", "extended", "advanced", "maximal"],
+    )
     default_level = org_settings.get("default_security_level", "secure")
 
     return templates.TemplateResponse(

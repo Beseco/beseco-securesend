@@ -245,7 +245,10 @@ async def send_secure(
     if current_user.organization and current_user.organization.settings_json:
         org_settings = current_user.organization.settings_json
 
-    allowed_levels = org_settings.get("allowed_security_levels", ["secure", "extended"])
+    allowed_levels = org_settings.get(
+        "allowed_security_levels",
+        ["normal", "standard", "secure", "extended", "advanced", "maximal"],
+    )
     if security_level not in allowed_levels:
         security_level = org_settings.get("default_security_level", "secure")
         if security_level not in allowed_levels:
