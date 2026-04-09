@@ -43,6 +43,8 @@ services:
       # SMS Gateway (optional)
       SIPGATE_TOKEN_ID: ${SIPGATE_TOKEN_ID:-}
       SIPGATE_DEVICE_ID: ${SIPGATE_DEVICE_ID:-}
+      # Dev mode for debugging
+      DEV_MODE: "true"
     networks:
       - securesend_network
 
