@@ -10,8 +10,8 @@ SET settings_json = COALESCE(settings_json, '{}'::jsonb) ||
   '{\"allowed_security_levels\": [\"normal\", \"standard\", \"secure\", \"extended\", \"advanced\", \"maximal\"]}'::jsonb
 WHERE settings_json IS NOT NULL 
 AND (
-  settings_json->'allowed_security_levels' IS NULL 
-  OR NOT (settings_json->'allowed_security_levels' ? 'maximal')
+  settings_json->>'allowed_security_levels' IS NULL 
+  OR settings_json->>'allowed_security_levels' NOT LIKE '%maximal%'
 );
 "
 
