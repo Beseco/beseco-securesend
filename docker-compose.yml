@@ -33,6 +33,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://securesend:${POSTGRES_PASSWORD:-securesend_pw_change_me}@postgres:5432/securesend}
       SECRET_KEY: ${SECRET_KEY:-default_key_change_in_production}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8001}
+      UVICORN_HOST: "0.0.0.0"
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-securesend_pw_change_me}
       # SMTP (optional)
       SMTP_HOST: ${SMTP_HOST:-}
