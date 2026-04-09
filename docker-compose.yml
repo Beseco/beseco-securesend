@@ -1,3 +1,5 @@
+version: '3.8'
+
 services:
 
   postgres:
@@ -15,15 +17,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-
-  # clamav:
-  #   image: clamav/clamav:latest
-  #   # ARM64 not supported - use on x86 only
-  #   restart: unless-stopped
-  #   environment:
-  #     CLAMAV_NO_FRESHCLAMD: "false"
-  #   volumes:
-  #     - clamav_data:/var/lib/clamav
+    networks:
+      - securesend_network
 
   securesend:
     build: .
@@ -36,14 +31,26 @@ services:
       - "8001:8001"
     volumes:
       - securesend_files:/data
-    env_file:
-      - cloud/.env
     environment:
-      DATABASE_URL: postgresql+asyncpg://securesend:${POSTGRES_PASSWORD:-securesend_pw_change_me}@postgres/securesend
-      UVICORN_HOST: "0.0.0.0"
-      PUBLIC_BASE_URL: "https://securesend.cloud-fs.de"
+      DATABASE_URL: ${DATABASE_URL}
+      SECRET_KEY: ${SECRET_KEY}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://your-domain.com}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # SMTP (optional)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      # SMS Gateway (optional)
+      SIPGATE_TOKEN_ID: ${SIPGATE_TOKEN_ID:-}
+      SIPGATE_DEVICE_ID: ${SIPGATE_DEVICE_ID:-}
+    networks:
+      - securesend_network
 
 volumes:
   postgres_data:
   securesend_files:
-  clamav_data:
+
+networks:
+  securesend_network:
+    driver: bridge
