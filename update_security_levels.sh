@@ -11,7 +11,7 @@ SET settings_json = COALESCE(settings_json, '{}'::jsonb) ||
 WHERE settings_json IS NOT NULL 
 AND (
   settings_json->'allowed_security_levels' IS NULL 
-  OR jsonb_array_length(settings_json->'allowed_security_levels') < 6
+  OR NOT (settings_json->'allowed_security_levels' ? 'maximal')
 );
 "
 
