@@ -12,7 +12,7 @@ import base64
 import json as _json
 import requests
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import quote
 
 try:
@@ -36,6 +36,117 @@ _nc_user_id_cache: dict[tuple, str] = {}
 def _service_is_nextcloud_family(service: str) -> bool:
     """Nextcloud und ownCloud (OCS + WebDAV unter /remote.php/dav/files/…)."""
     return service in ("nextcloud", "owncloud")
+
+
+def _expect_json_response(
+    resp: requests.Response, step: str, *, hint: str = ""
+) -> Any:
+    """Parst JSON; bei leerer oder HTML-Antwort verständliche RuntimeError-Meldung."""
+    text = (resp.text or "").strip()
+    if not text:
+        raise RuntimeError(
+            f"{step}: Leere HTTP-Antwort ({resp.status_code}) von {resp.url}. {hint}".strip()
+        )
+    try:
+        return resp.json()
+    except ValueError:
+        preview = text[:350].replace("\n", " ")
+        raise RuntimeError(
+            f"{step}: Kein JSON ({resp.status_code}). {hint} "
+            f"Antwortbeginn: {preview!r}"
+        ) from None
+
+
+def _xml_local_tag(tag: str) -> str:
+    if not tag:
+        return ""
+    return tag.split("}", 1)[-1] if tag.startswith("{") else tag
+
+
+def _ocs_cloud_user_payload_from_xml(text: str) -> dict:
+    """Wandelt OCS-XML (cloud/user) in ein JSON-ähnliches { \"ocs\": { \"meta\", \"data\" } }."""
+    import xml.etree.ElementTree as ET
+
+    root = ET.fromstring(text.strip())
+    if _xml_local_tag(root.tag) != "ocs":
+        ocs_el = None
+        for el in root.iter():
+            if _xml_local_tag(el.tag) == "ocs":
+                ocs_el = el
+                break
+        if ocs_el is None:
+            raise ValueError("Kein <ocs>-Element")
+        root = ocs_el
+    meta: dict[str, str] = {}
+    data: dict[str, str] = {}
+    for child in root:
+        ln = _xml_local_tag(child.tag)
+        if ln == "meta":
+            for m in child:
+                meta[_xml_local_tag(m.tag)] = (m.text or "").strip()
+        elif ln == "data":
+            for d in child:
+                data[_xml_local_tag(d.tag)] = (d.text or "").strip()
+    return {"ocs": {"meta": meta, "data": data}}
+
+
+def _parse_ocs_cloud_user_response(
+    resp: requests.Response, step: str, *, hint: str = ""
+) -> dict:
+    """JSON oder OCS-XML von /ocs/v2.php/cloud/user."""
+    text = (resp.text or "").strip()
+    if not text:
+        raise RuntimeError(
+            f"{step}: Leere HTTP-Antwort ({resp.status_code}) von {resp.url}. {hint}".strip()
+        )
+    if text.startswith("<") or text.startswith("<?xml"):
+        try:
+            return _ocs_cloud_user_payload_from_xml(text)
+        except Exception as exc:
+            preview = text[:350].replace("\n", " ")
+            raise RuntimeError(
+                f"{step}: OCS-XML nicht lesbar ({resp.status_code}). {hint} "
+                f"Antwortbeginn: {preview!r} ({exc})"
+            ) from exc
+    try:
+        return resp.json()
+    except ValueError:
+        preview = text[:350].replace("\n", " ")
+        raise RuntimeError(
+            f"{step}: Weder JSON noch erkanntes XML ({resp.status_code}). {hint} "
+            f"Antwortbeginn: {preview!r}"
+        ) from None
+
+
+def _ocs_meta_failure_message(meta: dict) -> str | None:
+    """Liefert eine Nutzer-Meldung, wenn OCS meta einen Fehler meldet."""
+    if not meta:
+        return None
+    status = (meta.get("status") or "").strip().lower()
+    raw_code = meta.get("statuscode")
+    try:
+        code = int(raw_code) if raw_code not in (None, "") else None
+    except (TypeError, ValueError):
+        code = None
+    msg = (meta.get("message") or "").strip() or "Unbekannter OCS-Fehler"
+
+    if status == "failure":
+        extra = ""
+        if code == 997:
+            extra = (
+                " Üblich: falsches Passwort, oder es wird ein App-Passwort benötigt "
+                "(Kontoeinstellungen / Sicherheit), nicht das normale Web-Login-Passwort; "
+                "bei 2FA ohne App-Passwort schlägt die API fehl."
+            )
+        return f"{msg} (OCS {code or '—'}){extra}"
+
+    if status and status != "ok":
+        return f"{msg} (OCS status={status!r}, code={code or raw_code})"
+
+    if code is not None and code not in (100, 200):
+        return f"{msg} (OCS-Statuscode {code})"
+
+    return None
 
 
 # ── Nextcloud ────────────────────────────────────────────────────────────────
@@ -967,9 +1078,19 @@ def get_provider_status(cfg: dict) -> dict:
     }
 
     if _service_is_nextcloud_family(service):
+        nc_hint = (
+            "URL muss die Basis der Installation sein (inkl. ggf. /owncloud oder /nextcloud). "
+            "OCS-Endpunkt /ocs/v2.php/cloud/user muss erreichbar sein — kein Proxy mit HTML-Login davor."
+        )
         try:
-            base = cfg["url"].rstrip("/")
-            auth = (cfg.get("user", ""), cfg.get("password", ""))
+            base = (cfg.get("url") or "").strip().rstrip("/")
+            if not base:
+                result["error"] = "Server-URL fehlt"
+                return result
+            auth = (
+                (cfg.get("user") or "").strip(),
+                (cfg.get("password") or "").strip(),
+            )
 
             # Verbindung + User-Info via OCS
             r = requests.get(
@@ -982,7 +1103,29 @@ def get_provider_status(cfg: dict) -> dict:
                 result["error"] = "Ungültige Zugangsdaten (401)"
                 return result
             r.raise_for_status()
-            data = r.json()["ocs"]["data"]
+            payload = _parse_ocs_cloud_user_response(
+                r,
+                "Nextcloud/ownCloud (OCS cloud/user)",
+                hint=nc_hint,
+            )
+            ocs = payload.get("ocs")
+            if not isinstance(ocs, dict):
+                result["error"] = (
+                    f"Nextcloud/ownCloud: unerwartete Antwort (kein OCS). {nc_hint}"
+                )
+                return result
+            meta = ocs.get("meta") if isinstance(ocs.get("meta"), dict) else {}
+            fail_msg = _ocs_meta_failure_message(meta)
+            if fail_msg:
+                result["error"] = f"Nextcloud/ownCloud: {fail_msg}"
+                return result
+            data = ocs.get("data")
+            if not isinstance(data, dict):
+                prev = repr(payload)[:400]
+                result["error"] = (
+                    f"Nextcloud/ownCloud OCS: keine Nutzerdaten in der Antwort: {prev}"
+                )
+                return result
             result["display_name"] = (
                 data.get("display-name") or data.get("displayname") or data.get("id")
             )
@@ -1007,29 +1150,37 @@ def get_provider_status(cfg: dict) -> dict:
             if rq.ok:
                 import xml.etree.ElementTree as ET
 
-                root = ET.fromstring(rq.text)
-                ns = {"d": "DAV:"}
-                avail = root.findtext(".//d:quota-available-bytes", namespaces=ns)
-                used = root.findtext(".//d:quota-used-bytes", namespaces=ns)
-                avail_i = int(avail) if avail and avail.lstrip("-").isdigit() else None
-                used_i = int(used) if used and used.lstrip("-").isdigit() else None
-                if used_i is not None:
-                    total = (
-                        (used_i + avail_i)
-                        if (avail_i is not None and avail_i >= 0)
-                        else None
+                try:
+                    root = ET.fromstring(rq.text or "")
+                except ET.ParseError:
+                    pass
+                else:
+                    ns = {"d": "DAV:"}
+                    avail = root.findtext(".//d:quota-available-bytes", namespaces=ns)
+                    used = root.findtext(".//d:quota-used-bytes", namespaces=ns)
+                    avail_i = (
+                        int(avail) if avail and avail.lstrip("-").isdigit() else None
                     )
-                    result["quota"] = {
-                        "used": used_i,
-                        "available": avail_i
-                        if avail_i is not None and avail_i >= 0
-                        else None,
-                        "total": total,
-                    }
+                    used_i = int(used) if used and used.lstrip("-").isdigit() else None
+                    if used_i is not None:
+                        total = (
+                            (used_i + avail_i)
+                            if (avail_i is not None and avail_i >= 0)
+                            else None
+                        )
+                        result["quota"] = {
+                            "used": used_i,
+                            "available": avail_i
+                            if avail_i is not None and avail_i >= 0
+                            else None,
+                            "total": total,
+                        }
             result["ok"] = True
 
         except requests.RequestException as e:
             result["error"] = f"Verbindungsfehler: {e}"
+        except RuntimeError as e:
+            result["error"] = str(e)
 
     elif service == "onedrive":
         try:
