@@ -25,6 +25,8 @@ Routes:
   POST /ui/ctx/reset                  → exit current context (one level up)
 
   GET  /ui/api/history  → JSON history for the authenticated user (cookie auth)
+  GET  /ui/api/upload-requests → JSON Upload-Anfragen (cookie auth; gleicher Pfad wie UI für Proxys)
+  POST /ui/api/upload-requests → neue Upload-Anfrage (cookie auth)
 """
 
 from __future__ import annotations
@@ -34,7 +36,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -46,11 +48,17 @@ from sqlalchemy.orm import selectinload
 
 from config import settings
 from database import get_db
+from dependencies import org_user_required
 from versioning import get_ui_version_cached
 from models.organization import Organization
 from models.reseller import Reseller
 from models.shared import EmailVerification, History
 from models.user import User, UserRole
+from routers.requests_router import (
+    UploadRequestBody,
+    create_upload_request_impl,
+    list_upload_requests_data,
+)
 
 router = APIRouter(prefix="/ui", tags=["ui"])
 limiter = Limiter(key_func=get_remote_address)
@@ -953,6 +961,27 @@ async def history_api(
             for h in rows
         ]
     )
+
+
+@router.get("/api/upload-requests")
+async def upload_requests_list_api(
+    current_user: User = Depends(org_user_required()),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Upload-Anfragen als JSON (Cookie-Auth); Pfad unter /ui/ wie die Empfangen-Seite."""
+    data = await list_upload_requests_data(current_user, db)
+    return JSONResponse(content=data)
+
+
+@router.post("/api/upload-requests", status_code=status.HTTP_201_CREATED)
+async def upload_requests_create_api(
+    request: Request,
+    body: UploadRequestBody,
+    current_user: User = Depends(org_user_required()),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    out = await create_upload_request_impl(request, body, current_user, db)
+    return JSONResponse(content=out, status_code=status.HTTP_201_CREATED)
 
 
 # ── Admin: Organisation ───────────────────────────────────────────────────────

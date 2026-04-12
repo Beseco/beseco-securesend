@@ -97,15 +97,27 @@
     return window.location.origin + '/r/upload/' + token;
   }
 
+  var UR_API = '/ui/api/upload-requests';
+
   async function loadUploadRequests() {
     const tbody = document.getElementById('urTableBody');
     try {
-      const res = await apiFetch('/requests/upload');
+      const res = await apiFetch(UR_API);
       if (!res.ok) {
-        tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#dc2626;">Konnte Liste nicht laden.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#dc2626;">Konnte Liste nicht laden (HTTP ' + res.status + ').</td></tr>';
         return;
       }
-      const rows = await res.json();
+      let rows;
+      try {
+        rows = await res.json();
+      } catch (je) {
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#dc2626;">Ungültige Server-Antwort.</td></tr>';
+        return;
+      }
+      if (!Array.isArray(rows)) {
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#dc2626;">Unerwartetes Datenformat.</td></tr>';
+        return;
+      }
       if (!rows.length) {
         tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#94a3b8;">Noch keine Upload-Anfragen.</td></tr>';
         return;
@@ -153,7 +165,7 @@
         message: message || null,
         days: days
       };
-      const res = await apiFetch('/requests/upload', { method: 'POST', body: JSON.stringify(body) });
+      const res = await apiFetch(UR_API, { method: 'POST', body: JSON.stringify(body) });
       if (!res.ok) {
         let msg = 'Anfrage fehlgeschlagen';
         try {

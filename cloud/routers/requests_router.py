@@ -36,11 +36,8 @@ router = APIRouter(prefix="/requests", tags=["requests"])
 
 # ── GET /requests/upload ──────────────────────────────────────────────────────
 
-@router.get("/upload")
-async def list_upload_requests(
-    current_user: User = Depends(org_user_required()),
-    db: AsyncSession = Depends(get_db),
-) -> list[dict]:
+
+async def list_upload_requests_data(current_user: User, db: AsyncSession) -> list[dict]:
     """Return all UploadRequests created by the current user, newest first."""
     result = await db.execute(
         select(UploadRequest)
@@ -49,7 +46,7 @@ async def list_upload_requests(
     )
     rows = result.scalars().all()
     now = datetime.now(timezone.utc).replace(tzinfo=None)
-    out = []
+    out: list[dict] = []
     for r in rows:
         effective_status = r.status
         if effective_status == "pending" and r.expires_at < now:
@@ -67,6 +64,15 @@ async def list_upload_requests(
             row["token"] = r.token
         out.append(row)
     return out
+
+
+@router.get("/upload")
+async def list_upload_requests(
+    current_user: User = Depends(org_user_required()),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """Return all UploadRequests created by the current user, newest first."""
+    return await list_upload_requests_data(current_user, db)
 
 
 def _base_url(request: Request) -> str:
@@ -219,16 +225,15 @@ async def create_phone_request(
 
 # ── POST /requests/upload ─────────────────────────────────────────────────────
 
-@router.post("/upload", status_code=status.HTTP_201_CREATED)
-async def create_upload_request(
+
+async def create_upload_request_impl(
     request: Request,
     body: UploadRequestBody,
-    current_user: User = Depends(org_user_required()),
-    db: AsyncSession = Depends(get_db),
+    current_user: User,
+    db: AsyncSession,
 ) -> dict:
     """Create an UploadRequest and send an email to the recipient."""
 
-    # Load org name
     org_result = await db.execute(
         select(Organization).where(Organization.id == current_user.org_id)
     )
@@ -303,3 +308,14 @@ async def create_upload_request(
         log.warning("Kein SMTP konfiguriert – UploadRequest %s E-Mail nicht gesendet", req.id)
 
     return {"id": req.id, "token": token, "status": "pending"}
+
+
+@router.post("/upload", status_code=status.HTTP_201_CREATED)
+async def create_upload_request(
+    request: Request,
+    body: UploadRequestBody,
+    current_user: User = Depends(org_user_required()),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Create an UploadRequest and send an email to the recipient."""
+    return await create_upload_request_impl(request, body, current_user, db)
