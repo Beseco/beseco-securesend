@@ -353,6 +353,26 @@ def _dropbox_oauth_error_message(resp: requests.Response) -> str:
     return resp.reason or f"HTTP {resp.status_code}"
 
 
+def _dropbox_normalize_refresh_token(raw: str) -> str:
+    """Entfernt BOM, äußere und eingebettete Whitespace-Zeichen (häufig bei Copy-Paste)."""
+    s = (raw or "").strip()
+    if s.startswith("\ufeff"):
+        s = s.lstrip("\ufeff").strip()
+    return "".join(s.split())
+
+
+def _dropbox_invalid_grant_hint(msg: str) -> str:
+    m = msg.lower()
+    if "malformed" not in m and "invalid_grant" not in m:
+        return ""
+    return (
+        " Häufig: im Feld steht kein OAuth-Refresh-Token (z. B. stattdessen "
+        "Authorization-Code, kurzlebiger Access-Token oder „Generated access token“ "
+        "aus der Konsole), oder der Token enthält noch Zeilenumbrüche/Anführungszeichen. "
+        "Neu erzeugen mit token_access_type=offline laut Dropbox-OAuth-Guide."
+    )
+
+
 def _dropbox_token(cfg: dict) -> str:
     """Holt ein frisches Dropbox Access-Token via Refresh-Token.
 
@@ -363,7 +383,7 @@ def _dropbox_token(cfg: dict) -> str:
     """
     app_key = (cfg.get("app_key") or "").strip()
     app_secret = (cfg.get("app_secret") or "").strip()
-    refresh = (cfg.get("refresh_token") or "").strip()
+    refresh = _dropbox_normalize_refresh_token(cfg.get("refresh_token") or "")
 
     if refresh and app_key and app_secret:
         resp = requests.post(
@@ -377,8 +397,10 @@ def _dropbox_token(cfg: dict) -> str:
             timeout=15,
         )
         if not resp.ok:
+            detail = _dropbox_oauth_error_message(resp)
             raise RuntimeError(
-                f"Dropbox OAuth ({resp.status_code}): {_dropbox_oauth_error_message(resp)}"
+                f"Dropbox OAuth ({resp.status_code}): {detail}"
+                f"{_dropbox_invalid_grant_hint(detail)}"
             )
         try:
             return resp.json()["access_token"]

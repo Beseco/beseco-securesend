@@ -471,7 +471,7 @@
       <!-- Dropbox fields -->
       <div id="dropboxFields" style="display:none;">
         <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#1e40af;line-height:1.45;">
-          <strong>Hinweis:</strong> <strong>App key</strong> und <strong>App secret</strong> aus der <a href="https://www.dropbox.com/developers/apps" target="_blank" style="color:#1a56db;">Dropbox App Console</a> (derselbe App-Eintrag). Im Feld <strong>Refresh-Token</strong> gehört nur der <strong>OAuth-Refresh-Token</strong> aus einem Autorisierungs-Flow mit <strong>Offline-Zugriff</strong> (<code>token_access_type=offline</code>) — nicht der kurzlebige Access-Token. Anleitung: <a href="https://developers.dropbox.com/oauth-guide" target="_blank" style="color:#1a56db;">Dropbox OAuth Guide</a>. Leerzeichen am Anfang/Ende vermeiden.
+          <strong>Hinweis:</strong> <strong>App key</strong> und <strong>App secret</strong> aus der <a href="https://www.dropbox.com/developers/apps" target="_blank" style="color:#1a56db;">Dropbox App Console</a> (derselbe App-Eintrag). Im Feld <strong>Refresh-Token</strong> nur den Wert <code>refresh_token</code> aus der OAuth2-Antwort auf <code>https://api.dropbox.com/oauth2/token</code> (Schritt „Code gegen Token tauschen“) mit <code>token_access_type=offline</code> — <strong>nicht</strong> der kurzlebige <code>access_token</code>, nicht der <strong>Authorization-Code</strong> aus der Browser-URL, und nicht der „Generated access token“ aus der Konsole. Eine Zeile, ohne Anführungszeichen. Fehler „refresh token is malformed“ = falscher Token-Typ oder kaputtes Copy-Paste (Zeilenumbruch). <a href="https://developers.dropbox.com/oauth-guide" target="_blank" style="color:#1a56db;">OAuth Guide</a>.
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
           <div>
@@ -485,7 +485,7 @@
         </div>
         <div style="margin-bottom:0.875rem;">
           <label class="form-label">Refresh-Token</label>
-          <input type="password" id="pDbRefreshToken" class="form-input" placeholder="sl.xxxxxx…" />
+          <input type="password" id="pDbRefreshToken" class="form-input" placeholder="OAuth refresh_token (lange Zeichenkette)" />
         </div>
         <div style="margin-bottom:0.875rem;">
           <label class="form-label">Upload-Ordner</label>
