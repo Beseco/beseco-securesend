@@ -148,6 +148,31 @@ async def _run_migrations(conn) -> None:
             "ALTER TABLE history ADD COLUMN IF NOT EXISTS revoked_by VARCHAR(36)",
         ),
         (
+            "history",
+            "guest_id",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS guest_id VARCHAR(36) REFERENCES guests(id) ON DELETE CASCADE",
+        ),
+        (
+            "history",
+            "files_json",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS files_json JSONB",
+        ),
+        (
+            "history",
+            "access_count",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS access_count INTEGER DEFAULT 0 NOT NULL",
+        ),
+        (
+            "history",
+            "max_access_count",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS max_access_count INTEGER",
+        ),
+        (
+            "history",
+            "password_changed_at",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP",
+        ),
+        (
             "users",
             "totp_secret",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64)",
