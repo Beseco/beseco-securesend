@@ -471,21 +471,21 @@
       <!-- Dropbox fields -->
       <div id="dropboxFields" style="display:none;">
         <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#1e40af;line-height:1.45;">
-          <strong>Hinweis:</strong> <strong>App key</strong> und <strong>App secret</strong> aus der <a href="https://www.dropbox.com/developers/apps" target="_blank" style="color:#1a56db;">Dropbox App Console</a> (derselbe App-Eintrag). Im Feld <strong>Refresh-Token</strong> nur den Wert <code>refresh_token</code> aus der OAuth2-Antwort auf <code>https://api.dropbox.com/oauth2/token</code> (Schritt „Code gegen Token tauschen“) mit <code>token_access_type=offline</code> — <strong>nicht</strong> der kurzlebige <code>access_token</code>, nicht der <strong>Authorization-Code</strong> aus der Browser-URL, und nicht der „Generated access token“ aus der Konsole. Eine Zeile, ohne Anführungszeichen. Fehler „refresh token is malformed“ = falscher Token-Typ oder kaputtes Copy-Paste (Zeilenumbruch). <a href="https://developers.dropbox.com/oauth-guide" target="_blank" style="color:#1a56db;">OAuth Guide</a>.
+          <strong>Hinweis:</strong> <strong>App key</strong> und ggf. <strong>App secret</strong> aus der <a href="https://www.dropbox.com/developers/apps" target="_blank" style="color:#1a56db;">Dropbox App Console</a> (dieselbe App wie beim OAuth-Flow). <strong>PKCE-Apps</strong> haben oft kein Secret — Feld leer lassen. <strong>Refresh-Token:</strong> entweder nur den <code>refresh_token</code>-String oder die <strong>gesamte JSON-Antwort</strong> vom Token-Endpunkt (wird erkannt). Voraussetzung: Flow mit <code>token_access_type=offline</code>. Nicht der Code aus der Browser-URL, nicht nur <code>access_token</code>. Browser-Passwortmanager: Felder unten können falsche Daten eintragen — ggf. prüfen. <a href="https://developers.dropbox.com/oauth-guide" target="_blank" style="color:#1a56db;">OAuth Guide</a>.
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
           <div>
             <label class="form-label">App-Key</label>
-            <input type="text" id="pDbAppKey" class="form-input" placeholder="xxxxxxxxxxxx" />
+            <input type="text" id="pDbAppKey" class="form-input" placeholder="xxxxxxxxxxxx" autocomplete="off" />
           </div>
           <div>
             <label class="form-label">App-Secret</label>
-            <input type="password" id="pDbAppSecret" class="form-input" />
+            <input type="password" id="pDbAppSecret" class="form-input" autocomplete="new-password" />
           </div>
         </div>
         <div style="margin-bottom:0.875rem;">
           <label class="form-label">Refresh-Token</label>
-          <input type="password" id="pDbRefreshToken" class="form-input" placeholder="OAuth refresh_token (lange Zeichenkette)" />
+          <input type="password" id="pDbRefreshToken" class="form-input" placeholder="Token oder komplette JSON-Antwort" autocomplete="new-password" />
         </div>
         <div style="margin-bottom:0.875rem;">
           <label class="form-label">Upload-Ordner</label>
@@ -927,8 +927,8 @@
     document.getElementById('pOdTenantId').value = cfg.tenant_id || '';
     document.getElementById('pOdRefreshToken').value = cfg.refresh_token || '';
     // Dropbox
-    document.getElementById('pDbAppKey').value = cfg.app_key || '';
-    document.getElementById('pDbAppSecret').value = cfg.app_secret || '';
+    document.getElementById('pDbAppKey').value = cfg.app_key || cfg.client_id || '';
+    document.getElementById('pDbAppSecret').value = cfg.app_secret || cfg.client_secret || '';
     document.getElementById('pDbRefreshToken').value = cfg.refresh_token || '';
     document.getElementById('pDbFolder').value = cfg.folder || '/SecureSend';
     // HiDrive

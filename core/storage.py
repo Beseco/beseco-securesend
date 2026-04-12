@@ -361,38 +361,65 @@ def _dropbox_normalize_refresh_token(raw: str) -> str:
     return "".join(s.split())
 
 
+def _dropbox_parse_refresh_token_input(raw: str) -> str:
+    """Refresh-Token aus Freitext: reiner Token, komplette JSON-Token-Antwort oder curl-Zeile."""
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    if s.startswith("\ufeff"):
+        s = s.lstrip("\ufeff").strip()
+    low = s.lstrip().lower()
+    if low.startswith("refresh_token="):
+        s = s.split("=", 1)[1].strip()
+    if s.startswith("{") and "refresh_token" in s:
+        try:
+            data = _json.loads(s)
+            if isinstance(data, dict) and data.get("refresh_token") is not None:
+                s = str(data["refresh_token"])
+        except (ValueError, TypeError):
+            pass
+    s = s.strip()
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in "\"'":
+        s = s[1:-1].strip()
+    return _dropbox_normalize_refresh_token(s)
+
+
 def _dropbox_invalid_grant_hint(msg: str) -> str:
     m = msg.lower()
     if "malformed" not in m and "invalid_grant" not in m:
         return ""
     return (
-        " Häufig: im Feld steht kein OAuth-Refresh-Token (z. B. stattdessen "
-        "Authorization-Code, kurzlebiger Access-Token oder „Generated access token“ "
-        "aus der Konsole), oder der Token enthält noch Zeilenumbrüche/Anführungszeichen. "
-        "Neu erzeugen mit token_access_type=offline laut Dropbox-OAuth-Guide."
+        " Häufig: falscher Wert (Authorization-Code, kurzlebiger access_token, "
+        "„Generated access token“ aus der Konsole) oder App-Key gehört nicht zur App, "
+        "die den Refresh-Token ausgestellt hat. Neu mit token_access_type=offline "
+        "laut Dropbox-OAuth-Guide."
     )
 
 
 def _dropbox_token(cfg: dict) -> str:
     """Holt ein frisches Dropbox Access-Token via Refresh-Token.
 
-    Erwartet in cfg: app_key, app_secret, refresh_token (alle zum selben App-Eintrag
-    in der Dropbox App Console). Der Wert im Feld refresh_token muss ein echter
-    OAuth-Refresh-Token sein (Flow mit token_access_type=offline), nicht der
-    kurzlebige access_token.
+    Erwartet in cfg: app_key (oder client_id), optional app_secret (oder client_secret),
+    refresh_token — alles zur selben Dropbox-App. Ohne Secret: PKCE-App (nur client_id).
+    refresh_token: OAuth-Refresh-Token (offline); alternativ die komplette JSON-Antwort
+    vom Token-Endpunkt (wird erkannt).
     """
-    app_key = (cfg.get("app_key") or "").strip()
-    app_secret = (cfg.get("app_secret") or "").strip()
-    refresh = _dropbox_normalize_refresh_token(cfg.get("refresh_token") or "")
+    app_key = (cfg.get("app_key") or cfg.get("client_id") or "").strip()
+    app_secret = (cfg.get("app_secret") or cfg.get("client_secret") or "").strip()
+    refresh = _dropbox_parse_refresh_token_input(cfg.get("refresh_token") or "")
 
-    if refresh and app_key and app_secret:
+    if refresh and app_key:
+        # Dropbox akzeptiert client_id/client_secret im Form-Body (statt Basic-Auth).
+        form: dict[str, str] = {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh,
+            "client_id": app_key,
+        }
+        if app_secret:
+            form["client_secret"] = app_secret
         resp = requests.post(
             "https://api.dropbox.com/oauth2/token",
-            data={
-                "grant_type": "refresh_token",
-                "refresh_token": refresh,
-            },
-            auth=(app_key, app_secret),
+            data=form,
             headers={"Content-Type": "application/x-www-form-urlencoded"},
             timeout=15,
         )
@@ -411,8 +438,8 @@ def _dropbox_token(cfg: dict) -> str:
     token = (cfg.get("access_token") or "").strip()
     if not token:
         raise RuntimeError(
-            "Dropbox: Bitte App-Key, App-Secret und Refresh-Token ausfüllen, "
-            "oder einen access_token hinterlegen (Fallback)."
+            "Dropbox: Bitte App-Key (client_id) und Refresh-Token ausfüllen; "
+            "bei App mit Secret auch App-Secret — oder access_token als Fallback."
         )
     return token
 
