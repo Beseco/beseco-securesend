@@ -34,17 +34,19 @@
         <tr class="table-header">
           <th style="padding:0.625rem 1.25rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Datum</th>
           <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Empfänger</th>
+          <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;max-width:10rem;">Betreff</th>
           <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;min-width:120px;">Dateien</th>
           <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Anbieter</th>
           <th style="padding:0.625rem 1rem;text-align:center;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Downloads</th>
-          <th style="padding:0.625rem 1rem;text-align:center;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Ablauf</th>
+          <th style="padding:0.625rem 1rem;text-align:center;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Verfügbarkeit</th>
+          <th style="padding:0.625rem 1rem;text-align:center;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Gelesen</th>
           <th style="padding:0.625rem 1rem;text-align:center;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Sicherheit</th>
           <th style="padding:0.625rem 1.25rem;text-align:center;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;white-space:nowrap;">Aktionen</th>
         </tr>
       </thead>
       <tbody id="historyBody">
         <tr>
-          <td colspan="7" style="padding:3rem;text-align:center;color:#94a3b8;">
+          <td colspan="10" style="padding:3rem;text-align:center;color:#94a3b8;">
             <div style="display:flex;flex-direction:column;align-items:center;gap:0.75rem;">
               <svg style="width:2.5rem;height:2.5rem;opacity:0.4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -112,10 +114,27 @@
     document.getElementById('historyBody').innerHTML = `<tr><td colspan="7" style="padding:3rem;text-align:center;color:#94a3b8;">${msg}</td></tr>`;
   }
 
+  function formatRemaining(h) {
+    if (h.is_revoked) return '<span style="color:#94a3b8;">—</span>';
+    if (h.seconds_remaining === null || h.seconds_remaining === undefined)
+      return '<span title="Kein Ablaufdatum gespeichert">' + (h.expiry_days || '?') + 'd</span>';
+    if (h.seconds_remaining <= 0) return '<span style="color:#dc2626;font-weight:600;">Abgelaufen</span>';
+    const d = Math.floor(h.seconds_remaining / 86400);
+    const hr = Math.floor((h.seconds_remaining % 86400) / 3600);
+    let main = d >= 1 ? ('Noch ca. ' + d + ' Tag(e)') : (hr >= 1 ? ('Noch ca. ' + hr + ' Std.') : 'Wenige Minuten');
+    let sub = '';
+    if (h.expires_at) {
+      try {
+        sub = '<div style="font-size:0.7rem;color:#94a3b8;margin-top:0.125rem;">bis ' + new Date(h.expires_at).toLocaleString('de-DE', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) + '</div>';
+      } catch(e) {}
+    }
+    return '<span style="font-weight:600;color:#166534;">' + main + '</span>' + sub;
+  }
+
   function renderHistory(items) {
     const tbody = document.getElementById('historyBody');
     if (items.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="8" style="padding:3rem;text-align:center;color:#94a3b8;">
+      tbody.innerHTML = `<tr><td colspan="10" style="padding:3rem;text-align:center;color:#94a3b8;">
         <div style="display:flex;flex-direction:column;align-items:center;gap:0.75rem;">
           <svg style="width:2.5rem;height:2.5rem;opacity:0.4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -164,6 +183,7 @@
           ${isRevoked ? '<span style="font-size:0.65rem;background:#fee2e2;color:#dc2626;padding:0.1rem 0.375rem;border-radius:9999px;">Zurückgerufen</span>' : ''}
         </td>
         <td style="padding:0.75rem 1rem;font-size:0.875rem;color:#475569;max-width:12rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(recipientDisplay)}</td>
+        <td style="padding:0.75rem 1rem;font-size:0.8125rem;color:#334155;max-width:10rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(h.subject || '')}">${esc((h.subject || '—').slice(0, 40))}${(h.subject && h.subject.length > 40) ? '…' : ''}</td>
         <td style="padding:0.75rem 1rem;font-size:0.875rem;color:#1e293b;max-width:14rem;">
           <div style="display:flex;flex-direction:column;gap:0.125rem;">
             ${(h.files_json && h.files_json.length > 0) 
@@ -176,7 +196,8 @@
           <span style="font-size:0.875rem;font-weight:600;color:${downloadCount > 0 ? '#16a34a' : '#94a3b8'};">${downloadCount}</span>
           ${downloadCount > 0 ? `<button onclick="showDownloadLogs('${h.id}')" style="display:block;margin:0.25rem auto 0;font-size:0.7rem;color:#1a56db;background:none;border:none;cursor:pointer;text-decoration:underline;">Details</button>` : ''}
         </td>
-        <td style="padding:0.75rem 1rem;text-align:center;font-size:0.875rem;color:#475569;">${h.expiry_days}d <button onclick="extendSend('${h.id}')" title="Verlängern" style="background:none;border:none;cursor:pointer;color:#16a34a;padding:0;color:0.125rem;font-size:0.625rem;">+7T</button></td>
+        <td style="padding:0.75rem 1rem;text-align:center;font-size:0.8125rem;color:#475569;">${formatRemaining(h)} <button onclick="extendSend('${h.id}')" title="Verlängern" style="display:block;margin:0.25rem auto 0;background:none;border:none;cursor:pointer;color:#16a34a;font-size:0.65rem;">+7 Tage</button></td>
+        <td style="padding:0.75rem 1rem;text-align:center;font-size:0.75rem;color:#475569;">${h.read_at ? new Date(h.read_at).toLocaleString('de-DE', {day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '<span style="color:#cbd5e1;">—</span>'}</td>
         <td style="padding:0.75rem 1rem;text-align:center;">${secBadge}</td>
         <td style="padding:0.75rem 1.25rem;text-align:center;display:flex;gap:0.25rem;justify-content:center;">
           <button onclick="copyLink('${h.share_url}')" title="Link kopieren" style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:0.25rem;border-radius:0.25rem;" onmouseover="this.style.color='#16a34a'" onmouseout="this.style.color='#94a3b8'">
@@ -202,14 +223,14 @@
   function filterHistory() {
     const q = document.getElementById('searchInput').value.toLowerCase();
     const filtered = allHistory.filter(h =>
-      (h.to_email + h.to_phone + h.filename + h.provider + (h.security_level || '')).toLowerCase().includes(q)
+      (h.to_email + h.to_phone + h.filename + (h.subject || '') + h.provider + (h.security_level || '')).toLowerCase().includes(q)
     );
     renderHistory(filtered);
     document.getElementById('historyCount').textContent = filtered.length + ' / ' + allHistory.length + ' Einträge';
   }
 
   function renderEmpty(msg) {
-    document.getElementById('historyBody').innerHTML = `<tr><td colspan="8" style="padding:3rem;text-align:center;color:#94a3b8;">${msg}</td></tr>`;
+    document.getElementById('historyBody').innerHTML = `<tr><td colspan="10" style="padding:3rem;text-align:center;color:#94a3b8;">${msg}</td></tr>`;
   }
 
   // Download logs modal
@@ -271,7 +292,9 @@
     const h = allHistory.find(x => x.id === historyId);
     if (!h) return;
     const status = h.is_revoked ? '\n🔴 ZURÜCKGERUFEN' : '';
-    alert('Details für: ' + h.filename + '\nEmpfänger: ' + h.to_email + '\nDownloads: ' + (h.download_count || 0) + '\nLink: ' + h.share_url + status);
+    const read = h.read_at ? ('\nGelesen (Portal): ' + new Date(h.read_at).toLocaleString('de-DE')) : '';
+    const exp = h.expires_at ? ('\nAblauf: ' + new Date(h.expires_at).toLocaleString('de-DE')) : '';
+    alert('Betreff: ' + (h.subject || h.filename) + '\nDateien: ' + h.filename + '\nEmpfänger: ' + h.to_email + read + exp + '\nDownloads: ' + (h.download_count || 0) + '\nLink: ' + h.share_url + status);
   }
 
   async function revokeSend(historyId) {

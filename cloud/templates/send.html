@@ -8,6 +8,18 @@
   #editorContainer .toastui-editor-defaultUI { border:1px solid #e2e8f0; border-radius:0.5rem; overflow:hidden; }
   #editorContainer .toastui-editor-toolbar { background:#f8fafc; border-bottom:1px solid #e2e8f0; }
   #editorContainer .toastui-editor-main { font-size:0.9rem; }
+  #editorContainer { min-height: min(50vh, 28rem); }
+  .send-layout { display: flex; gap: 1.25rem; align-items: flex-start; width: 100%; max-width: 100%; }
+  .send-sidebar { width: 17.5rem; flex-shrink: 0; }
+  @media (max-width: 960px) {
+    .send-layout { flex-direction: column; }
+    .send-sidebar { width: 100% !important; }
+  }
+  .sent-row { padding: 0.625rem 0.875rem; border-bottom: 1px solid #f1f5f9; cursor: pointer; font-size: 0.8125rem; }
+  .sent-row:hover { background: #f8fafc; }
+  .sent-row.active { background: #eff6ff; border-left: 3px solid #1a56db; }
+  details.send-more > summary { cursor: pointer; font-size: 0.8125rem; font-weight: 600; color: #1a56db; padding: 0.5rem 0; list-style: none; }
+  details.send-more > summary::-webkit-details-marker { display: none; }
   .sec-card {
     position: relative;
     border: 2px solid #e2e8f0; border-radius: 0.625rem; padding: 0.875rem 1rem;
@@ -22,9 +34,55 @@
 {% endblock %}
 
 {% block content %}
-<div style="max-width:48rem;margin:0 auto;">
-  <div class="card">
+<div class="send-layout">
+  <aside id="gesendet" class="send-sidebar">
+    <div style="font-size:0.6875rem;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:0.08em;margin-bottom:0.375rem;">Gesendet</div>
+    <div id="sentList" class="card" style="padding:0;max-height:calc(100vh - 11rem);overflow-y:auto;">
+      <div style="padding:1rem;text-align:center;color:#94a3b8;font-size:0.8125rem;">Lade…</div>
+    </div>
+    <div id="sentDetail" class="card" style="margin-top:0.75rem;padding:0.875rem;display:none;font-size:0.8125rem;color:#475569;line-height:1.45;"></div>
+  </aside>
+  <div style="flex:1;min-width:0;">
+  <div class="card" style="max-width:none;">
     <form id="sendForm" enctype="multipart/form-data">
+
+      <!-- ── An / Empfänger (oben, Mail-Client) ─────────────────────────────── -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0.75rem;">
+        <div style="grid-column:1/-1;">
+          <label class="form-label" for="to_email">An (E-Mail)</label>
+          <input type="text" id="to_email" name="to_email" class="form-input"
+                 placeholder="empfaenger@beispiel.de (mehrere mit Komma)" oninput="checkPhoneWarning()" />
+          <span style="font-size:0.7rem;color:#94a3b8;">Mehrere Empfänger mit Komma trennen</span>
+          <div id="additionalEmails" style="display:flex;flex-direction:column;gap:0.25rem;margin-top:0.25rem;"></div>
+        </div>
+        <div>
+          <label class="form-label" for="to_phone">Mobilnummer</label>
+          <input type="tel" id="to_phone" name="to_phone" class="form-input"
+                 placeholder="+49 170 1234567" oninput="checkPhoneWarning()" />
+          <span id="phoneOptLabel" style="font-size:0.7rem;color:#94a3b8;">(für SMS)</span>
+        </div>
+        <div style="position:relative;">
+          <label class="form-label">Kontakt <span style="font-weight:400;color:#94a3b8;">(optional)</span></label>
+          <input type="text" id="contactSearch" class="form-input"
+                 placeholder="Name oder E-Mail suchen…" autocomplete="off"
+                 oninput="filterContacts(this.value)" onfocus="showContactDropdown()" />
+          <div id="contactDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:20;max-height:14rem;overflow-y:auto;margin-top:2px;"></div>
+        </div>
+      </div>
+
+      <div id="noPhoneWarning" style="display:none;background:#fefce8;border:1px solid #fde047;border-radius:0.5rem;padding:0.625rem 0.875rem;margin-bottom:1rem;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+        <svg style="width:1rem;height:1rem;color:#ca8a04;flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        </svg>
+        <span style="font-size:0.8125rem;color:#92400e;flex:1;">Keine Handynummer — das Passwort kann nicht per SMS gesendet werden.</span>
+        <button type="button" id="btnRequestPhone" onclick="requestPhoneFromSendPage()"
+                style="font-size:0.75rem;font-weight:600;background:#fbbf24;color:#1c1917;border:none;border-radius:0.375rem;padding:0.25rem 0.625rem;cursor:pointer;white-space:nowrap;">📱 Nummer anfragen</button>
+      </div>
+
+      <div style="margin-bottom:1rem;">
+        <label class="form-label" for="subject">Betreff</label>
+        <input type="text" id="subject" name="subject" class="form-input" value="Ihr sicheres Dokument" />
+      </div>
 
       <!-- ── Nachricht ────────────────────────────────────────────────────── -->
       <div style="margin-bottom:1.25rem;">
@@ -84,12 +142,6 @@
         <div id="fileError" style="display:none;margin-top:0.5rem;padding:0.5rem 0.75rem;background:#fef2f2;border:1px solid #fecaca;border-radius:0.5rem;font-size:0.8125rem;color:#dc2626;"></div>
       </div>
 
-      <!-- ── Betreff ──────────────────────────────────────────────────────── -->
-      <div style="margin-bottom:1rem;">
-        <label class="form-label" for="subject">Betreff</label>
-        <input type="text" id="subject" name="subject" class="form-input" value="Ihr sicheres Dokument" />
-      </div>
-
       <!-- ── Persönliche Nachricht ────────────────────────────────────────── -->
       <div style="margin-bottom:1.25rem;">
         <label class="form-label" for="personal_message">
@@ -101,52 +153,15 @@
                   style="resize:vertical;"></textarea>
       </div>
 
-      <!-- ── Kontakt wählen ───────────────────────────────────────────────── -->
-      <div style="margin-bottom:1rem;position:relative;">
-        <label class="form-label">
-          Kontakt wählen
-          <span style="font-weight:400;color:#94a3b8;">(optional)</span>
-        </label>
-        <input type="text" id="contactSearch" class="form-input"
-               placeholder="Name oder E-Mail suchen…" autocomplete="off"
-               oninput="filterContacts(this.value)" onfocus="showContactDropdown()" />
-        <div id="contactDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:20;max-height:14rem;overflow-y:auto;margin-top:2px;"></div>
+      <!-- ── Sicherheitsstufe (Zusammenfassung + erweitert) ───────────────── -->
+      <div style="margin-bottom:0.75rem;padding:0.625rem 0.875rem;background:#f8fafc;border-radius:0.5rem;border:1px solid #e2e8f0;">
+        <span style="font-size:0.8125rem;color:#64748b;">Sicherheitsstufe:</span>
+        <strong id="secSummaryText" style="font-size:0.875rem;color:#1e293b;margin-left:0.375rem;">—</strong>
       </div>
-
-      <!-- ── Empfänger ────────────────────────────────────────────────────── -->
-      <div class="form-grid">
-        <div>
-          <label class="form-label" for="to_email">E-Mail Empfänger</label>
-          <input type="text" id="to_email" name="to_email" class="form-input"
-                 placeholder="empfaenger@beispiel.de (mehrere mit Komma)" oninput="checkPhoneWarning()" />
-          <span style="font-size:0.7rem;color:#94a3b8;">Mehrere mit Komma trennen</span>
-        </div>
-        <div id="additionalEmails" style="display:flex;flex-direction:column;gap:0.25rem;"></div>
-        <div>
-          <label class="form-label" for="to_phone">
-            Mobilnummer
-            <span id="phoneOptLabel" style="font-weight:400;color:#94a3b8;">(für SMS)</span>
-          </label>
-          <input type="tel" id="to_phone" name="to_phone" class="form-input"
-                 placeholder="+49 170 1234567" oninput="checkPhoneWarning()" />
-        </div>
-      </div>
-
-      <!-- Kein-Telefon-Hinweis -->
-      <div id="noPhoneWarning" style="display:none;background:#fefce8;border:1px solid #fde047;border-radius:0.5rem;padding:0.625rem 0.875rem;margin-bottom:1rem;align-items:center;gap:0.75rem;flex-wrap:wrap;">
-        <svg style="width:1rem;height:1rem;color:#ca8a04;flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-        </svg>
-        <span style="font-size:0.8125rem;color:#92400e;flex:1;">Keine Handynummer — das Passwort kann nicht per SMS gesendet werden.</span>
-        <button type="button" id="btnRequestPhone" onclick="requestPhoneFromSendPage()"
-                style="font-size:0.75rem;font-weight:600;background:#fbbf24;color:#1c1917;border:none;border-radius:0.375rem;padding:0.25rem 0.625rem;cursor:pointer;white-space:nowrap;">
-          📱 Nummer anfragen
-        </button>
-      </div>
-
-      <!-- ── Sicherheitsstufe ─────────────────────────────────────────────── -->
-      <div style="margin-bottom:1.25rem;">
-        <label class="form-label">Sicherheitsstufe</label>
+      <details class="send-more" style="margin-bottom:1.25rem;border:1px solid #e2e8f0;border-radius:0.5rem;padding:0 0.75rem;">
+        <summary>Weitere Optionen (Stufe, Cloud, Ablauf)</summary>
+        <div style="padding:0.5rem 0 0.75rem;">
+        <label class="form-label" style="margin-top:0.5rem;">Sicherheitsstufe wählen</label>
         <div style="display:flex;flex-direction:column;gap:0.5rem;">
 
           <label class="sec-card" id="lvl_normal" {% if 'normal' not in allowed_security_levels %}style="display:none;"{% endif %}>
@@ -219,10 +234,9 @@
           </label>
 
         </div>
-      </div>
 
       <!-- ── Cloud-Anbieter + Ablauf ──────────────────────────────────────── -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0;margin-top:0.75rem;">
         <div>
           <label class="form-label" for="provider_id">Cloud-Anbieter</label>
           <select id="provider_id" name="provider_id" class="form-input">
@@ -240,6 +254,8 @@
           </select>
         </div>
       </div>
+        </div>
+      </details>
 
       <!-- ── Senden ───────────────────────────────────────────────────────── -->
       <button type="submit" id="submitBtn" class="btn-primary" style="width:100%;padding:0.75rem;font-size:0.9375rem;">
@@ -281,6 +297,7 @@
       </div>
     </div>
     <button onclick="resetForm()" class="btn-secondary" style="width:100%;margin-top:1rem;">Weiteres Dokument senden</button>
+  </div>
   </div>
 </div>
 {% endblock %}
@@ -399,7 +416,7 @@
     if (editor) return;
     editor = new toastui.Editor({
       el: document.getElementById('editorContainer'),
-      height: '240px',
+      height: '420px',
       initialEditType: 'wysiwyg',
       previewStyle: 'tab',
       placeholder: 'Geben Sie Ihre sichere Nachricht ein…',
@@ -413,7 +430,23 @@
     });
   }
   // Editor sofort beim Laden starten
-  document.addEventListener('DOMContentLoaded', initEditor);
+  document.addEventListener('DOMContentLoaded', () => {
+    initEditor();
+    onSecLevelChange();
+    loadSentHistory();
+    if (window.location.hash === '#gesendet') {
+      setTimeout(() => document.getElementById('gesendet')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+    }
+  });
+
+  const SEC_SUMMARY_LABELS = {
+    normal: '📧 Normal',
+    standard: '🔑 Standard',
+    secure: '🔒 Sicher',
+    extended: '🛡️ Erweitert',
+    advanced: '🔐 Fortgeschritten',
+    maximal: '🏢 Maximal',
+  };
 
   // ── Sicherheitsstufe ─────────────────────────────────────────────────────
   function onSecLevelChange() {
@@ -422,9 +455,55 @@
       const el = document.getElementById('lvl_' + l);
       if (el) el.classList.toggle('selected', l === selected);
     });
-    document.getElementById('phoneOptLabel').textContent =
+    const pol = document.getElementById('phoneOptLabel');
+    if (pol) pol.textContent =
       selected === 'normal' || selected === 'standard' ? '(optional)' : '(für SMS)';
+    const sum = document.getElementById('secSummaryText');
+    if (sum) sum.textContent = SEC_SUMMARY_LABELS[selected] || selected;
     checkPhoneWarning();
+  }
+
+  let sentHistoryCache = [];
+  async function loadSentHistory() {
+    const box = document.getElementById('sentList');
+    if (!box) return;
+    try {
+      const res = await apiFetch('/ui/api/history?limit=100');
+      if (!res.ok) throw new Error('fail');
+      sentHistoryCache = await res.json();
+      if (!sentHistoryCache.length) {
+        box.innerHTML = '<div style="padding:1rem;text-align:center;color:#94a3b8;font-size:0.8125rem;">Noch keine Sendungen</div>';
+        return;
+      }
+      box.innerHTML = sentHistoryCache.map(h => {
+        const sub = esc((h.subject || h.filename || 'Ohne Betreff').slice(0, 56));
+        const dt = h.created_at ? new Date(h.created_at).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) : '';
+        const em = esc((h.to_email || '').slice(0, 28));
+        return `<div class="sent-row" data-id="${h.id}" onclick="selectSent(this.dataset.id)"><div style="font-weight:600;color:#1e293b;">${sub}</div><div style="font-size:0.7rem;color:#94a3b8;margin-top:0.125rem;">${dt} · ${em}</div></div>`;
+      }).join('');
+    } catch (e) {
+      box.innerHTML = '<div style="padding:1rem;color:#94a3b8;font-size:0.8125rem;">Verlauf nicht ladbar</div>';
+    }
+  }
+  function selectSent(id) {
+    const h = sentHistoryCache.find(x => x.id === id);
+    const det = document.getElementById('sentDetail');
+    if (!h || !det) return;
+    document.querySelectorAll('.sent-row').forEach(el => {
+      el.classList.toggle('active', el.getAttribute('data-id') === id);
+    });
+    det.style.display = 'block';
+    let html = '<strong style="color:#0f172a;">' + esc(h.subject || h.filename) + '</strong><br/><span style="font-size:0.75rem;color:#64748b;">An: ' + esc(h.to_email || '') + '</span>';
+    if (h.message_preview) html += '<p style="margin:0.5rem 0 0;">' + esc(h.message_preview) + '</p>';
+    const u = h.share_url || '';
+    html += '<p style="margin:0.5rem 0 0;"><a href="' + esc(u) + '" target="_blank" rel="noopener" style="color:#1a56db;">Link öffnen</a></p>';
+    if (h.read_at) html += '<p style="margin:0.35rem 0 0;font-size:0.75rem;color:#15803d;">Gelesen (Portal): ' + new Date(h.read_at).toLocaleString('de-DE') + '</p>';
+    if (h.expires_at) {
+      const exp = new Date(h.expires_at);
+      const rem = h.seconds_remaining != null && h.seconds_remaining > 0;
+      html += '<p style="margin:0.35rem 0 0;font-size:0.75rem;color:#64748b;">Ablauf: ' + exp.toLocaleString('de-DE') + (rem ? '' : ' (abgelaufen)') + '</p>';
+    }
+    det.innerHTML = html;
   }
 
   function selectSecLevel(v) {
@@ -803,6 +882,7 @@
         } else {
           showToast('Erfolgreich gesendet!', 'success');
         }
+        loadSentHistory();
       } else {
         showToast(await parseApiErrorMessage(res), 'error');
       }

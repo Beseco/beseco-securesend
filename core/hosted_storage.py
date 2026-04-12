@@ -8,7 +8,9 @@ Der Cloud-Router reichert cfg mit _org_id, _storage_root, hosted_backend und ggf
 from __future__ import annotations
 
 import os
+import shutil
 from pathlib import Path, PurePosixPath
+from typing import Optional
 
 HOSTED_SERVICE_NAME = "securesend_hosted"
 
@@ -186,6 +188,46 @@ def hosted_upload_single(
         hosted_upload_single_s3(cfg, filename, content, content_type, subfolder)
     else:
         hosted_upload_single_local(cfg, filename, content, content_type, subfolder)
+
+
+def hosted_delete_folder_or_file(cfg: dict, folder_path: str, filename: Optional[str]) -> None:
+    """Entfernt einen kompletten Ordner oder eine einzelne Datei (Ablauf/Cleanup)."""
+    rel = folder_path.strip().strip("/")
+    if ".." in rel or rel.startswith("."):
+        raise ValueError("Ungültiger Ordnerpfad")
+    backend = (cfg.get("hosted_backend") or "local").lower()
+    if backend == "s3":
+        bucket = cfg.get("_s3_bucket") or ""
+        if not bucket:
+            raise ValueError("S3-Bucket nicht konfiguriert")
+        s3 = _s3_client(cfg)
+        org_id = cfg.get("_org_id") or ""
+        if filename:
+            key = _s3_key(cfg, folder_path, filename)
+            s3.delete_object(Bucket=bucket, Key=key)
+            return
+        prefix = f"{org_id}/{rel}/" if rel else f"{org_id}/"
+        paginator = s3.get_paginator("list_objects_v2")
+        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
+            for obj in page.get("Contents", []):
+                s3.delete_object(Bucket=bucket, Key=obj["Key"])
+        return
+
+    target = _local_org_base(cfg) / rel.replace("\\", "/")
+    org_base = _local_org_base(cfg).resolve()
+    target = target.resolve()
+    if not str(target).startswith(str(org_base)):
+        raise ValueError("Pfad außerhalb des Org-Verzeichnisses")
+    if filename:
+        safe = _safe_segment(filename)
+        fp = target / safe
+        if fp.is_file():
+            fp.unlink()
+        return
+    if target.is_dir():
+        shutil.rmtree(target, ignore_errors=True)
+    elif target.is_file():
+        target.unlink()
 
 
 def hosted_check_connectivity(cfg: dict) -> None:

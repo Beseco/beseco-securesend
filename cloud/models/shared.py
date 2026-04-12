@@ -143,9 +143,17 @@ class History(Base):
     to_email: Mapped[str] = mapped_column(String(320), nullable=False, default="")
     to_phone: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     filename: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    subject: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    message_preview: Mapped[Optional[str]] = mapped_column(String(600), nullable=True)
     share_url: Mapped[str] = mapped_column(String(2048), nullable=False, default="")
     provider: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     expiry_days: Mapped[int] = mapped_column(nullable=False, default=7)
+    # Absolutes Ablaufdatum (für Anzeige, Verlängerung, Cleanup)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    purged_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    read_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )  # Lesebestätigung (Gast-Portal)
     security_level: Mapped[str] = mapped_column(
         String(50), nullable=False, default="standard"
     )
@@ -187,6 +195,16 @@ class History(Base):
     max_access_count: Mapped[Optional[int]] = mapped_column(nullable=True)
     password_changed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True
+    )
+    # Für serverseitiges Löschen (Hosted/MinIO); optional Einzeldatei
+    storage_folder_path: Mapped[Optional[str]] = mapped_column(
+        String(512), nullable=True
+    )
+    storage_delete_filename: Mapped[Optional[str]] = mapped_column(
+        String(500), nullable=True
+    )
+    cloud_provider_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True, index=True
     )
 
     user: Mapped["User"] = relationship("User", back_populates="history")  # noqa: F821

@@ -332,6 +332,9 @@ async def guest_dashboard(
     if h.guest_id:
         result = await db.execute(select(Guest).where(Guest.id == h.guest_id))
         guest = result.scalar_one_or_none()
+        if guest and not h.read_at:
+            h.read_at = datetime.now(timezone.utc).replace(tzinfo=None)
+            await db.commit()
 
     # Dateien vorbereiten
     files = []
@@ -361,8 +364,8 @@ async def guest_dashboard(
             "org": org,
             "org_name": org.name if org else "",
             "reseller_name": rname,
-            "subject": h.subject or h.filename or "Sichere Nachricht",
-            "message": h.message or "",
+            "subject": (h.subject or h.filename or "Sichere Nachricht"),
+            "message": h.message_preview or "",
             "sender_name": sender_name,
             "sender_email": user.email if user else "",
             "files": files,
@@ -519,23 +522,30 @@ async def guest_register_submit(
             status_code=400,
         )
 
-    # Check if email already exists
+    # Bestehendes Gastkonto: gleiche E-Mail + Passwort → verknüpfen (Posteingang)
     result = await db.execute(select(Guest).where(Guest.email == email))
     existing = result.scalar_one_or_none()
 
     if existing:
-        return templates.TemplateResponse(
-            "receive-register.html",
-            {
-                "request": request,
-                "token": token,
-                "email": email,
-                "error": "E-Mail bereits registriert",
-            },
-            status_code=400,
-        )
+        if not bcrypt.checkpw(password.encode(), existing.password_hash.encode()):
+            return templates.TemplateResponse(
+                "receive-register.html",
+                {
+                    "request": request,
+                    "token": token,
+                    "email": email,
+                    "error": "E-Mail bereits registriert — falsches Passwort",
+                },
+                status_code=400,
+            )
+        h.guest_id = existing.id
+        h.password_changed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        if not existing.phone and h.to_phone:
+            existing.phone = h.to_phone
+        await db.commit()
+        return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
 
-    # Create Guest
+    # Neues Gastkonto
     guest = Guest(
         email=email,
         phone=h.to_phone or "",
@@ -545,12 +555,10 @@ async def guest_register_submit(
     db.add(guest)
     await db.flush()
 
-    # Update History
     h.guest_id = guest.id
     h.password_changed_at = datetime.now(timezone.utc).replace(tzinfo=None)
     await db.commit()
 
-    # Redirect to dashboard
     return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
 
 

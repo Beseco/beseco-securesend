@@ -11,9 +11,10 @@ the service is started from the cloud/ directory or from the project root.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sys
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 # ── Path patch: make core.* importable ───────────────────────────────────────
@@ -49,6 +50,7 @@ from routers.requests_router import router as requests_router
 from routers.public import router as public_router
 from routers.tracking import router as tracking_router
 from routers.guest import router as guest_router
+from routers.portal import router as portal_router
 from routers.dev import router as dev_router
 
 logging.basicConfig(level=logging.INFO)
@@ -173,6 +175,46 @@ async def _run_migrations(conn) -> None:
             "ALTER TABLE history ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP",
         ),
         (
+            "history",
+            "subject",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS subject VARCHAR(200) DEFAULT ''",
+        ),
+        (
+            "history",
+            "message_preview",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS message_preview VARCHAR(600)",
+        ),
+        (
+            "history",
+            "expires_at",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP",
+        ),
+        (
+            "history",
+            "purged_at",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS purged_at TIMESTAMP",
+        ),
+        (
+            "history",
+            "read_at",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS read_at TIMESTAMP",
+        ),
+        (
+            "history",
+            "storage_folder_path",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS storage_folder_path VARCHAR(512)",
+        ),
+        (
+            "history",
+            "storage_delete_filename",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS storage_delete_filename VARCHAR(500)",
+        ),
+        (
+            "history",
+            "cloud_provider_id",
+            "ALTER TABLE history ADD COLUMN IF NOT EXISTS cloud_provider_id VARCHAR(36)",
+        ),
+        (
             "users",
             "totp_secret",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret VARCHAR(64)",
@@ -223,6 +265,49 @@ async def _run_migrations(conn) -> None:
                 log.debug("Migration skipped (column exists): %s.%s", table, column)
 
 
+async def _backfill_history_derived(conn) -> None:
+    """Setzt subject und expires_at für bestehende Zeilen (idempotent)."""
+    is_pg = settings.DATABASE_URL.startswith("postgresql")
+    try:
+        if is_pg:
+            await conn.execute(
+                text("UPDATE history SET subject = COALESCE(subject, '') WHERE subject IS NULL")
+            )
+            await conn.execute(
+                text(
+                    "UPDATE history SET expires_at = created_at + (COALESCE(expiry_days, 7) || ' days')::interval "
+                    "WHERE expires_at IS NULL AND created_at IS NOT NULL"
+                )
+            )
+        else:
+            await conn.execute(
+                text("UPDATE history SET subject = COALESCE(subject, '') WHERE subject IS NULL")
+            )
+            await conn.execute(
+                text(
+                    "UPDATE history SET expires_at = datetime(created_at, '+' || CAST(COALESCE(expiry_days, 7) AS TEXT) || ' days') "
+                    "WHERE expires_at IS NULL AND created_at IS NOT NULL"
+                )
+            )
+    except Exception as exc:
+        log.warning("history backfill: %s", exc)
+
+
+async def _expiry_cleanup_loop() -> None:
+    from database import async_session
+    from services.expiry_cleanup import purge_expired_history_batch
+
+    while True:
+        await asyncio.sleep(max(60, settings.EXPIRY_CLEANUP_INTERVAL_SECONDS))
+        try:
+            async with async_session() as db:
+                n = await purge_expired_history_batch(db, limit=50)
+                if n:
+                    log.info("Ablauf-Cleanup: %s History-Einträge entfernt", n)
+        except Exception:
+            log.exception("Ablauf-Cleanup fehlgeschlagen")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Create all tables on startup + run inline column migrations."""
@@ -232,6 +317,7 @@ async def lifespan(app: FastAPI):
 
         await conn.run_sync(Base.metadata.create_all)
         await _run_migrations(conn)
+        await _backfill_history_derived(conn)
     log.info("SecureSend Cloud API ready.")
     if settings.SECURESEND_STORAGE_ENABLED and settings.SECURESEND_STORAGE_BACKEND == "local":
         from pathlib import Path
@@ -248,7 +334,18 @@ async def lifespan(app: FastAPI):
         )
     if not settings.ALLOWED_ORIGINS:
         log.warning("SECURITY: ALLOWED_ORIGINS not set — using localhost fallback.")
+
+    cleanup_task = None
+    if settings.EXPIRY_CLEANUP_ENABLED and settings.EXPIRY_CLEANUP_INTERVAL_SECONDS > 0:
+        cleanup_task = asyncio.create_task(_expiry_cleanup_loop())
+
     yield
+
+    if cleanup_task:
+        cleanup_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await cleanup_task
+
     await engine.dispose()
     log.info("SecureSend Cloud API shut down.")
 
@@ -314,6 +411,7 @@ app.include_router(requests_router)
 app.include_router(public_router)
 app.include_router(tracking_router)
 app.include_router(guest_router)
+app.include_router(portal_router)
 app.include_router(dev_router)
 
 

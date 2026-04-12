@@ -17,7 +17,7 @@ import json
 import secrets
 import string
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import PurePosixPath
 from typing import List, Optional
 
@@ -413,6 +413,8 @@ async def send_secure(
     folder_path = f"{base_folder}/{current_user.id}/{ts}"
 
     files_json: Optional[list] = None
+    storage_folder_path: Optional[str] = None
+    storage_delete_filename: Optional[str] = None
 
     # ── Upload je nach Sicherheitsstufe ───────────────────────────────────
     try:
@@ -441,6 +443,7 @@ async def send_secure(
                 if file_entries
                 else "Nachricht (verschlüsselt)"
             )
+            storage_folder_path = folder_path
 
         elif security_level in ("advanced", "maximal") and enc_data_parsed:
             upload_list = list(file_entries)
@@ -467,6 +470,7 @@ async def send_secure(
                 }
                 for item in enc_data_parsed
             ]
+            storage_folder_path = folder_path
 
         elif file_entries:
             share_url = await asyncio.get_event_loop().run_in_executor(
@@ -499,6 +503,7 @@ async def send_secure(
                     }
                 )
             files_json = files_json_list if files_json_list else None
+            storage_folder_path = folder_path
 
         else:
             # Nur Textnachricht
@@ -515,6 +520,14 @@ async def send_secure(
                     subfolder=current_user.id,
                 ),
             )
+            if provider.service == HOSTED_SERVICE_NAME:
+                rel_sub = (
+                    f"{base_folder}/{current_user.id}".strip("/")
+                    if current_user.id
+                    else base_folder
+                )
+                storage_folder_path = rel_sub
+                storage_delete_filename = filename
 
     except HTTPException:
         raise
@@ -553,6 +566,13 @@ async def send_secure(
     # ── Verlauf speichern (vor E-Mail, damit tracking_token verfügbar) ─────
     client_ip = request.client.host if request.client else ""
     history_id = str(uuid.uuid4())
+    now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+    expires_at = now_naive + timedelta(days=expiry_days)
+    msg_src = (personal_message or message or "").strip()
+    if len(msg_src) > 600:
+        message_preview = msg_src[:597] + "..."
+    else:
+        message_preview = msg_src or None
 
     # Nur Metadaten für E2E (keine Passwörter persistieren)
     encrypted_files_store = None
@@ -575,13 +595,19 @@ async def send_secure(
         to_email=to_email,
         to_phone=to_phone,
         filename=filename,
+        subject=subject,
+        message_preview=message_preview,
         share_url=share_url,
         provider=provider.service,
         expiry_days=expiry_days,
+        expires_at=expires_at,
         security_level=security_level,
         ip_address=client_ip,
         encrypted_files_json=encrypted_files_store,
         files_json=files_json,
+        storage_folder_path=storage_folder_path,
+        storage_delete_filename=storage_delete_filename,
+        cloud_provider_id=provider.id,
     )
     db.add(h)
     await db.commit()

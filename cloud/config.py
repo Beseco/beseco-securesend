@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     SECURESEND_S3_SECRET_KEY: str = ""
     SECURESEND_S3_REGION: str = "us-east-1"
 
+    # Ablauf: periodisches Löschen abgelaufener Sendungen (Hosted Storage)
+    EXPIRY_CLEANUP_ENABLED: bool = True
+    EXPIRY_CLEANUP_INTERVAL_SECONDS: int = 3600
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @field_validator("SECRET_KEY")

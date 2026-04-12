@@ -15,7 +15,7 @@ import logging
 import secrets
 import string
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -422,17 +422,33 @@ async def upload_submit(
 
     # Create history entry
     filenames = ", ".join(f for f, _, _ in file_tuples)
+    now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+    exp_at = now_naive + timedelta(days=days_remaining)
+    msg_prev = (upload_req.message or "").strip()
+    if len(msg_prev) > 600:
+        msg_prev = msg_prev[:597] + "..."
+    files_json_meta = [
+        {"name": fn, "size": len(data), "type": mime or "application/octet-stream"}
+        for fn, data, mime in file_tuples
+    ]
+    storage_fp = folder_path if provider.service == HOSTED_SERVICE_NAME else None
     history = History(
         id=str(uuid.uuid4()),
         user_id=sender.id,
         to_email=upload_req.recipient_email,
         to_phone="",
         filename=filenames,
+        subject="Empfangene Dateien (Upload-Anfrage)",
+        message_preview=msg_prev or None,
         share_url=share_url,
         provider=provider.service,
         expiry_days=days_remaining,
+        expires_at=exp_at,
         security_level="upload-request",
         ip_address=request.client.host if request.client else "",
+        files_json=files_json_meta,
+        storage_folder_path=storage_fp,
+        cloud_provider_id=provider.id,
     )
     db.add(history)
     if org_o:

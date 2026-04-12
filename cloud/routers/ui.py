@@ -932,16 +932,33 @@ async def history_api(
         .offset(offset)
     )
     rows = result.scalars().all()
-    return JSONResponse(
-        [
+    now = datetime.now(timezone.utc)
+    out = []
+    for h in rows:
+        exp = h.expires_at
+        if exp is None and h.created_at:
+            exp = h.created_at + timedelta(days=h.expiry_days)
+        exp_naive = exp
+        if exp_naive and exp_naive.tzinfo is not None:
+            exp_naive = exp_naive.replace(tzinfo=None)
+        now_naive = now.replace(tzinfo=None)
+        seconds_remaining = None
+        if exp_naive and not h.is_revoked:
+            delta = (exp_naive - now_naive).total_seconds()
+            seconds_remaining = int(delta) if delta > 0 else 0
+        out.append(
             {
                 "id": h.id,
                 "to_email": h.to_email,
                 "to_phone": h.to_phone,
                 "filename": h.filename,
+                "subject": h.subject or "",
+                "message_preview": h.message_preview or "",
                 "share_url": h.share_url,
                 "provider": h.provider,
                 "expiry_days": h.expiry_days,
+                "expires_at": exp.isoformat() if exp else None,
+                "seconds_remaining": seconds_remaining,
                 "security_level": h.security_level,
                 "ip_address": h.ip_address,
                 "created_at": h.created_at.isoformat(),
@@ -949,6 +966,7 @@ async def history_api(
                 "link_clicked_at": h.link_clicked_at.isoformat()
                 if h.link_clicked_at
                 else None,
+                "read_at": h.read_at.isoformat() if h.read_at else None,
                 "download_count": h.download_count or 0,
                 "last_downloaded_at": h.last_downloaded_at.isoformat()
                 if h.last_downloaded_at
@@ -958,9 +976,8 @@ async def history_api(
                 "revoked_by": h.revoked_by,
                 "files_json": h.files_json or [],
             }
-            for h in rows
-        ]
-    )
+        )
+    return JSONResponse(out)
 
 
 @router.get("/api/upload-requests")

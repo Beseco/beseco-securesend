@@ -6,7 +6,7 @@ import asyncio
 import base64
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
@@ -372,6 +372,14 @@ async def unrevoke_send(
     if not history.is_revoked:
         raise HTTPException(status_code=400, detail="Nicht zurückgerufen")
 
+    history.is_revoked = False
+    history.revoked_at = None
+    history.revoked_by = None
+
+    await db.commit()
+
+    return {"ok": True, "message": "Link wurde wiederhergestellt"}
+
 
 @router.post("/admin/org/extend/{history_id}", tags=["admin-org"])
 async def extend_send(
@@ -405,20 +413,23 @@ async def extend_send(
         if not history_user or history_user.org_id != org_id:
             raise HTTPException(status_code=403, detail="Access denied")
 
-    # Extend expiry
+    # Extend expiry: +days ab aktuellem Ablauf (oder created_at + bisherige Frist)
+    old_days = history.expiry_days
     history.expiry_days = min(history.expiry_days + days, 90)  # Max 90 days
-    await db.commit()
-
-    return {"ok": True, "expiry_days": history.expiry_days}
-
-    # Unrevoke the send
-    history.is_revoked = False
-    history.revoked_at = None
-    history.revoked_by = None
+    effective = history.expires_at
+    if effective is None and history.created_at:
+        effective = history.created_at + timedelta(days=old_days)
+    if effective is None:
+        effective = datetime.now(timezone.utc).replace(tzinfo=None)
+    history.expires_at = effective + timedelta(days=days)
 
     await db.commit()
 
-    return {"ok": True, "message": "Link wurde wiederhergestellt"}
+    return {
+        "ok": True,
+        "expiry_days": history.expiry_days,
+        "expires_at": history.expires_at.isoformat() if history.expires_at else None,
+    }
 
 
 # ── E2E (Stufe Advanced): Ciphertext aus Cloud, Entschlüsselung nur im Browser ─
