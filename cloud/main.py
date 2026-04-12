@@ -24,9 +24,9 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 # ── Imports ───────────────────────────────────────────────────────────────────
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -242,6 +242,22 @@ app = FastAPI(
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """Unbehandelte Fehler als JSON (ohne Klartext „Internal Server Error“ für fetch().json())."""
+    log.exception("Unbehandelter Fehler: %s", exc)
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": (
+                "Interner Serverfehler. Bitte später erneut versuchen; "
+                "bei anhaltenden Problemen den Administrator informieren."
+            )
+        },
+    )
+
 
 # CORS — only allow configured origins (never wildcard + credentials)
 _allowed_origins = [o.strip() for o in settings.ALLOWED_ORIGINS.split(",") if o.strip()]

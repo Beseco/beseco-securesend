@@ -519,13 +519,41 @@
       document.getElementById('tplNameInput').value = '';
       await loadTemplates();
     } else {
-      const err = await res.json();
-      showToast(err.detail || 'Fehler', 'error');
+      showToast(await parseApiErrorMessage(res), 'error');
     }
   }
 
   function esc(s) {
     return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  /** Server-Fehlerantwort lesen (JSON mit detail oder Klartext/HTML). */
+  async function parseApiErrorMessage(res) {
+    var raw = '';
+    try { raw = await res.text(); } catch (e) { return 'Fehler (HTTP ' + res.status + ')'; }
+    var t = (raw || '').trim();
+    if (!t) return 'Fehler (HTTP ' + res.status + ')';
+    if (t.charAt(0) === '{') {
+      try {
+        var j = JSON.parse(t);
+        if (j.detail !== undefined && j.detail !== null) {
+          if (Array.isArray(j.detail)) {
+            return j.detail.map(function(x) {
+              if (typeof x === 'string') return x;
+              if (x && x.msg) return x.msg;
+              return String(x);
+            }).join(' ');
+          }
+          return String(j.detail);
+        }
+        if (j.message) return String(j.message);
+      } catch (pe) { /* kein JSON */ }
+    }
+    var low = t.toLowerCase();
+    if (low.indexOf('internal server') >= 0 || low.indexOf('internal s') === 0) {
+      return 'Serverfehler (HTTP ' + res.status + '). Bitte später erneut versuchen oder Administrator informieren.';
+    }
+    return t.length > 220 ? t.slice(0, 220) + '…' : t;
   }
 
   // ── Datei-Handling ────────────────────────────────────────────────────────
@@ -698,8 +726,7 @@
         showToast('Anfrage gesendet — ' + email + ' wird benachrichtigt.', 'success');
         document.getElementById('noPhoneWarning').style.display = 'none';
       } else {
-        const d = await res.json();
-        showToast(d.detail || 'Fehler beim Senden', 'error');
+        showToast(await parseApiErrorMessage(res), 'error');
       }
     } catch(e) { showToast('Netzwerkfehler', 'error'); }
     finally { btn.disabled = false; btn.textContent = '📱 Nummer anfragen'; }
@@ -755,7 +782,13 @@
     try {
       const res = await apiFetch('/send', { method: 'POST', body: fd });
       if (res.ok) {
-        const data = await res.json();
+        let data;
+        try {
+          data = await res.json();
+        } catch (je) {
+          showToast('Unerwartete Antwort vom Server. Bitte Verlauf prüfen.', 'error');
+          return;
+        }
         document.getElementById('sendForm').style.display = 'none';
         document.getElementById('resultPanel').style.display = 'block';
         document.getElementById('resultFilename').textContent = data.filename;
@@ -771,11 +804,10 @@
           showToast('Erfolgreich gesendet!', 'success');
         }
       } else {
-        const err = await res.json();
-        showToast(err.detail || 'Fehler beim Senden', 'error');
+        showToast(await parseApiErrorMessage(res), 'error');
       }
     } catch(err) {
-      showToast('Netzwerkfehler: ' + err.message, 'error');
+      showToast('Netzwerkfehler: ' + (err && err.message ? err.message : 'unbekannt'), 'error');
     } finally {
       btn.disabled = false;
       document.getElementById('btnContent').innerHTML =
