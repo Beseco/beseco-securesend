@@ -326,14 +326,14 @@ async def send_secure(
         )
 
     # ── Virenscanner ───────────────────────────────────────────────────────
-    from core.antivirus import scan_bytes  # type: ignore
+    from core.antivirus import rejection_user_message, scan_bytes  # type: ignore
 
     for fname, data, mime in file_entries:
         is_clean, msg = scan_bytes(data, fname)
         if not is_clean:
             raise HTTPException(
                 status_code=422,
-                detail=f"Datei '{fname}' enthält Schadsoftware und wurde abgelehnt.",
+                detail=rejection_user_message(fname, msg),
             )
 
     if not file_entries and not message:
