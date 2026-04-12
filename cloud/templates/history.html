@@ -144,6 +144,8 @@
       const secBadge = `<span style="background:${secBadgeCfg.bg};color:${secBadgeCfg.color};font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;white-space:nowrap;">${secBadgeCfg.label}</span>`;
       const providerIcon = h.provider === 'nextcloud'
         ? '<span style="background:#e0f2fe;color:#0369a1;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">Nextcloud</span>'
+        : h.provider === 'owncloud'
+        ? '<span style="background:#ffedd5;color:#c2410c;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">ownCloud</span>'
         : h.provider === 'minio'
         ? '<span style="background:#dcfce7;color:#16a34a;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">MinIO</span>'
         : h.provider === 'securesend_hosted'

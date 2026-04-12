@@ -410,6 +410,7 @@
           <label class="form-label">Dienst</label>
           <select id="pService" class="form-input" onchange="updateProviderFields()">
             <option value="nextcloud">Nextcloud</option>
+            <option value="owncloud">ownCloud</option>
             <option value="onedrive">OneDrive (Microsoft 365)</option>
             <option value="dropbox">Dropbox</option>
             <option value="hidrive">HiDrive (Strato)</option>
@@ -422,8 +423,11 @@
 
       <!-- Nextcloud fields -->
       <div id="nextcloudFields">
+        <div style="margin-bottom:0.75rem;font-size:0.8125rem;color:#64748b;line-height:1.4;">
+          Gilt für <strong>Nextcloud</strong> und <strong>ownCloud</strong> (WebDAV und OCS-Freigaben, gleiche Feldnamen).
+        </div>
         <div style="margin-bottom:0.875rem;">
-          <label class="form-label">Nextcloud URL</label>
+          <label class="form-label">Server-URL</label>
           <input type="url" id="pNcUrl" class="form-input" placeholder="https://cloud.example.com" />
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
@@ -466,8 +470,8 @@
 
       <!-- Dropbox fields -->
       <div id="dropboxFields" style="display:none;">
-        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#1e40af;">
-          <strong>Hinweis:</strong> App-Key und App-Secret aus dem <a href="https://www.dropbox.com/developers/apps" target="_blank" style="color:#1a56db;">Dropbox App Console</a>. Refresh-Token via OAuth2-Flow generieren.
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#1e40af;line-height:1.45;">
+          <strong>Hinweis:</strong> <strong>App key</strong> und <strong>App secret</strong> aus der <a href="https://www.dropbox.com/developers/apps" target="_blank" style="color:#1a56db;">Dropbox App Console</a> (derselbe App-Eintrag). Im Feld <strong>Refresh-Token</strong> gehört nur der <strong>OAuth-Refresh-Token</strong> aus einem Autorisierungs-Flow mit <strong>Offline-Zugriff</strong> (<code>token_access_type=offline</code>) — nicht der kurzlebige Access-Token. Anleitung: <a href="https://developers.dropbox.com/oauth-guide" target="_blank" style="color:#1a56db;">Dropbox OAuth Guide</a>. Leerzeichen am Anfang/Ende vermeiden.
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
           <div>
@@ -512,8 +516,8 @@
 
       <!-- Synology Drive fields -->
       <div id="synologyFields" style="display:none;">
-        <div style="background:#fefce8;border:1px solid #fde68a;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#92400e;">
-          <strong>Synology Drive:</strong> URL Ihrer Synology-NAS (z.B. https://nas.example.com:5001). WebDAV und FileStation müssen aktiviert sein.
+        <div style="background:#fefce8;border:1px solid #fde68a;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#92400e;line-height:1.45;">
+          <strong>Synology:</strong> Als <strong>NAS-URL</strong> die Adresse von <strong>DSM</strong> eintragen (Web-API), z. B. <code>https://192.168.1.10:5001</code> oder <code>https://nas.example.com:5001</code> — keine reine QuickConnect-Weiterleitung ohne erreichbare <code>/webapi/</code>-Pfade. Paket <strong>File Station</strong> installieren; für Uploads <strong>WebDAV</strong> aktivieren. Hinter einem Reverse-Proxy muss <code>/webapi/auth.cgi</code> JSON liefern, keine HTML-Anmeldeseite.
         </div>
         <div style="margin-bottom:0.875rem;">
           <label class="form-label">NAS-URL</label>
@@ -589,8 +593,8 @@
       </div>
 
       <div id="hostedFields" style="display:none;">
-        <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#065f46;">
-          <strong>SecureSend Storage</strong> wird über die Server-Umgebung konfiguriert (<code>SECURESEND_STORAGE_*</code>). In der Organisation sind keine Zugangsdaten erforderlich.
+        <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#065f46;line-height:1.45;">
+          <strong>SecureSend Storage</strong> ist der von SecureSend bereitgestellte Speicher für Ihre Sendungen: Dateien liegen in der SecureSend-Infrastruktur, Sie hinterlegen keine Zugangsdaten zu einem externen Cloud-Dienst. Abruf erfolgt nur über die Anwendung und die verschickten Links — nicht wie bei einer öffentlichen Ordnerfreigabe.
         </div>
       </div>
 
@@ -776,10 +780,11 @@
   }
 
   // Provider-Darstellungs-Hilfsfunktionen (ausgelagert um doppelte-Klammer-Konflikte zu vermeiden)
-  const _PROV_COLORS = {nextcloud:'#e0f2fe',onedrive:'#ede9fe',dropbox:'#dbeafe',hidrive:'#dcfce7',synology:'#fef3c7',minio:'#f0fdf4',securesend_hosted:'#d1fae5'};
-  const _PROV_LABELS = {nextcloud:'Nextcloud',onedrive:'OneDrive',dropbox:'Dropbox',hidrive:'HiDrive (Strato)',synology:'Synology Drive',minio:'MinIO (S3)',securesend_hosted:'SecureSend Storage'};
+  const _PROV_COLORS = {nextcloud:'#e0f2fe',owncloud:'#ffedd5',onedrive:'#ede9fe',dropbox:'#dbeafe',hidrive:'#dcfce7',synology:'#fef3c7',minio:'#f0fdf4',securesend_hosted:'#d1fae5'};
+  const _PROV_LABELS = {nextcloud:'Nextcloud',owncloud:'ownCloud',onedrive:'OneDrive',dropbox:'Dropbox',hidrive:'HiDrive (Strato)',synology:'Synology Drive',minio:'MinIO (S3)',securesend_hosted:'SecureSend Storage'};
   const _PROV_ICONS  = {
     nextcloud: '<svg style="width:1.25rem;height:1.25rem;color:#0369a1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
+    owncloud: '<svg style="width:1.25rem;height:1.25rem;color:#ea580c" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
     onedrive:  '<svg style="width:1.25rem;height:1.25rem;color:#7c3aed" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
     dropbox:   '<svg style="width:1.25rem;height:1.25rem;color:#2563eb" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>',
     hidrive:   '<svg style="width:1.25rem;height:1.25rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>',
@@ -794,7 +799,7 @@
 
   function renderProviders(providers) {
     if (!providers.length) {
-      document.getElementById('providerCards').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:#94a3b8;"><p>Kein Cloud-Anbieter konfiguriert.</p><p style="font-size:0.8125rem;margin-top:0.25rem;">Fügen Sie Nextcloud, OneDrive, Dropbox, HiDrive oder Synology Drive hinzu.</p></div>';
+      document.getElementById('providerCards').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:#94a3b8;"><p>Kein Cloud-Anbieter konfiguriert.</p><p style="font-size:0.8125rem;margin-top:0.25rem;">Fügen Sie Nextcloud, ownCloud, OneDrive, Dropbox, HiDrive, Synology Drive oder MinIO hinzu.</p></div>';
       return;
     }
     document.getElementById('providerCards').innerHTML = providers.map(p => `
@@ -871,7 +876,7 @@
 
   function updateProviderFields() {
     const svc = document.getElementById('pService').value;
-    document.getElementById('nextcloudFields').style.display = svc === 'nextcloud' ? 'block' : 'none';
+    document.getElementById('nextcloudFields').style.display = (svc === 'nextcloud' || svc === 'owncloud') ? 'block' : 'none';
     document.getElementById('onedriveFields').style.display  = svc === 'onedrive'  ? 'block' : 'none';
     document.getElementById('dropboxFields').style.display   = svc === 'dropbox'   ? 'block' : 'none';
     document.getElementById('hidriveFields').style.display   = svc === 'hidrive'   ? 'block' : 'none';
@@ -885,16 +890,28 @@
     document.getElementById('pName').value = provider ? provider.name : '';
     const pService = document.getElementById('pService');
     const hostedOpt = document.getElementById('pServiceHostedOption');
+    const pName = document.getElementById('pName');
     if (provider && provider.service === 'securesend_hosted') {
       hostedOpt.disabled = false;
       hostedOpt.hidden = false;
       pService.value = 'securesend_hosted';
       pService.disabled = true;
+      pName.value = 'SecureSend Storage';
+      pName.readOnly = true;
+      pName.required = false;
+      pName.style.background = '#f1f5f9';
+      pName.style.cursor = 'default';
+      pName.title = 'Der Anzeigename ist fest und kann nicht geändert werden.';
     } else {
       hostedOpt.disabled = true;
       hostedOpt.hidden = true;
       pService.disabled = false;
       pService.value = provider ? provider.service : 'nextcloud';
+      pName.readOnly = false;
+      pName.required = true;
+      pName.style.background = '';
+      pName.style.cursor = '';
+      pName.title = '';
     }
     document.getElementById('pDefault').checked = provider ? provider.is_default : false;
     document.getElementById('pActive').checked = provider ? provider.is_active : true;
@@ -945,7 +962,7 @@
     const id = document.getElementById('providerId').value;
     const svc = document.getElementById('pService').value;
     let config = {};
-    if (svc === 'nextcloud') {
+    if (svc === 'nextcloud' || svc === 'owncloud') {
       config = { url: document.getElementById('pNcUrl').value, user: document.getElementById('pNcUser').value, password: document.getElementById('pNcPassword').value, folder: document.getElementById('pNcFolder').value };
     } else if (svc === 'onedrive') {
       config = { client_id: document.getElementById('pOdClientId').value, client_secret: document.getElementById('pOdClientSecret').value, tenant_id: document.getElementById('pOdTenantId').value, refresh_token: document.getElementById('pOdRefreshToken').value };
@@ -967,7 +984,8 @@
         use_ssl: document.getElementById('pMinioSSL').checked,
       };
     }
-    const body = { name: document.getElementById('pName').value, service: svc, config_json: config, is_default: document.getElementById('pDefault').checked, is_active: document.getElementById('pActive').checked };
+    const provName = svc === 'securesend_hosted' ? 'SecureSend Storage' : document.getElementById('pName').value;
+    const body = { name: provName, service: svc, config_json: config, is_default: document.getElementById('pDefault').checked, is_active: document.getElementById('pActive').checked };
     const btn = document.getElementById('saveProviderBtn');
     btn.disabled = true; btn.textContent = 'Speichern…';
     try {

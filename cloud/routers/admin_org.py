@@ -329,7 +329,11 @@ async def update_provider(
         for p in existing.scalars().all():
             p.is_default = False
 
-    for field, value in body.model_dump(exclude_none=True).items():
+    update_data = body.model_dump(exclude_none=True)
+    if provider.service == HOSTED_SERVICE_NAME:
+        update_data.pop("name", None)
+
+    for field, value in update_data.items():
         setattr(provider, field, value)
 
     await db.commit()

@@ -84,7 +84,10 @@ async def ensure_hosted_cloud_provider(db: AsyncSession, org_id: str) -> None:
             CloudProvider.service == HOSTED_SERVICE_NAME,
         )
     )
-    if existing.scalar_one_or_none():
+    prov_existing = existing.scalar_one_or_none()
+    if prov_existing:
+        if prov_existing.name != "SecureSend Storage":
+            prov_existing.name = "SecureSend Storage"
         return
 
     r_all = await db.execute(

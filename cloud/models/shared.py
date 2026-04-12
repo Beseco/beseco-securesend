@@ -40,7 +40,7 @@ class CloudProvider(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     service: Mapped[str] = mapped_column(
         String(50), nullable=False
-    )  # "nextcloud" | "onedrive"
+    )  # z. B. "nextcloud" | "owncloud" | "onedrive"
     config_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)

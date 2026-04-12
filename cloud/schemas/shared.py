@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 class CloudProviderCreate(BaseModel):
     name: str
-    service: str                        # "nextcloud" | "onedrive"
+    service: str                        # "nextcloud" | "owncloud" | "onedrive" | …
     config_json: Optional[dict[str, Any]] = None
     is_default: bool = False
     is_active: bool = True
