@@ -44,7 +44,7 @@
     </div>
   </div>
 
-  <div class="card" style="overflow:hidden;">
+  <div class="card" id="urTableCard" style="overflow:hidden;">
     <div style="padding:1rem 1.25rem;border-bottom:1px solid #f1f5f9;">
       <h2 style="font-size:1rem;font-weight:700;color:#1e293b;margin:0;">Ihre Upload-Anfragen</h2>
       <p style="font-size:0.8125rem;color:#64748b;margin:0.25rem 0 0;">Offene Anfragen: Link erneut kopieren. Erfüllte Anfragen zeigen ggf. das Ergebnis.</p>
@@ -81,7 +81,14 @@
     if (s === 'pending') return { text: 'Offen', color: '#1d4ed8', bg: '#dbeafe' };
     if (s === 'fulfilled') return { text: 'Erfüllt', color: '#15803d', bg: '#dcfce7' };
     if (s === 'expired') return { text: 'Abgelaufen', color: '#b45309', bg: '#fef3c7' };
-    return { text: s, color: '#64748b', bg: '#f1f5f9' };
+    return { text: String(s == null ? '—' : s), color: '#64748b', bg: '#f1f5f9' };
+  }
+
+  function _urFormatDt(v) {
+    if (v == null || v === '') return '—';
+    if (typeof v === 'string') return v.length >= 16 ? v.slice(0, 16).replace('T', ' ') : v;
+    if (typeof v === 'number') return new Date(v).toISOString().slice(0, 16).replace('T', ' ');
+    return '—';
   }
 
   function copyUrLink(url) {
@@ -97,40 +104,67 @@
     return window.location.origin + '/r/upload/' + token;
   }
 
-  var UR_API = '/ui/api/upload-requests';
+  var UR_API_PATHS = ['/requests/upload', '/ui/api/upload-requests'];
+
+  async function urFetchList() {
+    var lastStatus = 0;
+    for (var i = 0; i < UR_API_PATHS.length; i++) {
+      try {
+        var res = await apiFetch(UR_API_PATHS[i]);
+        lastStatus = res.status;
+        if (!res.ok) continue;
+        var rows = await res.json();
+        if (Array.isArray(rows)) return { ok: true, rows: rows };
+      } catch (err) { /* nächste URL */ }
+    }
+    return { ok: false, lastStatus: lastStatus };
+  }
+
+  async function urPostCreate(body) {
+    var last = null;
+    for (var j = 0; j < UR_API_PATHS.length; j++) {
+      try {
+        var res = await apiFetch(UR_API_PATHS[j], { method: 'POST', body: JSON.stringify(body) });
+        last = res;
+        if (res.ok) return { ok: true, res: res };
+        if (res.status === 404 || res.status >= 502) continue;
+        return { ok: true, res: res };
+      } catch (err2) { /* nächste URL */ }
+    }
+    return last ? { ok: true, res: last } : { ok: false, res: null };
+  }
+
+  document.getElementById('urTableCard').addEventListener('click', function(ev) {
+    var btn = ev.target.closest('.ur-copy-link');
+    if (!btn) return;
+    var link = btn.getAttribute('data-link');
+    if (link) copyUrLink(link);
+  });
 
   async function loadUploadRequests() {
     const tbody = document.getElementById('urTableBody');
     try {
-      const res = await apiFetch(UR_API);
-      if (!res.ok) {
-        tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#dc2626;">Konnte Liste nicht laden (HTTP ' + res.status + ').</td></tr>';
+      const got = await urFetchList();
+      if (!got.ok) {
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#dc2626;">Konnte Liste nicht laden' +
+          (got.lastStatus ? ' (HTTP ' + got.lastStatus + ')' : '') + '.</td></tr>';
         return;
       }
-      let rows;
-      try {
-        rows = await res.json();
-      } catch (je) {
-        tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#dc2626;">Ungültige Server-Antwort.</td></tr>';
-        return;
-      }
-      if (!Array.isArray(rows)) {
-        tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#dc2626;">Unerwartetes Datenformat.</td></tr>';
-        return;
-      }
+      const rows = got.rows;
       if (!rows.length) {
         tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#94a3b8;">Noch keine Upload-Anfragen.</td></tr>';
         return;
       }
       tbody.innerHTML = rows.map(function(r) {
         const st = _urStatusLabel(r.status);
+        const stText = escapeHtml(st.text);
         const who = escapeHtml((r.recipient_name ? (r.recipient_name + ' · ') : '') + (r.recipient_email || '—'));
-        const created = r.created_at ? r.created_at.slice(0, 16).replace('T', ' ') : '—';
-        const exp = r.expires_at ? r.expires_at.slice(0, 16).replace('T', ' ') : '—';
+        const created = escapeHtml(_urFormatDt(r.created_at));
+        const exp = escapeHtml(_urFormatDt(r.expires_at));
         let actions = '';
         if (r.status === 'pending' && r.token) {
           const u = _urUploadUrl(r.token);
-          actions = '<button type="button" class="btn-secondary" style="font-size:0.8125rem;padding:0.35rem 0.65rem;" onclick="copyUrLink(' + JSON.stringify(u) + ')">Link kopieren</button>';
+          actions = '<button type="button" class="btn-secondary ur-copy-link" style="font-size:0.8125rem;padding:0.35rem 0.65rem;" data-link="' + escapeHtml(u) + '">Link kopieren</button>';
         } else if (r.status === 'fulfilled' && r.result_url) {
           actions = '<a href="' + escapeHtml(r.result_url) + '" class="btn-secondary" style="font-size:0.8125rem;padding:0.35rem 0.65rem;text-decoration:none;display:inline-block;" target="_blank" rel="noopener">Ergebnis</a>';
         } else {
@@ -138,7 +172,7 @@
         }
         return '<tr style="border-top:1px solid #f1f5f9;">' +
           '<td style="padding:0.75rem 1.25rem;font-size:0.875rem;">' + who + '</td>' +
-          '<td style="padding:0.75rem 1rem;"><span style="font-size:0.75rem;font-weight:600;padding:0.2rem 0.5rem;border-radius:0.25rem;background:' + st.bg + ';color:' + st.color + ';">' + st.text + '</span></td>' +
+          '<td style="padding:0.75rem 1rem;"><span style="font-size:0.75rem;font-weight:600;padding:0.2rem 0.5rem;border-radius:0.25rem;background:' + st.bg + ';color:' + st.color + ';">' + stText + '</span></td>' +
           '<td style="padding:0.75rem 1rem;font-size:0.8125rem;color:#64748b;">' + created + '</td>' +
           '<td style="padding:0.75rem 1rem;font-size:0.8125rem;color:#64748b;">' + exp + '</td>' +
           '<td style="padding:0.75rem 1.25rem;text-align:right;">' + actions + '</td></tr>';
@@ -165,7 +199,12 @@
         message: message || null,
         days: days
       };
-      const res = await apiFetch(UR_API, { method: 'POST', body: JSON.stringify(body) });
+      const post = await urPostCreate(body);
+      if (!post.ok || !post.res) {
+        showToast('Anfrage fehlgeschlagen', 'error');
+        return;
+      }
+      const res = post.res;
       if (!res.ok) {
         let msg = 'Anfrage fehlgeschlagen';
         try {
