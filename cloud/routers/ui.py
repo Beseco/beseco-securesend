@@ -45,6 +45,7 @@ from sqlalchemy.orm import selectinload
 
 from config import settings
 from database import get_db
+from versioning import get_ui_version_cached
 from models.organization import Organization
 from models.reseller import Reseller
 from models.shared import EmailVerification, History
@@ -205,6 +206,7 @@ templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 templates.env.filters["role_label"] = lambda r: _ROLE_LABELS.get(
     getattr(r, "value", str(r)), str(r)
 )
+templates.env.globals["app_version"] = get_ui_version_cached()
 
 # ── Role ordering ─────────────────────────────────────────────────────────────
 

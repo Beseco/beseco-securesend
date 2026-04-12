@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     # App metadata
     APP_TITLE: str = "SecureSend Cloud API"
     APP_VERSION: str = "1.0.0"
+    # CalVer YYYY.MM.XX für UI (Dashboard); leer = aus Git oder Datei VERSION
+    APP_DISPLAY_VERSION: str = ""
 
     # SecureSend Hosted Storage (lokal oder S3-kompatibel)
     SECURESEND_STORAGE_ENABLED: bool = True
