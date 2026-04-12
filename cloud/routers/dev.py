@@ -9,8 +9,6 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
-from routers.auth import get_current_active_user
-from models.user import User
 
 router = APIRouter(prefix="/dev", tags=["dev"])
 
