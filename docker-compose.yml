@@ -51,8 +51,8 @@ services:
       # SMS Gateway (optional)
       SIPGATE_TOKEN_ID: ${SIPGATE_TOKEN_ID:-}
       SIPGATE_DEVICE_ID: ${SIPGATE_DEVICE_ID:-}
-      # Dev mode for debugging
-      DEV_MODE: "true"
+      # true = Dev-Routen + bei 500 echter Fehlertext in JSON (Produktion: false)
+      DEV_MODE: ${DEV_MODE:-true}
       # ClamAV: Standard-Compose startet keinen Scanner — ohne Container wäre Hostname „clamav“ tot.
       # Mit Profil: docker compose --profile clamav up -d  und CLAMAV_ENABLED=true setzen.
       CLAMAV_ENABLED: ${CLAMAV_ENABLED:-false}

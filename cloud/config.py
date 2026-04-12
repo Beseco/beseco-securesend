@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     # Public base URL (used in e-mails; override in .env for production)
     PUBLIC_BASE_URL: str = ""
 
+    # true = bei unbehandelten 500-Fehlern echter Exception-Text in JSON (nur Dev/Staging)
+    DEV_MODE: bool = False
+
     # App metadata
     APP_TITLE: str = "SecureSend Cloud API"
     APP_VERSION: str = "1.0.0"

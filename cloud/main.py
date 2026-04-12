@@ -246,17 +246,18 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    """Unbehandelte Fehler als JSON (ohne Klartext „Internal Server Error“ für fetch().json())."""
+    """Unbehandelte Fehler als JSON. In Produktion generische Meldung; mit DEV_MODE=true technisches Detail."""
     log.exception("Unbehandelter Fehler: %s", exc)
-    return JSONResponse(
-        status_code=500,
-        content={
-            "detail": (
-                "Interner Serverfehler. Bitte später erneut versuchen; "
-                "bei anhaltenden Problemen den Administrator informieren."
-            )
-        },
-    )
+    if settings.DEV_MODE:
+        detail = f"{type(exc).__name__}: {exc}"
+        if len(detail) > 800:
+            detail = detail[:797] + "..."
+    else:
+        detail = (
+            "Interner Serverfehler. Bitte später erneut versuchen; "
+            "bei anhaltenden Problemen den Administrator informieren."
+        )
+    return JSONResponse(status_code=500, content={"detail": detail})
 
 
 # CORS — only allow configured origins (never wildcard + credentials)
