@@ -53,12 +53,30 @@ services:
       SIPGATE_DEVICE_ID: ${SIPGATE_DEVICE_ID:-}
       # Dev mode for debugging
       DEV_MODE: "true"
+      # ClamAV: Standard-Compose startet keinen Scanner — ohne Container wäre Hostname „clamav“ tot.
+      # Mit Profil: docker compose --profile clamav up -d  und CLAMAV_ENABLED=true setzen.
+      CLAMAV_ENABLED: ${CLAMAV_ENABLED:-false}
+      CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+      CLAMAV_FAIL_OPEN: ${CLAMAV_FAIL_OPEN:-true}
     networks:
       - securesend_network
+
+  # Optional: Virenscanner (schwer, erster Start lädt Signaturen — mehrere Minuten)
+  clamav:
+    profiles: ["clamav"]
+    image: clamav/clamav:1.4.2
+    container_name: securesend_clamav
+    restart: unless-stopped
+    networks:
+      - securesend_network
+    volumes:
+      - clamav_data:/var/lib/clamav
 
 volumes:
   postgres_data:
   securesend_files:
+  clamav_data:
 
 networks:
   securesend_network:

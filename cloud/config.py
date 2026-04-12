@@ -27,7 +27,8 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE_MB: int = 100  # Max total upload size in MB
 
     # ClamAV
-    CLAMAV_ENABLED: bool = True  # false = kein Scan (z. B. bei vielen JPG-Fehlalarmen)
+    # Ohne laufenden clamd: false setzen (docker-compose setzt CLAMAV_ENABLED standardmäßig false).
+    CLAMAV_ENABLED: bool = True
     CLAMAV_HOST: str = "clamav"
     CLAMAV_PORT: int = 3310
     CLAMAV_FAIL_OPEN: bool = True  # Set to False in production to block on ClamAV failure
