@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block title %}Empfangen – SecureSend Cloud{% endblock %}
+{% block page_title %}Empfangen{% endblock %}
+
+{% block content %}
+<div style="max-width:64rem;margin:0 auto;display:flex;flex-direction:column;gap:1.25rem;">
+
+  <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:0.75rem;padding:1rem 1.25rem;font-size:0.875rem;color:#1e40af;line-height:1.5;">
+    <strong>Upload-Anfrage:</strong> Sie erzeugen einen sicheren Link für einen externen Kontakt. Dieser kann darüber Dateien an Sie übermitteln (ohne SecureSend-Konto). Optional wird eine E-Mail mit dem Link versendet, sofern SMTP konfiguriert ist.
+  </div>
+
+  <div class="card" style="padding:1.25rem 1.5rem;">
+    <h2 style="font-size:1rem;font-weight:700;color:#1e293b;margin:0 0 1rem;">Neue Anfrage</h2>
+    <form id="uploadRequestForm">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
+        <div>
+          <label class="form-label" for="urEmail">E-Mail des Empfängers</label>
+          <input type="email" id="urEmail" class="form-input" required placeholder="empfaenger@example.com" />
+        </div>
+        <div>
+          <label class="form-label" for="urName">Name (optional)</label>
+          <input type="text" id="urName" class="form-input" placeholder="Max Mustermann" />
+        </div>
+      </div>
+      <div style="margin-bottom:0.875rem;">
+        <label class="form-label" for="urMessage">Nachricht im E-Mail-Text (optional)</label>
+        <textarea id="urMessage" class="form-input" rows="3" placeholder="Kurzer Hinweis für den Empfänger…" style="resize:vertical;min-height:4.5rem;"></textarea>
+      </div>
+      <div style="display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <div style="max-width:12rem;">
+          <label class="form-label" for="urDays">Gültigkeit (Tage)</label>
+          <input type="number" id="urDays" class="form-input" min="1" max="90" value="14" />
+        </div>
+        <button type="submit" class="btn-primary" id="urSubmit" style="margin-top:1.25rem;">Anfrage erstellen</button>
+      </div>
+    </form>
+
+    <div id="urNewLinkBox" style="display:none;margin-top:1rem;padding:1rem;background:#f0fdf4;border:1px solid #86efac;border-radius:0.5rem;">
+      <p style="font-size:0.8125rem;font-weight:600;color:#166534;margin:0 0 0.5rem;">Link zum Weitergeben</p>
+      <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+        <input type="text" id="urNewLink" readonly class="form-input" style="flex:1;min-width:12rem;font-size:0.8125rem;" />
+        <button type="button" class="btn-secondary" onclick="copyUrLink(document.getElementById('urNewLink').value)">Kopieren</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="overflow:hidden;">
+    <div style="padding:1rem 1.25rem;border-bottom:1px solid #f1f5f9;">
+      <h2 style="font-size:1rem;font-weight:700;color:#1e293b;margin:0;">Ihre Upload-Anfragen</h2>
+      <p style="font-size:0.8125rem;color:#64748b;margin:0.25rem 0 0;">Offene Anfragen: Link erneut kopieren. Erfüllte Anfragen zeigen ggf. das Ergebnis.</p>
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr class="table-header">
+            <th style="padding:0.625rem 1.25rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;">Empfänger</th>
+            <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;">Status</th>
+            <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;">Erstellt</th>
+            <th style="padding:0.625rem 1rem;text-align:left;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;">Gültig bis</th>
+            <th style="padding:0.625rem 1.25rem;text-align:right;font-size:0.75rem;font-weight:700;color:#64748b;text-transform:uppercase;">Aktion</th>
+          </tr>
+        </thead>
+        <tbody id="urTableBody">
+          <tr><td colspan="5" style="padding:2rem;text-align:center;color:#94a3b8;">Lade…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  function escapeHtml(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function _urStatusLabel(s) {
+    if (s === 'pending') return { text: 'Offen', color: '#1d4ed8', bg: '#dbeafe' };
+    if (s === 'fulfilled') return { text: 'Erfüllt', color: '#15803d', bg: '#dcfce7' };
+    if (s === 'expired') return { text: 'Abgelaufen', color: '#b45309', bg: '#fef3c7' };
+    return { text: s, color: '#64748b', bg: '#f1f5f9' };
+  }
+
+  function copyUrLink(url) {
+    if (!url) return;
+    navigator.clipboard.writeText(url).then(function() {
+      showToast('Link kopiert', 'success');
+    }).catch(function() {
+      showToast('Kopieren fehlgeschlagen', 'error');
+    });
+  }
+
+  function _urUploadUrl(token) {
+    return window.location.origin + '/r/upload/' + token;
+  }
+
+  async function loadUploadRequests() {
+    const tbody = document.getElementById('urTableBody');
+    try {
+      const res = await apiFetch('/requests/upload');
+      if (!res.ok) {
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#dc2626;">Konnte Liste nicht laden.</td></tr>';
+        return;
+      }
+      const rows = await res.json();
+      if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#94a3b8;">Noch keine Upload-Anfragen.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = rows.map(function(r) {
+        const st = _urStatusLabel(r.status);
+        const who = escapeHtml((r.recipient_name ? (r.recipient_name + ' · ') : '') + (r.recipient_email || '—'));
+        const created = r.created_at ? r.created_at.slice(0, 16).replace('T', ' ') : '—';
+        const exp = r.expires_at ? r.expires_at.slice(0, 16).replace('T', ' ') : '—';
+        let actions = '';
+        if (r.status === 'pending' && r.token) {
+          const u = _urUploadUrl(r.token);
+          actions = '<button type="button" class="btn-secondary" style="font-size:0.8125rem;padding:0.35rem 0.65rem;" onclick="copyUrLink(' + JSON.stringify(u) + ')">Link kopieren</button>';
+        } else if (r.status === 'fulfilled' && r.result_url) {
+          actions = '<a href="' + escapeHtml(r.result_url) + '" class="btn-secondary" style="font-size:0.8125rem;padding:0.35rem 0.65rem;text-decoration:none;display:inline-block;" target="_blank" rel="noopener">Ergebnis</a>';
+        } else {
+          actions = '—';
+        }
+        return '<tr style="border-top:1px solid #f1f5f9;">' +
+          '<td style="padding:0.75rem 1.25rem;font-size:0.875rem;">' + who + '</td>' +
+          '<td style="padding:0.75rem 1rem;"><span style="font-size:0.75rem;font-weight:600;padding:0.2rem 0.5rem;border-radius:0.25rem;background:' + st.bg + ';color:' + st.color + ';">' + st.text + '</span></td>' +
+          '<td style="padding:0.75rem 1rem;font-size:0.8125rem;color:#64748b;">' + created + '</td>' +
+          '<td style="padding:0.75rem 1rem;font-size:0.8125rem;color:#64748b;">' + exp + '</td>' +
+          '<td style="padding:0.75rem 1.25rem;text-align:right;">' + actions + '</td></tr>';
+      }).join('');
+    } catch (e) {
+      tbody.innerHTML = '<tr><td colspan="5" style="padding:2rem;text-align:center;color:#dc2626;">Netzwerkfehler.</td></tr>';
+    }
+  }
+
+  document.getElementById('uploadRequestForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const email = document.getElementById('urEmail').value.trim();
+    const name = document.getElementById('urName').value.trim();
+    const message = document.getElementById('urMessage').value.trim();
+    let days = parseInt(document.getElementById('urDays').value, 10);
+    if (isNaN(days) || days < 1) days = 14;
+    if (days > 90) days = 90;
+    const btn = document.getElementById('urSubmit');
+    btn.disabled = true;
+    try {
+      const body = {
+        recipient_email: email,
+        recipient_name: name || null,
+        message: message || null,
+        days: days
+      };
+      const res = await apiFetch('/requests/upload', { method: 'POST', body: JSON.stringify(body) });
+      if (!res.ok) {
+        let msg = 'Anfrage fehlgeschlagen';
+        try {
+          const err = await res.json();
+          if (err.detail) {
+            msg = Array.isArray(err.detail) ? err.detail.map(function(d) { return d.msg || d; }).join(' ') : String(err.detail);
+          }
+        } catch (x) {}
+        showToast(msg, 'error');
+        return;
+      }
+      const data = await res.json();
+      const url = _urUploadUrl(data.token);
+      document.getElementById('urNewLink').value = url;
+      document.getElementById('urNewLinkBox').style.display = 'block';
+      showToast('Anfrage erstellt', 'success');
+      document.getElementById('uploadRequestForm').reset();
+      document.getElementById('urDays').value = '14';
+      loadUploadRequests();
+    } catch (x) {
+      showToast('Netzwerkfehler', 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  loadUploadRequests();
+</script>
+{% endblock %}

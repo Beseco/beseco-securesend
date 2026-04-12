@@ -11,6 +11,7 @@ Routes:
   POST /ui/logout       → clear cookie, redirect to login
   GET  /ui/             → dashboard (protected)
   GET  /ui/send         → send page (protected, org users)
+  GET  /ui/receive      → Upload-Anfragen (protected, org users; Link für externe Datei-Uploads)
   GET  /ui/contacts     → contacts page (protected, org users)
   GET  /ui/history      → history page (protected, org users)
   GET  /ui/admin/org    → org admin page (org_admin+)
@@ -850,7 +851,7 @@ async def receive_page(
     ctx = _read_ctx(request)
     rname, oname = await _resolve_ctx_names(ctx, db)
     return templates.TemplateResponse(
-        "receive.html",
+        "upload_requests.html",
         _ctx(request, user, "receive", ctx_reseller_name=rname, ctx_org_name=oname),
     )
 

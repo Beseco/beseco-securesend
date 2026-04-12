@@ -54,7 +54,7 @@ async def list_upload_requests(
         effective_status = r.status
         if effective_status == "pending" and r.expires_at < now:
             effective_status = "expired"
-        out.append({
+        row: dict = {
             "id": r.id,
             "recipient_email": r.recipient_email,
             "recipient_name": r.recipient_name or "",
@@ -62,7 +62,10 @@ async def list_upload_requests(
             "result_url": r.result_url or "",
             "created_at": r.created_at.isoformat(),
             "expires_at": r.expires_at.isoformat(),
-        })
+        }
+        if effective_status == "pending":
+            row["token"] = r.token
+        out.append(row)
     return out
 
 

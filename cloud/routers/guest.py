@@ -218,7 +218,7 @@ async def guest_landing(
 
     # Andere Stufen: Passwort erforderlich
     return templates.TemplateResponse(
-        "receive.html",
+        "guest_message_gate.html",
         {
             "request": request,
             "token": token,
@@ -256,7 +256,7 @@ async def guest_verify(
     if h.password_hash:
         if not password:
             return templates.TemplateResponse(
-                "receive.html",
+                "guest_message_gate.html",
                 {
                     "request": request,
                     "token": token,
@@ -270,7 +270,7 @@ async def guest_verify(
         # Verify password
         if not bcrypt.checkpw(password.encode(), h.password_hash.encode()):
             return templates.TemplateResponse(
-                "receive.html",
+                "guest_message_gate.html",
                 {
                     "request": request,
                     "token": token,
