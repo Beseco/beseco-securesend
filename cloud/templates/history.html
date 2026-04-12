@@ -146,6 +146,8 @@
         ? '<span style="background:#e0f2fe;color:#0369a1;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">Nextcloud</span>'
         : h.provider === 'minio'
         ? '<span style="background:#dcfce7;color:#16a34a;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">MinIO</span>'
+        : h.provider === 'securesend_hosted'
+        ? '<span style="background:#ecfdf5;color:#047857;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">SecureSend Storage</span>'
         : '<span style="background:#ede9fe;color:#7c3aed;font-size:0.7rem;font-weight:700;padding:0.125rem 0.5rem;border-radius:9999px;">Cloud</span>';
 
       const isRevoked = h.is_revoked === true;

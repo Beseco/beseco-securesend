@@ -49,6 +49,7 @@ from routers.requests_router import router as requests_router
 from routers.public import router as public_router
 from routers.tracking import router as tracking_router
 from routers.guest import router as guest_router
+from routers.dev import router as dev_router
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("securesend")
@@ -207,6 +208,13 @@ async def lifespan(app: FastAPI):
         await conn.run_sync(Base.metadata.create_all)
         await _run_migrations(conn)
     log.info("SecureSend Cloud API ready.")
+    if settings.SECURESEND_STORAGE_ENABLED and settings.SECURESEND_STORAGE_BACKEND == "local":
+        from pathlib import Path
+
+        try:
+            Path(settings.SECURESEND_STORAGE_ROOT).mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            log.warning("SECURESEND_STORAGE_ROOT konnte nicht angelegt werden: %s", exc)
     if settings.SECRET_KEY == "change-me-in-production":
         log.critical("SECURITY: SECRET_KEY is default value! Change immediately.")
     if not settings.SECURE_COOKIES and settings.PUBLIC_BASE_URL.startswith("https://"):
@@ -264,6 +272,7 @@ app.include_router(requests_router)
 app.include_router(public_router)
 app.include_router(tracking_router)
 app.include_router(guest_router)
+app.include_router(dev_router)
 
 
 # ── Root redirect ─────────────────────────────────────────────────────────────

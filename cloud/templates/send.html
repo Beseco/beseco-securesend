@@ -288,6 +288,18 @@
 {% block scripts %}
 <script src="https://uicdn.toast.com/editor/latest/toastui-editor-all.min.js"></script>
 <script>
+  const STORAGE_PREFERENCE = {{ (storage_preference or "securesend_cloud") | tojson }};
+  const HOSTED_SERVICE = "securesend_hosted";
+  const PROVIDER_SERVICE_LABEL = {
+    securesend_hosted: "SecureSend Storage",
+    nextcloud: "Nextcloud",
+    onedrive: "OneDrive",
+    dropbox: "Dropbox",
+    hidrive: "HiDrive",
+    synology: "Synology",
+    minio: "MinIO",
+  };
+
   // ── Client-Side Encryption Utilities (for advanced security level) ───────────
   const ENCRYPTION_ENABLED = true;
   
@@ -347,9 +359,8 @@
     );
   }
   
-  // Encrypt file using AES-GCM
-  async function encryptFile(file) {
-    const password = generateEncryptionPassword();
+  // Encrypt file using AES-GCM (password shared across all files in one send)
+  async function encryptFile(file, password) {
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const iv = crypto.getRandomValues(new Uint8Array(12));
     
@@ -375,12 +386,9 @@
     };
   }
   
-  // Encrypt all files for advanced security level
   async function encryptFilesForAdvanced(files) {
-    const results = await Promise.all(
-      Array.from(files).map(file => encryptFile(file))
-    );
-    return results;
+    const password = generateEncryptionPassword();
+    return Promise.all(Array.from(files).map((file) => encryptFile(file, password)));
   }
   
   let editor = null;
@@ -409,12 +417,21 @@
   // ── Sicherheitsstufe ─────────────────────────────────────────────────────
   function onSecLevelChange() {
     const selected = document.querySelector('input[name="security_level"]:checked')?.value || 'secure';
-    ['normal', 'secure', 'extended'].forEach(l => {
-      document.getElementById('lvl_' + l).classList.toggle('selected', l === selected);
+    ['normal', 'standard', 'secure', 'extended', 'advanced', 'maximal'].forEach((l) => {
+      const el = document.getElementById('lvl_' + l);
+      if (el) el.classList.toggle('selected', l === selected);
     });
     document.getElementById('phoneOptLabel').textContent =
-      selected === 'normal' ? '(optional)' : '(für SMS)';
+      selected === 'normal' || selected === 'standard' ? '(optional)' : '(für SMS)';
     checkPhoneWarning();
+  }
+
+  function selectSecLevel(v) {
+    const el = document.querySelector('input[name="security_level"][value="' + v + '"]');
+    if (el) {
+      el.checked = true;
+      onSecLevelChange();
+    }
   }
 
   // ── Vorlagen ─────────────────────────────────────────────────────────────
@@ -575,10 +592,18 @@
       if (res.ok) {
         const providers = await res.json();
         const sel = document.getElementById('provider_id');
-        providers.forEach(p => {
+        while (sel.options.length > 1) sel.remove(1);
+        let list = providers;
+        if (STORAGE_PREFERENCE === 'securesend_cloud') {
+          list = providers.filter(p => p.service === HOSTED_SERVICE);
+        } else if (STORAGE_PREFERENCE === 'customer_cloud') {
+          list = providers.filter(p => p.service !== HOSTED_SERVICE);
+        }
+        list.forEach(p => {
           const opt = document.createElement('option');
           opt.value = p.id;
-          opt.textContent = `${p.name} (${p.service})${p.is_default ? ' ★' : ''}`;
+          const svcLbl = PROVIDER_SERVICE_LABEL[p.service] || p.service;
+          opt.textContent = `${p.name} (${svcLbl})${p.is_default ? ' ★' : ''}`;
           sel.appendChild(opt);
         });
       }
@@ -641,7 +666,8 @@
     const phone  = document.getElementById('to_phone').value.trim();
     const level  = document.querySelector('input[name="security_level"]:checked')?.value || 'secure';
     const warn   = document.getElementById('noPhoneWarning');
-    warn.style.display = (email && !phone && level !== 'normal') ? 'flex' : 'none';
+    warn.style.display =
+      email && !phone && level !== 'normal' && level !== 'standard' ? 'flex' : 'none';
   }
 
   function addRecipientField() {

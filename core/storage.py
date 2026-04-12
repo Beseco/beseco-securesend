@@ -184,9 +184,9 @@ def upload_to_onedrive(
 
 
 def create_onedrive_share_link(
-    cfg: dict, token: str, item_id: str, password: str, days: int
+    cfg: dict, token: str, item_id: str, password: Optional[str], days: int
 ) -> str:
-    """Erstellt passwortgeschützten Freigabe-Link."""
+    """Erstellt Freigabe-Link; optional mit Passwortschutz."""
     expiry = (datetime.now(timezone.utc) + timedelta(days=days)).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
@@ -194,12 +194,13 @@ def create_onedrive_share_link(
         f"https://graph.microsoft.com/v1.0/users/{cfg['user']}"
         f"/drive/items/{item_id}/createLink"
     )
-    payload = {
+    payload: dict = {
         "type": "view",
         "scope": "anonymous",
-        "password": password,
         "expirationDateTime": expiry,
     }
+    if password:
+        payload["password"] = password
     resp = requests.post(
         url,
         headers={
@@ -685,6 +686,16 @@ def upload_and_share(
         )
         return create_minio_share_link(cfg, file_path, password, days)
 
+    elif service == "securesend_hosted":
+        from core.hosted_storage import HOSTED_SHARE_PLACEHOLDER, hosted_upload_single
+
+        base_folder = cfg.get("folder", "SecureSend")
+        rel_sub = (
+            f"{base_folder}/{subfolder}".strip("/") if subfolder else base_folder
+        )
+        hosted_upload_single(cfg, filename, content, content_type, rel_sub)
+        return HOSTED_SHARE_PLACEHOLDER
+
     else:
         raise ValueError(f"Unbekannter Storage-Service: {service!r}")
 
@@ -767,8 +778,96 @@ def upload_files_and_share_folder(
         sid = _syno_login(cfg)
         return create_synology_share_link(cfg, sid, folder_path, password, days)
 
+    elif service == "securesend_hosted":
+        from core.hosted_storage import HOSTED_SHARE_PLACEHOLDER, hosted_upload_folder
+
+        hosted_upload_folder(cfg, files, folder_path)
+        return HOSTED_SHARE_PLACEHOLDER
+
     else:
         raise ValueError(f"Unbekannter Storage-Service: {service!r}")
+
+
+def download_cloud_file(cfg: dict, folder_path: str, filename: str) -> bytes:
+    """Lädt eine Datei aus einem Ordner, den z. B. upload_files_and_share_folder angelegt hat.
+
+    folder_path: Relativer Pfad wie bei Upload (z. B. ``SecureSend/<user_id>/<timestamp>``).
+    filename:    Dateiname innerhalb dieses Ordners.
+
+    Unterstützte Dienste: nextcloud, onedrive, dropbox, hidrive, synology — analog zu
+    ``upload_files_and_share_folder``.
+    """
+    service = cfg.get("service", "nextcloud")
+    fp = folder_path.strip().strip("/")
+    rel = f"{fp}/{filename}" if fp else filename
+
+    if service == "securesend_hosted":
+        from core.hosted_storage import hosted_download
+
+        return hosted_download(cfg, folder_path, filename)
+
+    if service == "nextcloud":
+        url = _nc_webdav_url(cfg, rel)
+        resp = requests.get(
+            url, auth=(cfg["user"], cfg["password"]), timeout=120
+        )
+        resp.raise_for_status()
+        return resp.content
+
+    if service == "onedrive":
+        token = get_graph_token(cfg)
+        graph_path = f"/users/{cfg['user']}/drive/root:/{rel}:/content"
+        url = f"https://graph.microsoft.com/v1.0{graph_path}"
+        resp = requests.get(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=120,
+        )
+        resp.raise_for_status()
+        return resp.content
+
+    if service == "dropbox":
+        token = _dropbox_token(cfg)
+        base = cfg.get("folder", "/SecureSend").rstrip("/")
+        dbx_path = f"{base}/{rel}" if fp else f"{base}/{filename}"
+        resp = requests.post(
+            "https://content.dropboxapi.com/2/files/download",
+            headers={
+                **_dropbox_headers(token),
+                "Dropbox-API-Arg": _json.dumps({"path": dbx_path}),
+            },
+            timeout=120,
+        )
+        resp.raise_for_status()
+        return resp.content
+
+    if service == "hidrive":
+        base = cfg.get("folder", "SecureSend")
+        inner = f"{base}/{fp}" if fp else base
+        full_path = f"{inner}/{filename}"
+        url = _hidrive_webdav_url(cfg, full_path)
+        resp = requests.get(url, auth=_hidrive_auth(cfg), timeout=120)
+        resp.raise_for_status()
+        return resp.content
+
+    if service == "synology":
+        base = cfg.get("folder", "SecureSend")
+        inner = f"{base}/{fp}" if fp else base
+        full_path = f"{inner}/{filename}"
+        url = _syno_webdav_url(cfg, full_path)
+        resp = requests.get(
+            url,
+            auth=_syno_auth(cfg),
+            verify=cfg.get("verify_ssl", True),
+            timeout=120,
+        )
+        resp.raise_for_status()
+        return resp.content
+
+    raise ValueError(
+        f"Download aus dem Speicher {service!r} wird für E2E-Versand nicht unterstützt "
+        f"(kein Ordner-Upload in upload_files_and_share_folder)."
+    )
 
 
 # ── Status & Quota ────────────────────────────────────────────────────────────
@@ -979,6 +1078,28 @@ def get_provider_status(cfg: dict) -> dict:
                 result["display_name"] = info.get("hostname") or cfg.get("url")
                 # Quota via SYNO.Core.System.Utilization oder WebDAV PROPFIND
                 result["quota"] = None  # Optional: via weiterer API-Aufruf
+            result["ok"] = True
+        except Exception as e:
+            result["error"] = str(e)
+
+    elif service == "securesend_hosted":
+        from core.hosted_storage import hosted_check_connectivity
+
+        result["display_name"] = "SecureSend Storage"
+        used = cfg.get("_hosted_quota_used")
+        total = cfg.get("_hosted_quota_total")
+        if used is not None and total is not None:
+            try:
+                u, t = int(used), int(total)
+                result["quota"] = {
+                    "used": u,
+                    "total": t,
+                    "available": max(0, t - u),
+                }
+            except (TypeError, ValueError):
+                pass
+        try:
+            hosted_check_connectivity(cfg)
             result["ok"] = True
         except Exception as e:
             result["error"] = str(e)

@@ -104,6 +104,24 @@
         <textarea id="rSmtpSignature" rows="3" class="form-input" style="resize:vertical;font-family:monospace;font-size:0.8125rem;" placeholder="<p>Mit freundlichen Grüßen</p>"></textarea>
       </div>
     </div>
+
+    <div class="card" style="margin-bottom:1rem;">
+      <h3 style="font-size:0.9375rem;font-weight:700;color:#1e293b;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem;">
+        <svg style="width:1rem;height:1rem;color:#047857" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+        SecureSend Storage — Kontingente
+      </h3>
+      <p style="font-size:0.8125rem;color:#64748b;margin-bottom:1rem;">Standard-Kontingent für neue Organisationen (GB) und optionale <strong>Stufen</strong> mit Namen, Kontingent und reinem Anzeige-Hinweis (<code>price_hint</code>) — ohne Zahlungsanbindung.</p>
+      <div style="margin-bottom:0.875rem;">
+        <label class="form-label">Standard-Kontingent je Organisation (GB)</label>
+        <input type="number" id="rDefaultOrgQuotaGb" class="form-input" min="0" step="0.1" value="5" />
+      </div>
+      <div style="margin-bottom:0.25rem;">
+        <label class="form-label">Stufen (JSON-Array)</label>
+        <p style="font-size:0.75rem;color:#94a3b8;margin:0 0 0.375rem;">Beispiel: <code>[{&quot;id&quot;:&quot;pro&quot;,&quot;name&quot;:&quot;Pro&quot;,&quot;quota_gb&quot;:50,&quot;price_hint&quot;:&quot;ab 9 €/Monat&quot;}]</code>. Organisationen referenzieren eine Stufe über <code>storage_tier_id</code> in den Org-Einstellungen.</p>
+        <textarea id="rStorageTiersJson" rows="8" class="form-input" style="resize:vertical;font-family:ui-monospace,monospace;font-size:0.8125rem;" placeholder="[]"></textarea>
+      </div>
+    </div>
+
     <button onclick="saveResellerSettings()" class="btn-primary" style="display:inline-flex;align-items:center;gap:0.5rem;" id="saveResellerSettingsBtn">
       <svg style="width:1rem;height:1rem" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
       Einstellungen speichern
@@ -195,9 +213,24 @@
     document.getElementById('rSmtpFromAddr').value = smtp.from_addr || '';
     document.getElementById('rSmtpFromName').value = smtp.from_name || '';
     document.getElementById('rSmtpSignature').value = data.signature || '';
+    document.getElementById('rDefaultOrgQuotaGb').value =
+      data.default_org_quota_gb != null ? data.default_org_quota_gb : 5;
+    document.getElementById('rStorageTiersJson').value = JSON.stringify(
+      data.storage_tiers || [],
+      null,
+      2
+    );
   }
 
   async function saveResellerSettings() {
+    let storageTiers = [];
+    try {
+      storageTiers = JSON.parse(document.getElementById('rStorageTiersJson').value || '[]');
+      if (!Array.isArray(storageTiers)) throw new Error('not array');
+    } catch (e) {
+      showToast('Ungültiges JSON bei Speicher-Stufen', 'error');
+      return;
+    }
     const body = {
       smtp: {
         host: document.getElementById('rSmtpHost').value,
@@ -209,6 +242,8 @@
         from_name: document.getElementById('rSmtpFromName').value,
       },
       signature: document.getElementById('rSmtpSignature').value,
+      default_org_quota_gb: parseFloat(document.getElementById('rDefaultOrgQuotaGb').value) || 5,
+      storage_tiers: storageTiers,
     };
     const btn = document.getElementById('saveResellerSettingsBtn');
     btn.disabled = true; btn.textContent = 'Speichern…';

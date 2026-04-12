@@ -163,12 +163,15 @@ async def setup_submit(
         await db.flush()  # reseller.id verfügbar machen
 
         # 3. Organisation anlegen
+        from services.hosted_provider import merge_org_settings_with_storage_defaults
+
         org = Organization(
             id=str(uuid.uuid4()),
             reseller_id=reseller.id,
             name=org_name.strip(),
             slug=org_slug.strip().lower(),
             is_active=True,
+            settings_json=merge_org_settings_with_storage_defaults(None),
         )
         db.add(org)
         await db.flush()  # org.id verfügbar machen
@@ -176,6 +179,10 @@ async def setup_submit(
         # 4. Superadmin der ersten Organisation zuweisen
         #    (gleiche Person, eine E-Mail — hat Zugriff auf alles)
         admin.org_id = org.id
+        await db.flush()
+        from services.hosted_provider import ensure_hosted_cloud_provider
+
+        await ensure_hosted_cloud_provider(db, org.id)
         await db.commit()
     except Exception as exc:
         await db.rollback()
@@ -800,11 +807,15 @@ async def send_page(
     if user.organization and user.organization.settings_json:
         org_settings = user.organization.settings_json
 
-    allowed_levels = org_settings.get(
+    from services.hosted_provider import merge_org_settings_with_storage_defaults
+
+    merged_os = merge_org_settings_with_storage_defaults(org_settings)
+    allowed_levels = merged_os.get(
         "allowed_security_levels",
         ["normal", "standard", "secure", "extended", "advanced", "maximal"],
     )
-    default_level = org_settings.get("default_security_level", "secure")
+    default_level = merged_os.get("default_security_level", "secure")
+    storage_preference = merged_os.get("storage_preference", "securesend_cloud")
 
     return templates.TemplateResponse(
         "send.html",
@@ -816,6 +827,7 @@ async def send_page(
             ctx_org_name=oname,
             allowed_security_levels=allowed_levels,
             default_security_level=default_level,
+            storage_preference=storage_preference,
         ),
     )
 

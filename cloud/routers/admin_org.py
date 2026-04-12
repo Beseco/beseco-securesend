@@ -29,9 +29,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from dependencies import hash_password, org_admin_required
+from hosted_cfg import merge_hosted_storage_cfg
 from models.organization import Organization
 from models.shared import CloudProvider, SmsGateway
 from models.user import User, UserRole
+from services.hosted_provider import (
+    ensure_hosted_cloud_provider,
+    merge_org_settings_with_storage_defaults,
+    resolve_storage_quota_bytes,
+)
+
+from core.hosted_storage import HOSTED_SERVICE_NAME
 from schemas.shared import (
     CloudProviderCreate, CloudProviderRead, CloudProviderUpdate,
     SmsGatewayCreate, SmsGatewayRead, SmsGatewayUpdate,
@@ -227,6 +235,8 @@ async def list_providers(
     db: AsyncSession = Depends(get_db),
 ) -> list[CloudProviderRead]:
     org_id = _resolve_org_id(current_user, org_id)
+    await ensure_hosted_cloud_provider(db, org_id)
+    await db.commit()
     result = await db.execute(
         select(CloudProvider)
         .where(CloudProvider.org_id == org_id)
@@ -244,6 +254,11 @@ async def create_provider(
     db: AsyncSession = Depends(get_db),
 ) -> CloudProviderRead:
     org_id = _resolve_org_id(current_user, org_id)
+    if body.service == HOSTED_SERVICE_NAME:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="SecureSend Storage wird automatisch angelegt und kann nicht manuell erstellt werden.",
+        )
 
     # If this is the new default, clear existing defaults first
     if body.is_default:
@@ -290,6 +305,19 @@ async def update_provider(
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
 
+    if provider.service == HOSTED_SERVICE_NAME:
+        patch = body.model_dump(exclude_none=True)
+        if patch.get("is_active") is False:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="SecureSend Storage kann nicht deaktiviert werden.",
+            )
+        if patch.get("service") and patch["service"] != HOSTED_SERVICE_NAME:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Der Diensttyp von SecureSend Storage kann nicht geändert werden.",
+            )
+
     if body.is_default is True:
         existing = await db.execute(
             select(CloudProvider).where(
@@ -326,6 +354,19 @@ async def provider_status(
         raise HTTPException(status_code=404, detail="Provider not found")
     cfg = dict(provider.config_json or {})
     cfg["service"] = provider.service
+    if provider.service == HOSTED_SERVICE_NAME:
+        org_ent = await db.execute(
+            select(Organization).where(Organization.id == org_id)
+        )
+        org_o = org_ent.scalar_one_or_none()
+        merged = merge_org_settings_with_storage_defaults(
+            org_o.settings_json if org_o else None
+        )
+        used = int(merged.get("storage_used_bytes", 0))
+        quota = await resolve_storage_quota_bytes(db, org_o) if org_o else 0
+        cfg = merge_hosted_storage_cfg(
+            cfg, org_id, quota_used=used, quota_total=quota
+        )
     import asyncio
     try:
         from core.storage import get_provider_status  # type: ignore[import]
@@ -352,6 +393,11 @@ async def delete_provider(
     provider = result.scalar_one_or_none()
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
+    if provider.service == HOSTED_SERVICE_NAME:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Der integrierte SecureSend Storage kann nicht gelöscht werden.",
+        )
     await db.delete(provider)
     await db.commit()
 

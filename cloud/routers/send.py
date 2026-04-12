@@ -2,14 +2,18 @@
 cloud/routers/send.py — Secure send endpoint.
 
 Sicherheitsstufen:
-  normal   — Link per E-Mail, kein Passwort, kein SMS
-  secure   — Passwortgeschützter Link per E-Mail + Passwort per SMS  (Standard)
-  extended — Dateien in AES-256-verschlüsseltem ZIP per E-Mail + Passwort per SMS
+  normal    — Link per E-Mail, kein Passwort, kein SMS
+  standard  — wie secure, Passwort am Share (ohne SMS)
+  secure    — Passwortgeschützter Link per E-Mail + Passwort per SMS  (Standard)
+  extended  — AES-ZIP im Ordner + ZIP-Passwort per SMS
+  advanced  — Client AES-GCM, Schlüssel nur per SMS, Entschlüsselung im Browser (/decrypt)
 """
 
 from __future__ import annotations
 
+import base64
 import io
+import json
 import secrets
 import string
 import uuid
@@ -32,10 +36,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from dependencies import get_current_user, org_user_required
+from hosted_cfg import merge_hosted_storage_cfg, is_hosted_service
+from models.organization import Organization
 from models.reseller import Reseller
 from models.shared import CloudProvider, History, SmsGateway
 from models.user import User
 from schemas.shared import SendResponse
+from services.hosted_provider import (
+    merge_org_settings_with_storage_defaults,
+    resolve_send_cloud_provider,
+    resolve_storage_quota_bytes,
+)
+
+from core.hosted_storage import HOSTED_SERVICE_NAME
 
 router = APIRouter(prefix="/send", tags=["send"])
 
@@ -147,38 +160,6 @@ def _build_encrypted_zip(
     return buf.getvalue()
 
 
-async def _get_provider(
-    db: AsyncSession, org_id: str, provider_id: Optional[str]
-) -> CloudProvider:
-    if provider_id:
-        result = await db.execute(
-            select(CloudProvider).where(
-                CloudProvider.id == provider_id,
-                CloudProvider.org_id == org_id,
-                CloudProvider.is_active == True,  # noqa: E712
-            )
-        )
-        provider = result.scalar_one_or_none()
-        if not provider:
-            raise HTTPException(status_code=404, detail="Cloud provider not found")
-        return provider
-
-    result = await db.execute(
-        select(CloudProvider).where(
-            CloudProvider.org_id == org_id,
-            CloudProvider.is_default == True,  # noqa: E712
-            CloudProvider.is_active == True,  # noqa: E712
-        )
-    )
-    provider = result.scalar_one_or_none()
-    if not provider:
-        raise HTTPException(
-            status_code=status.HTTP_424_FAILED_DEPENDENCY,
-            detail="Kein Standard-Cloud-Anbieter für diese Organisation konfiguriert",
-        )
-    return provider
-
-
 async def _get_sms_gateway(db: AsyncSession, org_id: str) -> Optional[SmsGateway]:
     result = await db.execute(
         select(SmsGateway).where(
@@ -263,49 +244,63 @@ async def send_secure(
     use_sms = security_level in ("secure", "extended", "advanced", "maximal")
     share_password: Optional[str] = None
     zip_password: Optional[str] = None
+    e2e_sms_password: Optional[str] = None
+    enc_data_parsed: Optional[list] = None
 
     if security_level == "secure":
         share_password = _random_password()
     elif security_level == "extended":
         zip_password = _random_password()
     elif security_level in ("advanced", "maximal"):
-        # Client-side encrypted files from browser
-        # encrypted_files is a JSON string: [{"filename": "...", "encryptedData": "...base64...", "password": "..."}]
         if encrypted_files:
-            import json
-
             try:
-                encrypted_data = json.loads(encrypted_files)
-                file_entries = []
-                for item in encrypted_data:
-                    # Decode base64 encrypted data
-                    import base64
-
-                    encrypted_bytes = base64.b64decode(item["encryptedData"])
-                    # Store as: (filename, encrypted_data, mimetype, encryption_password)
-                    # The password is needed for decryption - we'll include it in metadata
-                    file_entries.append(
-                        (
-                            f"{item['filename']}.enc",
-                            encrypted_bytes,
-                            "application/octet-stream",
-                        )
-                    )
-                # Store the passwords in a separate variable for the share
-                _encryption_passwords = [item["password"] for item in encrypted_data]
+                enc_data_parsed = json.loads(encrypted_files)
             except json.JSONDecodeError:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Ungültiges verschlüsseltes Dateiformat",
                 )
+            if not enc_data_parsed:
+                share_password = _random_password()
+            else:
+                pws = {
+                    item.get("password")
+                    for item in enc_data_parsed
+                    if item.get("password")
+                }
+                if len(pws) == 1:
+                    e2e_sms_password = next(iter(pws))
+                elif pws:
+                    e2e_sms_password = enc_data_parsed[0].get("password")
         else:
-            # No encrypted files provided - fallback to secure behavior
             share_password = _random_password()
 
     # ── Dateien validieren und lesen ───────────────────────────────────────
     valid_files = [f for f in files if f.filename]
     file_entries: list[tuple[str, bytes, str]] = []
-    if valid_files:
+
+    if security_level in ("advanced", "maximal") and enc_data_parsed:
+        for item in enc_data_parsed:
+            if "filename" not in item or "encryptedData" not in item:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Ungültiges verschlüsseltes Dateiformat (filename/encryptedData)",
+                )
+            ext = PurePosixPath(item["filename"]).suffix.lower()
+            if ext in BLOCKED_EXTENSIONS:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Dateityp nicht erlaubt: {item['filename']} ({ext})",
+                )
+            encrypted_bytes = base64.b64decode(item["encryptedData"])
+            file_entries.append(
+                (
+                    f"{item['filename']}.enc",
+                    encrypted_bytes,
+                    "application/octet-stream",
+                )
+            )
+    elif valid_files:
         for f in valid_files:
             ext = PurePosixPath(f.filename).suffix.lower()
             if ext in BLOCKED_EXTENSIONS:
@@ -347,14 +342,47 @@ async def send_secure(
             detail="Datei-Upload oder Nachricht erforderlich",
         )
 
-    # ── Cloud Provider laden ───────────────────────────────────────────────
-    provider = await _get_provider(db, org_id, provider_id)
+    # ── Organisation (Kontingent) + Cloud-Anbieter ───────────────────────────
+    org_row = await db.execute(
+        select(Organization).where(Organization.id == org_id).with_for_update()
+    )
+    org_ent = org_row.scalar_one_or_none()
+    if not org_ent:
+        raise HTTPException(status_code=403, detail="Organisation nicht gefunden")
+
+    org_settings_merged = merge_org_settings_with_storage_defaults(
+        org_ent.settings_json
+    )
+    provider = await resolve_send_cloud_provider(
+        db, org_id, org_settings_merged, provider_id
+    )
+
+    used_bytes = int(org_settings_merged.get("storage_used_bytes", 0))
+    quota_bytes = await resolve_storage_quota_bytes(db, org_ent)
+    if used_bytes + total_size > quota_bytes:
+        raise HTTPException(
+            status_code=413,
+            detail=(
+                "Speicherkontingent überschritten. Kontaktieren Sie Ihren Administrator "
+                f"(Limit {quota_bytes // (1024 ** 3)} GB)."
+            ),
+        )
+
     cfg: dict = dict(provider.config_json or {})
     cfg["service"] = provider.service
+    if provider.service == HOSTED_SERVICE_NAME:
+        cfg = merge_hosted_storage_cfg(
+            cfg,
+            org_id,
+            quota_used=used_bytes,
+            quota_total=quota_bytes,
+        )
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     base_folder = cfg.get("folder", "SecureSend")
     folder_path = f"{base_folder}/{current_user.id}/{ts}"
+
+    files_json: Optional[list] = None
 
     # ── Upload je nach Sicherheitsstufe ───────────────────────────────────
     try:
@@ -384,8 +412,7 @@ async def send_secure(
                 else "Nachricht (verschlüsselt)"
             )
 
-        elif security_level in ("advanced", "maximal") and encrypted_files:
-            # Client-side encrypted files - upload directly without additional encryption
+        elif security_level in ("advanced", "maximal") and enc_data_parsed:
             upload_list = list(file_entries)
             share_url = await asyncio.get_event_loop().run_in_executor(
                 None,
@@ -393,7 +420,7 @@ async def send_secure(
                     cfg=cfg,
                     files=upload_list,
                     folder_path=folder_path,
-                    password=None,  # No share password - files are already encrypted
+                    password=None,
                     days=expiry_days,
                 ),
             )
@@ -402,10 +429,14 @@ async def send_secure(
                 if file_entries
                 else "Nachricht (Ende-zu-Ende verschlüsselt)"
             )
-
-            # Include decryption key in the email (encrypted with recipient's SMS password)
-            # For now, we'll include it in a special info file
-            # TODO: Implement proper key delivery via SMS
+            files_json = [
+                {
+                    "name": item["filename"],
+                    "size": 0,
+                    "type": "application/octet-stream",
+                }
+                for item in enc_data_parsed
+            ]
 
         elif file_entries:
             share_url = await asyncio.get_event_loop().run_in_executor(
@@ -468,10 +499,13 @@ async def send_secure(
             detail="Fehler beim Hochladen. Bitte versuchen Sie es erneut.",
         ) from exc
 
+    # ── Speicherverbrauch (Hosted + alle Anbieter) ──────────────────────────
+    post_sj = dict(org_settings_merged)
+    post_sj["storage_used_bytes"] = used_bytes + total_size
+    org_ent.settings_json = post_sj
+
     # ── SMTP-Konfiguration ermitteln (Org → Reseller Fallback) ─────────────
-    org_settings: dict = {}
-    if current_user.organization and current_user.organization.settings_json:
-        org_settings = current_user.organization.settings_json
+    org_settings: dict = post_sj
 
     smtp_cfg: Optional[dict] = org_settings.get("smtp")
     signature: str = org_settings.get("signature", "")
@@ -490,22 +524,20 @@ async def send_secure(
     client_ip = request.client.host if request.client else ""
     history_id = str(uuid.uuid4())
 
-    # Store encrypted files data if advanced/maximal
+    # Nur Metadaten für E2E (keine Passwörter persistieren)
     encrypted_files_store = None
-    if security_level in ("advanced", "maximal") and encrypted_files:
-        import json
-
-        try:
-            enc_data = json.loads(encrypted_files)
-            # Store filename -> password mapping for decryption
-            encrypted_files_store = {
-                "files": [
-                    {"filename": item["filename"], "password": item["password"]}
-                    for item in enc_data
-                ]
-            }
-        except json.JSONDecodeError:
-            pass
+    if security_level in ("advanced", "maximal") and enc_data_parsed:
+        encrypted_files_store = {
+            "folder_path": folder_path,
+            "provider_id": provider.id,
+            "files": [
+                {
+                    "filename": item["filename"],
+                    "storage_name": f"{item['filename']}.enc",
+                }
+                for item in enc_data_parsed
+            ],
+        }
 
     h = History(
         id=history_id,
@@ -526,8 +558,15 @@ async def send_secure(
     await db.refresh(h)
 
     # ── E-Mail senden ──────────────────────────────────────────────────────
+    from config import settings as app_settings
+
     base_url = str(request.base_url).rstrip("/")
-    effective_password = zip_password or share_password
+    if is_hosted_service(provider.service):
+        eff = (app_settings.PUBLIC_BASE_URL or base_url).rstrip("/")
+        h.share_url = f"{eff}/track/l/{h.tracking_token}"
+        await db.commit()
+        await db.refresh(h)
+    effective_password = zip_password or share_password or e2e_sms_password
     sender_name = (
         f"{current_user.first_name or ''} {current_user.last_name or ''}".strip()
         or current_user.email
@@ -551,14 +590,30 @@ async def send_secure(
             if security_level == "normal":
                 pw_hint = ""
                 link_hint = "<p>Der Link ist ohne Passwort zugänglich.</p>"
-            elif security_level == "secure":
-                pw_hint = "<p>Das Passwort erhalten Sie separat per SMS.</p>"
+            elif security_level == "standard":
+                pw_hint = (
+                    "<p>Dieser Link ist passwortgeschützt. Das Passwort wurde mit Ihnen "
+                    "auf anderem Weg vereinbart.</p>"
+                )
                 link_hint = ""
-            else:  # extended
+            elif security_level == "secure":
+                pw_hint = "<p>Das Passwort für den Link erhalten Sie separat per SMS.</p>"
+                link_hint = ""
+            elif security_level in ("advanced", "maximal") and enc_data_parsed:
+                pw_hint = (
+                    "<p><strong>Ende-zu-Ende-Verschlüsselung:</strong> Öffnen Sie den Link "
+                    "und geben Sie das Entschlüsselungspasswort ein, das Sie per SMS erhalten.</p>"
+                    "<p>Der Server speichert Ihre Dateiinhalte nicht im Klartext.</p>"
+                )
+                link_hint = ""
+            elif security_level == "extended":
                 pw_hint = (
                     "<p>Das Passwort zum Entschlüsseln der ZIP-Datei erhalten Sie per SMS.</p>"
                     "<p>Bitte beachten Sie die <strong>Info.txt</strong> im Download-Ordner.</p>"
                 )
+                link_hint = ""
+            elif security_level in ("advanced", "maximal"):
+                pw_hint = "<p>Das Passwort für den Link erhalten Sie separat per SMS.</p>"
                 link_hint = ""
 
             tracking_link = f"{base_url}/track/l/{h.tracking_token}"
@@ -601,6 +656,9 @@ async def send_secure(
 
                 if security_level == "extended":
                     sms_text = f"{subject}\nLink: {share_url}\nZIP-Passwort: {effective_password}"
+                elif security_level in ("advanced", "maximal") and enc_data_parsed:
+                    short_link = f"{base_url}/track/l/{h.tracking_token}"
+                    sms_text = f"{subject}\n{short_link}\nE2E-Passwort: {effective_password}"
                 else:
                     sms_text = f"{subject}\nLink: {share_url}\nPW: {effective_password}"
                 if len(sms_text) > 160:

@@ -253,7 +253,7 @@ In der Admin-Oberfläche können Sie:
 
 1. **Erlaubte Stufen** festlegen
 2. **Standard-Stufe** definieren
-3. **Speicherort** wählen (Nextcloud/OneDrive/SecureSend)
+3. **Speicherort** wählen: Kunden-Cloud (z. B. Nextcloud/OneDrive) oder **SecureSend Storage** (gehostet, `securesend_hosted`), gesteuert über die Einstellung **Speicherpräferenz** (`securesend_cloud` / `customer_cloud` / `user_choice`). Details und Betrieb: [Umsetzungsplan-SecureSend-Storage.md](Umsetzungsplan-SecureSend-Storage.md).
 
 ```
  организации → Einstellungen → Sicherheitsstufen

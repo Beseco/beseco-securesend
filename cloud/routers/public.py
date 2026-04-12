@@ -29,10 +29,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from database import get_db
+from hosted_cfg import merge_hosted_storage_cfg
 from models.organization import Organization
 from models.reseller import Reseller
 from models.shared import CloudProvider, Contact, History, PhoneRequest, UploadRequest
 from models.user import User
+from services.hosted_provider import (
+    ensure_hosted_cloud_provider,
+    merge_org_settings_with_storage_defaults,
+    resolve_storage_quota_bytes,
+)
+
+from core.hosted_storage import HOSTED_SERVICE_NAME
 
 log = logging.getLogger("securesend")
 
@@ -295,31 +303,8 @@ async def upload_submit(
     if not sender:
         return RedirectResponse(url="/r/done?type=upload", status_code=303)
 
-    # Look up default cloud provider for the sender's org
-    provider_result = await db.execute(
-        select(CloudProvider).where(
-            CloudProvider.org_id == sender.org_id,
-            CloudProvider.is_default == True,  # noqa: E712
-            CloudProvider.is_active == True,   # noqa: E712
-        )
-    )
-    provider = provider_result.scalar_one_or_none()
-    if not provider:
-        # Try user-level provider
-        provider_result2 = await db.execute(
-            select(CloudProvider).where(
-                CloudProvider.user_id == sender.id,
-                CloudProvider.is_default == True,  # noqa: E712
-                CloudProvider.is_active == True,   # noqa: E712
-            )
-        )
-        provider = provider_result2.scalar_one_or_none()
-
-    if not provider or not provider.config_json:
-        log.warning("Kein Cloud-Anbieter für UploadRequest %s (sender %s)", upload_req.id, sender.id)
-        # Still mark as done to avoid repeated uploads – but show error on page
-        # For now redirect to done page; the JS already validated on client side
-        return RedirectResponse(url="/r/done?type=upload&error=no_provider", status_code=303)
+    await ensure_hosted_cloud_provider(db, sender.org_id)
+    await db.flush()
 
     # Read and validate files
     file_tuples: list[tuple[str, bytes, str]] = []
@@ -338,10 +323,50 @@ async def upload_submit(
     if not file_tuples:
         return RedirectResponse(url="/r/done?type=upload", status_code=303)
 
+    total_size = sum(len(d) for _, d, _ in file_tuples)
+
+    org_row = await db.execute(
+        select(Organization).where(Organization.id == sender.org_id).with_for_update()
+    )
+    org_o = org_row.scalar_one_or_none()
+    if org_o:
+        merged = merge_org_settings_with_storage_defaults(org_o.settings_json)
+        used_b = int(merged.get("storage_used_bytes", 0))
+        quota_b = await resolve_storage_quota_bytes(db, org_o)
+        if used_b + total_size > quota_b:
+            log.warning("UploadRequest %s: Speicherkontingent überschritten", upload_req.id)
+            return RedirectResponse(url="/r/done?type=upload&error=quota", status_code=303)
+
+    # Look up default cloud provider for the sender's org
+    provider_result = await db.execute(
+        select(CloudProvider).where(
+            CloudProvider.org_id == sender.org_id,
+            CloudProvider.is_default == True,  # noqa: E712
+            CloudProvider.is_active == True,  # noqa: E712
+        )
+    )
+    provider = provider_result.scalar_one_or_none()
+    if not provider:
+        provider_result2 = await db.execute(
+            select(CloudProvider).where(
+                CloudProvider.user_id == sender.id,
+                CloudProvider.is_default == True,  # noqa: E712
+                CloudProvider.is_active == True,  # noqa: E712
+            )
+        )
+        provider = provider_result2.scalar_one_or_none()
+
+    if not provider:
+        log.warning("Kein Cloud-Anbieter für UploadRequest %s (sender %s)", upload_req.id, sender.id)
+        return RedirectResponse(url="/r/done?type=upload&error=no_provider", status_code=303)
+
+    if provider.service != HOSTED_SERVICE_NAME and not provider.config_json:
+        log.warning("Cloud-Anbieter unvollständig für UploadRequest %s", upload_req.id)
+        return RedirectResponse(url="/r/done?type=upload&error=no_provider", status_code=303)
+
     # ── Upload-Größenlimit ──────────────────────────────────────────────────
     from config import settings as _cfg  # type: ignore[import]
     max_bytes = _cfg.MAX_UPLOAD_SIZE_MB * 1024 * 1024
-    total_size = sum(len(d) for _, d, _ in file_tuples)
     if total_size > max_bytes:
         log.warning("Upload zu groß in UploadRequest %s: %d Bytes", upload_req.id, total_size)
         return RedirectResponse(url="/r/done?type=upload&error=too_large", status_code=303)
@@ -359,8 +384,21 @@ async def upload_submit(
     password = _random_password()
     days_remaining = max(1, (upload_req.expires_at - now).days)
 
-    cfg = dict(provider.config_json)
+    cfg = dict(provider.config_json or {})
     cfg["service"] = provider.service
+    if provider.service == HOSTED_SERVICE_NAME:
+        merged_st = merge_org_settings_with_storage_defaults(
+            org_o.settings_json if org_o else None
+        )
+        used_b = int(merged_st.get("storage_used_bytes", 0))
+        quota_b = (
+            await resolve_storage_quota_bytes(db, org_o)
+            if org_o
+            else int(merged_st.get("storage_quota_bytes", 5 * 1024**3))
+        )
+        cfg = merge_hosted_storage_cfg(
+            cfg, sender.org_id, quota_used=used_b, quota_total=quota_b
+        )
 
     try:
         from core.storage import upload_files_and_share_folder  # type: ignore[import]
@@ -397,7 +435,21 @@ async def upload_submit(
         ip_address=request.client.host if request.client else "",
     )
     db.add(history)
+    if org_o:
+        merged = merge_org_settings_with_storage_defaults(org_o.settings_json)
+        merged["storage_used_bytes"] = int(merged.get("storage_used_bytes", 0)) + total_size
+        org_o.settings_json = merged
     await db.commit()
+    await db.refresh(history)
+
+    if provider.service == HOSTED_SERVICE_NAME:
+        from config import settings as app_settings
+
+        base = str(request.base_url).rstrip("/")
+        eff = (app_settings.PUBLIC_BASE_URL or base).rstrip("/")
+        history.share_url = f"{eff}/track/l/{history.tracking_token}"
+        upload_req.result_url = history.share_url
+        await db.commit()
 
     # Notify sender
     smtp_cfg = await _get_smtp_cfg(sender, db)

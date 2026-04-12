@@ -38,6 +38,16 @@ class Settings(BaseSettings):
     APP_TITLE: str = "SecureSend Cloud API"
     APP_VERSION: str = "1.0.0"
 
+    # SecureSend Hosted Storage (lokal oder S3-kompatibel)
+    SECURESEND_STORAGE_ENABLED: bool = True
+    SECURESEND_STORAGE_BACKEND: str = "local"  # local | s3
+    SECURESEND_STORAGE_ROOT: str = "/data/hosted"
+    SECURESEND_S3_ENDPOINT: str = ""
+    SECURESEND_S3_BUCKET: str = ""
+    SECURESEND_S3_ACCESS_KEY: str = ""
+    SECURESEND_S3_SECRET_KEY: str = ""
+    SECURESEND_S3_REGION: str = "us-east-1"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     @field_validator("SECRET_KEY")

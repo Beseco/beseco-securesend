@@ -44,6 +44,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from fastapi.templating import Jinja2Templates
 from pathlib import Path
+from core.hosted_storage import HOSTED_SERVICE_NAME
 from sqlalchemy import select, or_, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -402,34 +403,34 @@ async def guest_download(
     if not user:
         raise HTTPException(status_code=404, detail="Benutzer nicht gefunden")
 
-    result = await db.execute(
+    if h.provider == HOSTED_SERVICE_NAME:
+        link = h.share_url
+        if not link:
+            base = str(request.base_url).rstrip("/")
+            link = f"{base}/track/l/{h.tracking_token}"
+        return RedirectResponse(url=link, status_code=302)
+
+    pr = await db.execute(
         select(CloudProvider).where(
             and_(
                 CloudProvider.org_id == user.org_id,
                 CloudProvider.is_active == True,
+                CloudProvider.service == h.provider,
             )
         )
     )
-    provider = result.scalar_one_or_none()
-
-    if not provider:
+    cands = list(pr.scalars().all())
+    if not cands:
         raise HTTPException(status_code=404, detail="Kein Cloud-Provider konfiguriert")
+    provider = next((p for p in cands if p.is_default), cands[0])
 
-    # Baue Cloud-URL
-    from core.storage import build_download_url
+    if not provider.config_json and h.provider != HOSTED_SERVICE_NAME:
+        raise HTTPException(status_code=404, detail="Cloud-Provider unvollständig")
 
-    try:
-        file_url = await build_download_url(
-            provider,
-            filename,
-            h.user_id,
-        )
-    except Exception as e:
-        log.warning("Download URL build failed: %s", e)
-        raise HTTPException(status_code=500, detail="Download fehlgeschlagen")
-
-    # Redirect to cloud URL
-    return RedirectResponse(url=file_url, status_code=302)
+    # Redirect zum Freigabe-Link (einzelne Gast-Datei: Ordner-Link)
+    if h.share_url:
+        return RedirectResponse(url=h.share_url, status_code=302)
+    raise HTTPException(status_code=404, detail="Kein Download-Link")
 
 
 # ── Registration ─────────────────────────────────────────────────────

@@ -87,14 +87,22 @@ async def create_reseller_org(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Slug already in use")
 
+    from services.hosted_provider import (
+        ensure_hosted_cloud_provider,
+        merge_org_settings_with_storage_defaults,
+    )
+
+    merged_settings = merge_org_settings_with_storage_defaults(body.settings_json)
     org = Organization(
         reseller_id=reseller_id,
         name=body.name,
         slug=body.slug,
         is_active=body.is_active,
-        settings_json=body.settings_json,
+        settings_json=merged_settings,
     )
     db.add(org)
+    await db.flush()
+    await ensure_hosted_cloud_provider(db, org.id)
     await db.commit()
     await db.refresh(org)
     return OrgRead.model_validate(org)

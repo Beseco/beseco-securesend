@@ -415,6 +415,7 @@
             <option value="hidrive">HiDrive (Strato)</option>
             <option value="synology">Synology Drive</option>
             <option value="minio">MinIO (S3-kompatibel)</option>
+            <option value="securesend_hosted" id="pServiceHostedOption" hidden disabled>SecureSend Storage (serverseitig)</option>
           </select>
         </div>
       </div>
@@ -584,6 +585,12 @@
         <div style="display:flex;align-items:center;gap:0.5rem;margin-bottom:0.5rem;">
           <input type="checkbox" id="pMinioSSL" checked style="accent-color:#1a56db;width:1rem;height:1rem;" />
           <label style="font-size:0.875rem;font-weight:500;color:#374151;">SSL/TLS verwenden</label>
+        </div>
+      </div>
+
+      <div id="hostedFields" style="display:none;">
+        <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#065f46;">
+          <strong>SecureSend Storage</strong> wird über die Server-Umgebung konfiguriert (<code>SECURESEND_STORAGE_*</code>). In der Organisation sind keine Zugangsdaten erforderlich.
         </div>
       </div>
 
@@ -769,8 +776,8 @@
   }
 
   // Provider-Darstellungs-Hilfsfunktionen (ausgelagert um doppelte-Klammer-Konflikte zu vermeiden)
-  const _PROV_COLORS = {nextcloud:'#e0f2fe',onedrive:'#ede9fe',dropbox:'#dbeafe',hidrive:'#dcfce7',synology:'#fef3c7',minio:'#f0fdf4'};
-  const _PROV_LABELS = {nextcloud:'Nextcloud',onedrive:'OneDrive',dropbox:'Dropbox',hidrive:'HiDrive (Strato)',synology:'Synology Drive',minio:'MinIO (S3)'};
+  const _PROV_COLORS = {nextcloud:'#e0f2fe',onedrive:'#ede9fe',dropbox:'#dbeafe',hidrive:'#dcfce7',synology:'#fef3c7',minio:'#f0fdf4',securesend_hosted:'#d1fae5'};
+  const _PROV_LABELS = {nextcloud:'Nextcloud',onedrive:'OneDrive',dropbox:'Dropbox',hidrive:'HiDrive (Strato)',synology:'Synology Drive',minio:'MinIO (S3)',securesend_hosted:'SecureSend Storage'};
   const _PROV_ICONS  = {
     nextcloud: '<svg style="width:1.25rem;height:1.25rem;color:#0369a1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
     onedrive:  '<svg style="width:1.25rem;height:1.25rem;color:#7c3aed" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
@@ -778,6 +785,7 @@
     hidrive:   '<svg style="width:1.25rem;height:1.25rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>',
     synology:  '<svg style="width:1.25rem;height:1.25rem;color:#d97706" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>',
     minio:     '<svg style="width:1.25rem;height:1.25rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>',
+    securesend_hosted: '<svg style="width:1.25rem;height:1.25rem;color:#047857" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>',
   };
   const _ICON_DEFAULT = '<svg style="width:1.25rem;height:1.25rem;color:#64748b" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>';
   function _provColor(svc) { return _PROV_COLORS[svc] || '#f1f5f9'; }
@@ -807,19 +815,11 @@
           ${p.is_active ? '<span class="badge-active">Aktiv</span>' : '<span class="badge-inactive">Inaktiv</span>'}
           <div style="display:flex;gap:0.5rem;">
             <button onclick='editProvider(${JSON.stringify(p)})' class="btn-secondary btn-sm">Bearbeiten</button>
-            <button onclick='deleteProvider("${p.id}")' class="btn-danger btn-sm">Löschen</button>
+            ${p.service === 'securesend_hosted' ? '' : `<button onclick='deleteProvider("${p.id}")' class="btn-danger btn-sm">Löschen</button>`}
           </div>
         </div>
       </div>
     `).join('');
-  }
-
-  function _fmtBytes(bytes) {
-    if (bytes == null) return '—';
-    const gb = bytes / (1024 ** 3);
-    if (gb >= 1) return gb.toFixed(1) + ' GB';
-    const mb = bytes / (1024 ** 2);
-    return mb.toFixed(0) + ' MB';
   }
 
   function _fmtBytes(b) {
@@ -877,12 +877,25 @@
     document.getElementById('hidriveFields').style.display   = svc === 'hidrive'   ? 'block' : 'none';
     document.getElementById('synologyFields').style.display  = svc === 'synology'  ? 'block' : 'none';
     document.getElementById('minioFields').style.display    = svc === 'minio'    ? 'block' : 'none';
+    document.getElementById('hostedFields').style.display   = svc === 'securesend_hosted' ? 'block' : 'none';
   }
 
   function openProviderModal(provider = null) {
     document.getElementById('providerId').value = provider ? provider.id : '';
     document.getElementById('pName').value = provider ? provider.name : '';
-    document.getElementById('pService').value = provider ? provider.service : 'nextcloud';
+    const pService = document.getElementById('pService');
+    const hostedOpt = document.getElementById('pServiceHostedOption');
+    if (provider && provider.service === 'securesend_hosted') {
+      hostedOpt.disabled = false;
+      hostedOpt.hidden = false;
+      pService.value = 'securesend_hosted';
+      pService.disabled = true;
+    } else {
+      hostedOpt.disabled = true;
+      hostedOpt.hidden = true;
+      pService.disabled = false;
+      pService.value = provider ? provider.service : 'nextcloud';
+    }
     document.getElementById('pDefault').checked = provider ? provider.is_default : false;
     document.getElementById('pActive').checked = provider ? provider.is_active : true;
     const cfg = provider ? (provider.config_json || {}) : {};
@@ -969,7 +982,7 @@
 
   async function deleteProvider(id) {
     if (!confirm('Anbieter wirklich löschen?')) return;
-    const res = await apiFetch('/admin/org/providers/' + id, { method: 'DELETE' });
+    const res = await apiFetch('/admin/org/providers/' + id + getOrgParam(), { method: 'DELETE' });
     if (res.ok || res.status === 204) { showToast('Anbieter gelöscht', 'success'); providersLoaded = false; loadProviders(); }
     else showToast('Fehler beim Löschen', 'error');
   }

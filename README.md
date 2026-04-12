@@ -47,8 +47,11 @@ docker compose up -d
 | `SECRET_KEY` | JWT-Schlüssel — **unbedingt ändern!** | `openssl rand -hex 32` |
 | `PUBLIC_BASE_URL` | Öffentliche URL der App | `https://securesend.firma.de` |
 | `DATABASE_URL` | SQLite (Standard) oder PostgreSQL | `sqlite+aiosqlite:///./securesend.db` |
+| `SECURESEND_STORAGE_*` | Gehosteter Speicher (lokal oder S3), siehe Tabelle in [docs/Umsetzungsplan-SecureSend-Storage.md](docs/Umsetzungsplan-SecureSend-Storage.md) | — |
 
 > **Tipp:** Ohne `PUBLIC_BASE_URL` werden E-Mail-Links automatisch aus der Anfrage-URL abgeleitet — funktioniert hinter nginx mit korrekten `proxy_set_header`-Einträgen.
+
+Ausführlicher Betrieb und Phasenübersicht: [docs/Umsetzungsplan-SecureSend-Storage.md](docs/Umsetzungsplan-SecureSend-Storage.md).
 
 ### Update
 
