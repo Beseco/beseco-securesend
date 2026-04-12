@@ -44,6 +44,18 @@ class CloudProviderRead(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CloudProviderSendOption(BaseModel):
+    """Minimal provider info for the send UI (no secrets in config_json)."""
+
+    id: str
+    name: str
+    service: str
+    is_default: bool
+    is_active: bool
+
+    model_config = {"from_attributes": True}
+
+
 # ── SmsGateway ───────────────────────────────────────────────────────────────
 
 class SmsGatewayCreate(BaseModel):

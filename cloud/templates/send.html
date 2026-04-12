@@ -617,7 +617,7 @@
   // ── Provider laden ────────────────────────────────────────────────────────
   async function loadProviders() {
     try {
-      const res = await apiFetch('/admin/org/providers');
+      const res = await apiFetch('/send/providers');
       if (res.ok) {
         const providers = await res.json();
         const sel = document.getElementById('provider_id');

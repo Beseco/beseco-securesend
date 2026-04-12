@@ -41,8 +41,9 @@ from models.organization import Organization
 from models.reseller import Reseller
 from models.shared import CloudProvider, History, SmsGateway
 from models.user import User
-from schemas.shared import SendResponse
+from schemas.shared import CloudProviderSendOption, SendResponse
 from services.hosted_provider import (
+    ensure_hosted_cloud_provider,
     merge_org_settings_with_storage_defaults,
     resolve_send_cloud_provider,
     resolve_storage_quota_bytes,
@@ -169,6 +170,35 @@ async def _get_sms_gateway(db: AsyncSession, org_id: str) -> Optional[SmsGateway
         )
     )
     return result.scalar_one_or_none()
+
+
+@router.get("/providers", response_model=list[CloudProviderSendOption])
+async def list_send_providers(
+    current_user: User = Depends(org_user_required()),
+    db: AsyncSession = Depends(get_db),
+) -> list[CloudProviderSendOption]:
+    """
+    Aktive Cloud-Anbieter der eigenen Organisation für die Senden-Seite.
+    (Org-User haben keinen Zugriff auf GET /admin/org/providers.)
+    """
+    if not current_user.org_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Nur Organisations-Benutzer können Dateien senden",
+        )
+    org_id = current_user.org_id
+    await ensure_hosted_cloud_provider(db, org_id)
+    await db.commit()
+    result = await db.execute(
+        select(CloudProvider)
+        .where(
+            CloudProvider.org_id == org_id,
+            CloudProvider.is_active == True,  # noqa: E712
+        )
+        .order_by(CloudProvider.name)
+    )
+    providers = result.scalars().all()
+    return [CloudProviderSendOption.model_validate(p) for p in providers]
 
 
 @router.post("", response_model=SendResponse)
