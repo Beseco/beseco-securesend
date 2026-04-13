@@ -14,6 +14,7 @@ from __future__ import annotations
 import base64
 import io
 import json
+import re
 import secrets
 import string
 import uuid
@@ -48,6 +49,43 @@ from services.hosted_provider import (
     resolve_send_cloud_provider,
     resolve_storage_quota_bytes,
 )
+
+
+def _parse_single_recipient_email(raw: str) -> str:
+    """
+    Exactly one e-mail address, or empty. Rejects comma/semicolon/newline-separated lists.
+    """
+    if not raw:
+        return ""
+    s = raw.strip()
+    if not s:
+        return ""
+    parts = re.split(r"[,\n;]+", s)
+    candidates: list[str] = []
+    for p in parts:
+        p = p.strip()
+        if not p:
+            continue
+        if "@" not in p or len(p) >= 320:
+            continue
+        _local, _, domain = p.partition("@")
+        if not _local or not domain or "." not in domain:
+            continue
+        candidates.append(p)
+    nonempty_parts = [p.strip() for p in parts if p.strip()]
+    if len(candidates) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nur eine E-Mail-Adresse erlaubt.",
+        )
+    if len(candidates) == 1:
+        return candidates[0]
+    if nonempty_parts:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bitte eine gültige E-Mail-Adresse angeben.",
+        )
+    return ""
 
 from core.hosted_storage import HOSTED_SERVICE_NAME
 from core.smtp_config import get_env_smtp_cfg
@@ -228,23 +266,8 @@ async def send_secure(
             detail="Nur Organisations-Benutzer können Dateien senden",
         )
 
-    # ── Bulk: Mehrere E-Mails aufteilen ─────────────────────────────────────────
-    recipient_emails = []
-    if to_email:
-        # Split by comma, semicolon, or newline
-        import re
-
-        emails = re.split(r"[,\n;]+", to_email)
-        for e in emails:
-            e = e.strip()
-            if e and "@" in e:
-                # Basic validation
-                if len(e) < 320 and "." in e.split("@")[1]:
-                    recipient_emails.append(e)
-
-    # Use first email as primary, rest as additional tracking
-    if recipient_emails:
-        to_email = recipient_emails[0]
+    # ── Genau ein Empfänger (E-Mail) ──────────────────────────────────────────
+    to_email = _parse_single_recipient_email(to_email)
 
     # ── Eingaben bereinigen (Header-Injection-Schutz) ───────────────────────
     subject = subject.replace("\n", " ").replace("\r", " ").strip()[:200]

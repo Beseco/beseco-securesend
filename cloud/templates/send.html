@@ -29,27 +29,21 @@
   <div class="card" style="max-width:none;">
     <form id="sendForm" enctype="multipart/form-data">
 
-      <!-- ── An / Empfänger (oben, Mail-Client) ─────────────────────────────── -->
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0.75rem;">
-        <div style="grid-column:1/-1;">
+      <!-- ── An / Empfänger (eine Zeile: E-Mail + Mobil) ────────────────────── -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:0.75rem;align-items:end;">
+        <div id="to_emailWrap" style="position:relative;">
           <label class="form-label" for="to_email">An (E-Mail)</label>
-          <input type="text" id="to_email" name="to_email" class="form-input"
-                 placeholder="empfaenger@beispiel.de (mehrere mit Komma)" oninput="checkPhoneWarning()" />
-          <span style="font-size:0.7rem;color:#94a3b8;">Mehrere Empfänger mit Komma trennen</span>
-          <div id="additionalEmails" style="display:flex;flex-direction:column;gap:0.25rem;margin-top:0.25rem;"></div>
+          <input type="text" id="to_email" name="to_email" class="form-input" autocomplete="off"
+                 placeholder="Name suchen oder E-Mail eingeben…"
+                 oninput="onToEmailFieldInput()" onfocus="onToEmailFocus()" />
+          <div id="contactDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:30;max-height:14rem;overflow-y:auto;margin-top:2px;"></div>
+          <span style="font-size:0.7rem;color:#94a3b8;">Kontakte erscheinen beim Tippen — nur eine Empfänger-Adresse.</span>
         </div>
         <div>
           <label class="form-label" for="to_phone">Mobilnummer</label>
           <input type="tel" id="to_phone" name="to_phone" class="form-input"
-                 placeholder="+49 170 1234567" oninput="checkPhoneWarning()" />
+                 placeholder="+49 170 1234567" oninput="checkPhoneWarning(); syncContactIdFromEmail();" />
           <span id="phoneOptLabel" style="font-size:0.7rem;color:#94a3b8;">(für SMS)</span>
-        </div>
-        <div style="position:relative;">
-          <label class="form-label">Kontakt <span style="font-weight:400;color:#94a3b8;">(optional)</span></label>
-          <input type="text" id="contactSearch" class="form-input"
-                 placeholder="Name oder E-Mail suchen…" autocomplete="off"
-                 oninput="filterContacts(this.value)" onfocus="showContactDropdown()" />
-          <div id="contactDropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #e2e8f0;border-radius:0.5rem;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:20;max-height:14rem;overflow-y:auto;margin-top:2px;"></div>
         </div>
       </div>
 
@@ -280,6 +274,56 @@
       </div>
     </div>
     <button onclick="resetForm()" class="btn-secondary" style="width:100%;margin-top:1rem;">Weiteres Dokument senden</button>
+  </div>
+
+  <!-- Nach Versand: unbekannte E-Mail als Kontakt speichern -->
+  <div id="saveContactAskModal" class="modal-backdrop" style="display:none;">
+    <div class="modal-box" style="max-width:22rem;text-align:center;">
+      <h3 style="font-size:1rem;font-weight:700;color:#1e293b;margin-bottom:0.5rem;">Kontakt speichern?</h3>
+      <p style="font-size:0.875rem;color:#64748b;margin-bottom:1.5rem;">
+        Diese E-Mail ist noch nicht in Ihren Kontakten. Möchten Sie den Empfänger anlegen?
+      </p>
+      <div style="display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap;">
+        <button type="button" onclick="dismissSaveContactAsk()" class="btn-secondary">Nein</button>
+        <button type="button" onclick="openSaveContactFormFromAsk()" class="btn-primary">Ja</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="saveContactFormModal" class="modal-backdrop" style="display:none;">
+    <div class="modal-box" style="max-width:26rem;">
+      <h3 style="font-size:1.0625rem;font-weight:700;color:#1e293b;margin-bottom:1.25rem;">Neuen Kontakt speichern</h3>
+      <form id="saveContactAfterSendForm" onsubmit="submitSaveContactAfterSend(event)">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
+          <div>
+            <label class="form-label" for="saveContactFirstName">Vorname</label>
+            <input type="text" id="saveContactFirstName" class="form-input" autocomplete="given-name" />
+          </div>
+          <div>
+            <label class="form-label" for="saveContactLastName">Nachname</label>
+            <input type="text" id="saveContactLastName" class="form-input" autocomplete="family-name" />
+          </div>
+        </div>
+        <div style="margin-bottom:0.875rem;">
+          <label class="form-label" for="saveContactCompany">Firma</label>
+          <input type="text" id="saveContactCompany" class="form-input" autocomplete="organization" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:1.5rem;">
+          <div>
+            <label class="form-label" for="saveContactMobile">Mobilnummer</label>
+            <input type="tel" id="saveContactMobile" class="form-input" placeholder="+49 170 1234567" autocomplete="tel" />
+          </div>
+          <div>
+            <label class="form-label" for="saveContactEmail">E-Mail</label>
+            <input type="email" id="saveContactEmail" class="form-input" autocomplete="email" />
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;gap:0.75rem;">
+          <button type="button" onclick="closeModal('saveContactFormModal')" class="btn-secondary">Abbrechen</button>
+          <button type="submit" id="btnSaveContactAfterSend" class="btn-primary">Speichern</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -654,44 +698,76 @@
   }
   loadProviders();
 
-  // ── Kontakt-Picker ────────────────────────────────────────────────────────
+  // ── Kontakte + Autocomplete im Feld „An“ ─────────────────────────────────
   let _allContacts = [], _selectedContactId = null;
+  let _pendingSaveEmail = '', _pendingSavePhone = '';
 
-  // Hilfsfunktion: Vollständigen Namen aus first_name + last_name bilden
   function cName(c) { return ((c.first_name||'') + ' ' + (c.last_name||'')).trim() || c.email || ''; }
+
+  function normEmail(e) { return String(e||'').trim().toLowerCase(); }
+
+  function contactMatchesQuery(c, term) {
+    if (!term) return true;
+    const t = term.trim().toLowerCase();
+    const tMob = term.replace(/\s/g, '').toLowerCase();
+    const n = cName(c).toLowerCase();
+    const em = (c.email||'').toLowerCase();
+    const mob = (c.mobile||'').replace(/\s/g, '').toLowerCase();
+    return n.includes(t) || em.includes(t) || (mob && mob.includes(tMob));
+  }
 
   async function loadContacts() {
     try { const res = await apiFetch('/contacts'); if (res.ok) _allContacts = await res.json(); } catch(e) {}
   }
   loadContacts();
 
-  function showContactDropdown() { filterContacts(document.getElementById('contactSearch').value); }
+  function syncContactIdFromEmail() {
+    const em = normEmail(document.getElementById('to_email').value);
+    const c = _allContacts.find(x => normEmail(x.email) === em);
+    _selectedContactId = c ? c.id : null;
+  }
+
+  function onToEmailFieldInput() {
+    checkPhoneWarning();
+    syncContactIdFromEmail();
+    filterContacts(document.getElementById('to_email').value);
+  }
+
+  function onToEmailFocus() {
+    filterContacts(document.getElementById('to_email').value);
+  }
 
   function filterContacts(q) {
     const dd = document.getElementById('contactDropdown');
-    const term = q.trim().toLowerCase();
-    const matches = term
-      ? _allContacts.filter(c => cName(c).toLowerCase().includes(term) || (c.email||'').toLowerCase().includes(term))
+    const term = q.trim();
+    const termLower = term.toLowerCase();
+    const matches = termLower
+      ? _allContacts.filter(c => contactMatchesQuery(c, term))
       : _allContacts.slice(0, 8);
-    if (!matches.length) { dd.style.display = 'none'; return; }
-    dd.innerHTML = matches.map(c => `
-      <div onclick="selectContact(${JSON.stringify(c).replace(/"/g,'&quot;')})"
-           style="padding:0.5rem 0.875rem;cursor:pointer;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:0.625rem;"
-           onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
-        <div style="background:${c.mobile ? '#dcfce7' : '#fef9c3'};border-radius:50%;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.75rem;font-weight:700;color:#374151;">
-          ${cName(c)[0]?.toUpperCase() || '?'}
+    if (!matches.length) { dd.style.display = 'none'; dd.innerHTML = ''; return; }
+    dd.innerHTML = '';
+    matches.forEach(c => {
+      const row = document.createElement('div');
+      row.style.cssText = 'padding:0.5rem 0.875rem;cursor:pointer;border-bottom:1px solid #f1f5f9;display:flex;align-items:center;gap:0.625rem;';
+      row.addEventListener('mouseenter', () => { row.style.background = '#f8fafc'; });
+      row.addEventListener('mouseleave', () => { row.style.background = ''; });
+      row.addEventListener('click', () => selectContactFromDropdown(c));
+      const hasMob = !!c.mobile;
+      row.innerHTML = `
+        <div style="background:${hasMob ? '#dcfce7' : '#fef9c3'};border-radius:50%;width:2rem;height:2rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:0.75rem;font-weight:700;color:#374151;">
+          ${(cName(c)[0] || '?').toUpperCase()}
         </div>
         <div style="min-width:0;">
           <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">${esc(cName(c))}</div>
-          <div style="font-size:0.75rem;color:#64748b;">${esc(c.email||'')}${c.mobile ? ' · '+esc(c.mobile) : ' · <span style="color:#ca8a04;">keine Nummer</span>'}</div>
-        </div>
-      </div>`).join('');
+          <div style="font-size:0.75rem;color:#64748b;">${esc(c.email||'')}${hasMob ? ' · '+esc(c.mobile) : ' · <span style="color:#ca8a04;">keine Nummer</span>'}</div>
+        </div>`;
+      dd.appendChild(row);
+    });
     dd.style.display = 'block';
   }
 
-  function selectContact(c) {
+  function selectContactFromDropdown(c) {
     _selectedContactId = c.id;
-    document.getElementById('contactSearch').value = cName(c);
     document.getElementById('to_email').value = c.email || '';
     document.getElementById('to_phone').value = c.mobile || '';
     document.getElementById('contactDropdown').style.display = 'none';
@@ -699,9 +775,62 @@
   }
 
   document.addEventListener('click', function(e) {
-    if (!e.target.closest('#contactSearch') && !e.target.closest('#contactDropdown'))
+    if (!e.target.closest('#to_emailWrap') && !e.target.closest('#contactDropdown'))
       document.getElementById('contactDropdown').style.display = 'none';
   });
+
+  function recipientEmailKnownInContacts(email) {
+    const n = normEmail(email);
+    return n && _allContacts.some(c => normEmail(c.email) === n);
+  }
+
+  function dismissSaveContactAsk() {
+    closeModal('saveContactAskModal');
+    _pendingSaveEmail = '';
+    _pendingSavePhone = '';
+  }
+
+  function openSaveContactFormFromAsk() {
+    closeModal('saveContactAskModal');
+    document.getElementById('saveContactEmail').value = _pendingSaveEmail || '';
+    document.getElementById('saveContactMobile').value = _pendingSavePhone || '';
+    document.getElementById('saveContactFirstName').value = '';
+    document.getElementById('saveContactLastName').value = '';
+    document.getElementById('saveContactCompany').value = '';
+    openModal('saveContactFormModal');
+  }
+
+  async function submitSaveContactAfterSend(ev) {
+    ev.preventDefault();
+    const btn = document.getElementById('btnSaveContactAfterSend');
+    btn.disabled = true;
+    try {
+      const body = {
+        first_name: document.getElementById('saveContactFirstName').value.trim(),
+        last_name: document.getElementById('saveContactLastName').value.trim(),
+        company: document.getElementById('saveContactCompany').value.trim(),
+        email: document.getElementById('saveContactEmail').value.trim(),
+        mobile: document.getElementById('saveContactMobile').value.trim(),
+      };
+      const res = await apiFetch('/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok || res.status === 201) {
+        showToast('Kontakt gespeichert', 'success');
+        closeModal('saveContactFormModal');
+        dismissSaveContactAsk();
+        await loadContacts();
+      } else {
+        showToast(await parseApiErrorMessage(res), 'error');
+      }
+    } catch (err) {
+      showToast('Netzwerkfehler', 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  }
 
   // ── Kein-Telefon-Warnung ──────────────────────────────────────────────────
   function checkPhoneWarning() {
@@ -711,19 +840,6 @@
     const warn   = document.getElementById('noPhoneWarning');
     warn.style.display =
       email && !phone && level !== 'normal' && level !== 'standard' ? 'flex' : 'none';
-  }
-
-  function addRecipientField() {
-    const div = document.createElement('div');
-    div.innerHTML = `<input type="email" class="form-input additional-email" placeholder="weiterer@empfaenger.de" style="margin-bottom:0.25rem;">`;
-    document.getElementById('additionalEmails').appendChild(div);
-  }
-
-  function getAdditionalEmails() {
-    const inputs = document.querySelectorAll('.additional-email');
-    const emails = [];
-    inputs.forEach(inp => { if (inp.value.trim()) emails.push(inp.value.trim()); });
-    return emails;
   }
 
   async function requestPhoneFromSendPage() {
@@ -810,6 +926,14 @@
         document.getElementById('resultUrl').textContent = data.share_url;
         document.getElementById('resultProvider').textContent = data.provider;
         document.getElementById('resultExpiry').textContent = data.expiry_days + ' Tag(e)';
+
+        await loadContacts();
+        const sentEmail = document.getElementById('to_email').value.trim();
+        if (sentEmail && !recipientEmailKnownInContacts(sentEmail)) {
+          _pendingSaveEmail = sentEmail;
+          _pendingSavePhone = document.getElementById('to_phone').value.trim();
+          openModal('saveContactAskModal');
+        }
         
         // Show encryption info for advanced/maximal
         if (securityLevel === 'advanced' || securityLevel === 'maximal') {
@@ -834,6 +958,7 @@
     const p = new URLSearchParams(window.location.search);
     if (p.get('to_email')) document.getElementById('to_email').value = p.get('to_email');
     if (p.get('to_phone')) document.getElementById('to_phone').value = p.get('to_phone');
+    syncContactIdFromEmail();
     checkPhoneWarning();
   })();
 
@@ -848,6 +973,10 @@
     document.getElementById('fileList').innerHTML = '';
     document.getElementById('fileError').style.display = 'none';
     document.getElementById('noPhoneWarning').style.display = 'none';
+    document.getElementById('contactDropdown').style.display = 'none';
+    _selectedContactId = null;
+    dismissSaveContactAsk();
+    closeModal('saveContactFormModal');
     if (editor) editor.reset();
     selectSecLevel('secure');  // wird durch onSecLevelChange nicht aufgerufen bei reset
     onSecLevelChange();
