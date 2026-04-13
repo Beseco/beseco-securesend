@@ -614,10 +614,21 @@ async def send_secure(
                 )
                 link_hint = "<p>Für zukünftige Sendungen ist damit eine höhere Sicherheit möglich.</p>"
             elif security_level in (LEVEL_3, LEVEL_4) and enc_data_parsed:
+                if use_sms and to_phone:
+                    e2e_pw_channel = (
+                        "<p>Das Entschlüsselungspasswort erhalten Sie zusätzlich per SMS an die "
+                        "angegebene Mobilnummer.</p>"
+                    )
+                else:
+                    e2e_pw_channel = (
+                        "<p>Das Entschlüsselungspasswort wird <strong>nicht</strong> per SMS versendet. "
+                        "Der Absender teilt es Ihnen auf einem anderen, mit Ihnen vereinbarten Weg mit.</p>"
+                    )
                 pw_hint = (
-                    "<p><strong>Ende-zu-Ende-Verschlüsselung:</strong> Öffnen Sie den Link "
-                    "und geben Sie das Entschlüsselungspasswort ein.</p>"
-                    "<p>Der Server speichert Ihre Dateiinhalte nicht im Klartext.</p>"
+                    "<p><strong>Ende-zu-Ende-Verschlüsselung:</strong> Öffnen Sie den Link und melden Sie sich "
+                    "im Gastportal an. Anschließend können Sie die Inhalte in Ihrem Browser entschlüsseln.</p>"
+                    + e2e_pw_channel
+                    + "<p>Der Server speichert Ihre Dateiinhalte nicht im Klartext.</p>"
                 )
                 if security_level == LEVEL_4:
                     link_hint = "<p>Auch der Nachrichtentext wurde Ende-zu-Ende verschlüsselt übertragen.</p>"
@@ -629,6 +640,11 @@ async def send_secure(
 
             tracking_link = f"{base_url}/track/l/{tracking_token}"
             tracking_pixel = f'<img src="{base_url}/track/o/{tracking_token}" width="1" height="1" style="display:none" alt="" />'
+            cta_label = (
+                "Sichere Nachricht öffnen"
+                if security_level in (LEVEL_3, LEVEL_4) and enc_data_parsed
+                else "Datei herunterladen"
+            )
 
             body_html = f"""
             <div style="font-family:sans-serif;color:#1e293b;max-width:540px;">
@@ -640,7 +656,7 @@ async def send_secure(
               <p>
                 <a href="{tracking_link}" style="display:inline-block;background:#1a56db;color:#fff;
                    padding:0.625rem 1.25rem;border-radius:0.5rem;text-decoration:none;font-weight:600;">
-                  Datei herunterladen
+                  {cta_label}
                 </a>
               </p>
               <p style="font-size:0.875rem;color:#64748b;word-break:break-all;">

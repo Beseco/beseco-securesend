@@ -63,6 +63,7 @@ from services.security_levels import (
     LEVEL_2,
     LEVEL_3,
     LEVEL_4,
+    is_e2e_level,
     normalize_security_level,
     requires_guest_account,
 )
@@ -334,6 +335,10 @@ async def guest_dashboard(
     if h.is_revoked:
         return HTMLResponse("<h1>Dieser Link wurde zurückgerufen</h1>", status_code=410)
 
+    level = normalize_security_level(h.security_level)
+    if requires_guest_account(level) and not h.guest_id:
+        return RedirectResponse(url=f"/r/register/{token}", status_code=302)
+
     # Hole User und Org
     result = await db.execute(select(User).where(User.id == h.user_id))
     user = result.scalar_one_or_none()
@@ -401,6 +406,7 @@ async def guest_dashboard(
             "download_count": h.download_count or 0,
             "guest": guest,
             "security_level": level,
+            "is_e2e": is_e2e_level(level),
         },
     )
 

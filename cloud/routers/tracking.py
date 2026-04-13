@@ -66,8 +66,9 @@ async def track_link(
             h.link_clicked_at = datetime.now(timezone.utc).replace(tzinfo=None)
             await db.commit()
         enc = h.encrypted_files_json or {}
+        # E2E: zuerst Gastportal (Registrierung/Login), Entschlüsselung erst danach im Dashboard.
         if is_e2e_level(h.security_level) and enc.get("folder_path") and enc.get("files"):
-            url = f"/decrypt/{token}"
+            url = f"/r/{token}"
         else:
             url = h.share_url or "#"
     return RedirectResponse(url=url, status_code=302)
@@ -601,10 +602,10 @@ _DECRYPT_PAGE = r"""<!DOCTYPE html>
   <div class="container">
     <div class="card">
       <h1>Ende-zu-Ende entschlüsseln</h1>
-      <p class="muted">Geben Sie das Passwort ein, das Sie per SMS erhalten haben. Die Entschlüsselung erfolgt nur in Ihrem Browser.</p>
+      <p class="muted">Geben Sie das Entschlüsselungspasswort ein (z. B. per SMS vom Absender oder auf einem anderen, mit dem Absender vereinbarten Weg). Die Entschlüsselung erfolgt nur in Ihrem Browser.</p>
       <div class="hint"><strong>Hinweis:</strong> Das Passwort wird nicht an den Server gesendet.</div>
       <label for="pw">Entschlüsselungspasswort</label>
-      <input type="password" id="pw" autocomplete="off" placeholder="Passwort aus der SMS" />
+      <input type="password" id="pw" autocomplete="off" placeholder="Passwort eingeben" />
       <button type="button" id="go">Dateien entschlüsseln</button>
       <div class="err" id="err"></div>
       <div class="ok" id="out"></div>
