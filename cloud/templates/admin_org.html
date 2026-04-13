@@ -71,6 +71,14 @@
         <svg style="width:1rem;height:1rem;color:#1a56db" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
         SMTP-Konfiguration
       </h3>
+      <label style="display:flex;align-items:center;gap:0.625rem;margin-bottom:1rem;cursor:pointer;">
+        <input type="checkbox" id="useOwnSmtp" style="accent-color:#1a56db;width:1rem;height:1rem;" onchange="onOwnSmtpToggle()" />
+        <span style="font-size:0.875rem;font-weight:500;color:#374151;">Eigenen SMTP-Mailserver verwenden</span>
+      </label>
+      <div id="smtpFallbackHint" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:0.5rem;padding:0.75rem 0.875rem;font-size:0.8125rem;margin-bottom:1rem;">
+        Aktuell wird der <strong>Beseco SecureSend Mailserver</strong> verwendet. Aktivieren Sie den Schalter, um eigene SMTP-Zugangsdaten zu hinterlegen.
+      </div>
+      <div id="smtpConfigDetails">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
         <div>
           <label class="form-label">SMTP-Host</label>
@@ -125,6 +133,7 @@
           Test senden
         </button>
         <div id="smtpTestResult" style="font-size:0.8125rem;display:none;"></div>
+      </div>
       </div>
     </div>
 
@@ -1019,6 +1028,11 @@
     document.getElementById('smtpPassword').value = smtp.password || '';
     document.getElementById('smtpFromAddr').value = smtp.from_addr || '';
     document.getElementById('smtpFromName').value = smtp.from_name || '';
+    const useOwn = (typeof data.use_own_smtp === 'boolean')
+      ? data.use_own_smtp
+      : !!(smtp && smtp.host);
+    document.getElementById('useOwnSmtp').checked = useOwn;
+    onOwnSmtpToggle();
     document.getElementById('settExpiry').value = String(data.expiry_days || 7);
     document.getElementById('settSubject').value = data.default_subject || 'Ihr sicheres Dokument';
     document.getElementById('settSignature').value = data.signature || '';
@@ -1047,6 +1061,12 @@
     document.getElementById('regDetails').style.display = on ? 'block' : 'none';
   }
 
+  function onOwnSmtpToggle() {
+    const own = document.getElementById('useOwnSmtp').checked;
+    document.getElementById('smtpConfigDetails').style.display = own ? 'block' : 'none';
+    document.getElementById('smtpFallbackHint').style.display = own ? 'none' : 'block';
+  }
+
   function _updateRegLink(slug) {
     if (!slug) return;
     const url = window.location.origin + '/ui/register/' + slug;
@@ -1061,6 +1081,10 @@
   }
 
   async function testSmtp() {
+    if (!document.getElementById('useOwnSmtp').checked) {
+      showToast('Bitte zuerst "Eigenen SMTP-Mailserver verwenden" aktivieren', 'error');
+      return;
+    }
     const testEmail = document.getElementById('smtpTestEmail').value.trim();
     if (!testEmail) { showToast('Bitte Ziel-E-Mail-Adresse eingeben', 'error'); return; }
     const btn = document.getElementById('smtpTestBtn');
@@ -1115,16 +1139,24 @@
       return;
     }
     
+    const useOwnSmtp = document.getElementById('useOwnSmtp').checked;
+    const smtpHost = document.getElementById('smtpHost').value.trim();
+    if (useOwnSmtp && !smtpHost) {
+      showToast('Bitte SMTP-Host eintragen oder eigenen SMTP deaktivieren', 'error');
+      return;
+    }
+
     const body = {
-      smtp: {
-        host: document.getElementById('smtpHost').value,
+      smtp: useOwnSmtp ? {
+        host: smtpHost,
         port: parseInt(document.getElementById('smtpPort').value) || 587,
         mode: document.getElementById('smtpMode').value,
         user: document.getElementById('smtpUser').value,
         password: document.getElementById('smtpPassword').value,
         from_addr: document.getElementById('smtpFromAddr').value,
         from_name: document.getElementById('smtpFromName').value,
-      },
+      } : null,
+      use_own_smtp: useOwnSmtp,
       expiry_days: parseInt(document.getElementById('settExpiry').value),
       default_subject: document.getElementById('settSubject').value,
       signature: document.getElementById('settSignature').value,
