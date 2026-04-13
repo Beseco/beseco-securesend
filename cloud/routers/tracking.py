@@ -20,7 +20,7 @@ from hosted_cfg import merge_hosted_storage_cfg
 from models.organization import Organization
 from models.shared import CloudProvider, History, DownloadLog
 from models.user import User, UserRole
-from services.audit import actor_fields, log_audit_event
+from services.audit import log_audit_event, merge_actor_fields
 from services.hosted_provider import (
     merge_org_settings_with_storage_defaults,
     resolve_storage_quota_bytes,
@@ -338,9 +338,11 @@ async def revoke_send(
         target_type="history",
         target_id=history_id,
         meta_json={"reason_len": len((reason or "").strip())},
-        **actor_fields(current_user),
-        org_id=org_id,
-        reseller_id=current_user.reseller_id,
+        **merge_actor_fields(
+            current_user,
+            org_id=org_id,
+            reseller_id=current_user.reseller_id,
+        ),
         commit=True,
     )
     return {
@@ -399,9 +401,11 @@ async def unrevoke_send(
         status="success",
         target_type="history",
         target_id=history_id,
-        **actor_fields(current_user),
-        org_id=org_id,
-        reseller_id=current_user.reseller_id,
+        **merge_actor_fields(
+            current_user,
+            org_id=org_id,
+            reseller_id=current_user.reseller_id,
+        ),
         commit=True,
     )
     return {"ok": True, "message": "Link wurde wiederhergestellt"}
@@ -458,9 +462,11 @@ async def extend_send(
         target_type="history",
         target_id=history_id,
         meta_json={"days_added": days, "expiry_days": history.expiry_days},
-        **actor_fields(current_user),
-        org_id=org_id,
-        reseller_id=current_user.reseller_id,
+        **merge_actor_fields(
+            current_user,
+            org_id=org_id,
+            reseller_id=current_user.reseller_id,
+        ),
         commit=True,
     )
     return {

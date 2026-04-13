@@ -57,7 +57,7 @@ from models.organization import Organization
 from models.reseller import Reseller
 from models.shared import CloudProvider, Contact, History, Guest, SmsGateway, UploadRequest
 from models.user import User
-from services.audit import actor_fields, log_audit_event
+from services.audit import log_audit_event, merge_actor_fields
 from services.security_levels import (
     LEVEL_1,
     LEVEL_2,
@@ -264,8 +264,7 @@ async def guest_landing(
             status="success",
             target_type="history",
             target_id=h.id,
-            **actor_fields(None),
-            org_id=user.org_id,
+            **merge_actor_fields(None, org_id=user.org_id),
             db=db,
             commit=True,
         )
@@ -631,8 +630,7 @@ async def guest_register_submit(
                         target_type="guest",
                         target_id=existing.id,
                         error_code=None if sms_ok else "sms_send_failed",
-                        **actor_fields(None),
-                        org_id=user.org_id if user else None,
+                        **merge_actor_fields(None, org_id=user.org_id if user else None),
                         db=db,
                         commit=True,
                     )
@@ -681,8 +679,7 @@ async def guest_register_submit(
                     status="success",
                     target_type="guest",
                     target_id=existing.id,
-                    **actor_fields(None),
-                    org_id=user.org_id if user else None,
+                    **merge_actor_fields(None, org_id=user.org_id if user else None),
                     db=db,
                     commit=False,
                 )
@@ -714,8 +711,7 @@ async def guest_register_submit(
                 target_type="guest",
                 target_id=guest.id,
                 error_code=None if sms_ok else "sms_send_failed",
-                **actor_fields(None),
-                org_id=user.org_id if user else None,
+                **merge_actor_fields(None, org_id=user.org_id if user else None),
                 db=db,
                 commit=False,
             )

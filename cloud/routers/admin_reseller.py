@@ -33,7 +33,7 @@ from models.reseller import Reseller
 from models.user import User, UserRole
 from schemas.organization import OrgCreate, OrgRead, OrgUpdate
 from schemas.reseller import ResellerCreate, ResellerRead, ResellerUpdate
-from services.audit import actor_fields, log_audit_event, mask_email, redact_exception_message
+from services.audit import log_audit_event, mask_email, merge_actor_fields, redact_exception_message
 
 router = APIRouter(tags=["admin-reseller"])
 
@@ -214,9 +214,7 @@ async def update_reseller_settings(
             "updated_keys": sorted(body.keys()),
             "smtp_touched": "smtp" in body,
         },
-        **actor_fields(current_user),
-        org_id=None,
-        reseller_id=rid,
+        **merge_actor_fields(current_user, org_id=None, reseller_id=rid),
         db=db,
         commit=False,
     )
@@ -272,9 +270,7 @@ async def test_reseller_smtp(
                 "scope": "reseller",
                 "test_recipient_masked": mask_email(test_email),
             },
-            **actor_fields(current_user),
-            org_id=None,
-            reseller_id=rid,
+            **merge_actor_fields(current_user, org_id=None, reseller_id=rid),
             db=db,
             commit=True,
         )
@@ -290,9 +286,7 @@ async def test_reseller_smtp(
                 "scope": "reseller",
                 "test_recipient_masked": mask_email(test_email),
             },
-            **actor_fields(current_user),
-            org_id=None,
-            reseller_id=rid,
+            **merge_actor_fields(current_user, org_id=None, reseller_id=rid),
             db=db,
             commit=True,
         )

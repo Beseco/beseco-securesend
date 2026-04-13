@@ -64,6 +64,13 @@ def actor_fields(user: Optional[User]) -> dict[str, Any]:
     }
 
 
+def merge_actor_fields(user: Optional[User], **overrides: Any) -> dict[str, Any]:
+    """actor_fields plus Overrides in einem Dict (für log_audit_event; kein doppeltes org_id)."""
+    merged = dict(actor_fields(user))
+    merged.update(overrides)
+    return merged
+
+
 async def log_audit_event(
     *,
     event_type: str,

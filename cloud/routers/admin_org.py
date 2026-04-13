@@ -43,7 +43,7 @@ from services.hosted_provider import (
     resolve_storage_quota_bytes,
 )
 from core.smtp_config import get_env_smtp_cfg
-from services.audit import actor_fields, log_audit_event, mask_email, redact_exception_message
+from services.audit import log_audit_event, mask_email, merge_actor_fields, redact_exception_message
 from services.security_levels import (
     DEFAULT_SECURITY_LEVEL,
     normalize_allowed_security_levels,
@@ -744,9 +744,11 @@ async def test_org_smtp(
                 "scope": "org",
                 "test_recipient_masked": mask_email(test_email),
             },
-            **actor_fields(current_user),
-            org_id=resolved_org,
-            reseller_id=current_user.reseller_id,
+            **merge_actor_fields(
+                current_user,
+                org_id=resolved_org,
+                reseller_id=current_user.reseller_id,
+            ),
             db=db,
             commit=True,
         )
@@ -762,9 +764,11 @@ async def test_org_smtp(
                 "scope": "org",
                 "test_recipient_masked": mask_email(test_email),
             },
-            **actor_fields(current_user),
-            org_id=resolved_org,
-            reseller_id=current_user.reseller_id,
+            **merge_actor_fields(
+                current_user,
+                org_id=resolved_org,
+                reseller_id=current_user.reseller_id,
+            ),
             db=db,
             commit=True,
         )
@@ -815,9 +819,11 @@ async def update_org_settings(
             "updated_keys": sorted(normalized_body.keys()),
             "smtp_touched": "smtp" in normalized_body or "use_own_smtp" in normalized_body,
         },
-        **actor_fields(current_user),
-        org_id=org_id,
-        reseller_id=current_user.reseller_id,
+        **merge_actor_fields(
+            current_user,
+            org_id=org_id,
+            reseller_id=current_user.reseller_id,
+        ),
         db=db,
         commit=False,
     )
