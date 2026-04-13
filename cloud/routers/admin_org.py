@@ -38,6 +38,7 @@ from services.hosted_provider import (
     merge_org_settings_with_storage_defaults,
     resolve_storage_quota_bytes,
 )
+from core.smtp_config import get_env_smtp_cfg
 
 from core.hosted_storage import HOSTED_SERVICE_NAME
 from schemas.shared import (
@@ -141,6 +142,8 @@ async def create_org_user(
                 reseller = res.scalar_one_or_none()
                 if reseller and reseller.settings_json:
                     smtp_cfg = reseller.settings_json.get("smtp")
+            if not smtp_cfg:
+                smtp_cfg = get_env_smtp_cfg()
             if smtp_cfg:
                 display_name = ""
                 if body.first_name or body.last_name:

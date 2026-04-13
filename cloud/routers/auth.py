@@ -24,6 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from config import settings
+from core.smtp_config import get_env_smtp_cfg
 from database import get_db
 from pydantic import BaseModel
 
@@ -302,6 +303,8 @@ async def forgot_password(
                 reseller = res.scalar_one_or_none()
                 if reseller and reseller.settings_json:
                     smtp_cfg = reseller.settings_json.get("smtp")
+        if not smtp_cfg:
+            smtp_cfg = get_env_smtp_cfg()
 
         if smtp_cfg:
             try:

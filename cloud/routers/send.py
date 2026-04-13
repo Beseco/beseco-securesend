@@ -50,6 +50,7 @@ from services.hosted_provider import (
 )
 
 from core.hosted_storage import HOSTED_SERVICE_NAME
+from core.smtp_config import get_env_smtp_cfg
 
 router = APIRouter(prefix="/send", tags=["send"])
 
@@ -562,6 +563,8 @@ async def send_secure(
             smtp_cfg = reseller.settings_json.get("smtp")
             if not signature:
                 signature = reseller.settings_json.get("signature", "")
+    if not smtp_cfg:
+        smtp_cfg = get_env_smtp_cfg()
 
     # ── Verlauf speichern (vor E-Mail, damit tracking_token verfügbar) ─────
     client_ip = request.client.host if request.client else ""

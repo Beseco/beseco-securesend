@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from config import settings
+from core.smtp_config import get_env_smtp_cfg
 from database import get_db
 from dependencies import get_current_user, org_user_required
 from models.organization import Organization
@@ -116,7 +117,7 @@ async def _get_smtp_cfg(sender: User, db: AsyncSession) -> Optional[dict]:
         if reseller and reseller.settings_json and reseller.settings_json.get("smtp"):
             return reseller.settings_json["smtp"]
 
-    return None
+    return get_env_smtp_cfg()
 
 
 async def _send_email_async(cfg: dict, to_email: str, subject: str, body_html: str) -> None:

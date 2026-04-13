@@ -26,6 +26,7 @@ from services.hosted_provider import (
 )
 
 from core.hosted_storage import HOSTED_SERVICE_NAME
+from core.smtp_config import get_env_smtp_cfg
 
 _log = logging.getLogger("securesend.tracking")
 
@@ -106,18 +107,21 @@ async def track_download(
             from core.email import send_email
 
             # Get org SMTP if available
+            smtp_cfg = None
             if sender.organization and sender.organization.settings_json:
                 smtp_cfg = sender.organization.settings_json.get("smtp")
-                if smtp_cfg:
-                    send_email(
-                        smtp_cfg,
-                        sender.email,
-                        f"Download: {getattr(h, 'subject', None) or h.filename}",
-                        f"<p>Eine Datei wurde heruntergeladen:</p>"
-                        f"<p><strong>Datei:</strong> {filename or h.filename}</p>"
-                        f"<p><strong>Empfänger:</strong> {email or h.to_email}</p>"
-                        f"<p><strong>Zeit:</strong> {datetime.now(timezone.utc).strftime('%d.%m.%Y %H:%M')}</p>",
-                    )
+            if not smtp_cfg:
+                smtp_cfg = get_env_smtp_cfg()
+            if smtp_cfg:
+                send_email(
+                    smtp_cfg,
+                    sender.email,
+                    f"Download: {getattr(h, 'subject', None) or h.filename}",
+                    f"<p>Eine Datei wurde heruntergeladen:</p>"
+                    f"<p><strong>Datei:</strong> {filename or h.filename}</p>"
+                    f"<p><strong>Empfänger:</strong> {email or h.to_email}</p>"
+                    f"<p><strong>Zeit:</strong> {datetime.now(timezone.utc).strftime('%d.%m.%Y %H:%M')}</p>",
+                )
         except Exception as e:
             _log.warning("Download notification email failed: %s", e)
 

@@ -41,6 +41,7 @@ from services.hosted_provider import (
 )
 
 from core.hosted_storage import HOSTED_SERVICE_NAME
+from core.smtp_config import get_env_smtp_cfg
 
 log = logging.getLogger("securesend")
 
@@ -84,7 +85,7 @@ async def _get_smtp_cfg(sender: User, db: AsyncSession) -> Optional[dict]:
         reseller = res_result.scalar_one_or_none()
         if reseller and reseller.settings_json and reseller.settings_json.get("smtp"):
             return reseller.settings_json["smtp"]
-    return None
+    return get_env_smtp_cfg()
 
 
 # ── GET /r/done ───────────────────────────────────────────────────────────────
