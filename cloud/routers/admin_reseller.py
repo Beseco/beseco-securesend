@@ -208,8 +208,6 @@ async def update_reseller_settings(
         event_type="reseller_settings_updated",
         severity="info",
         status="success",
-        org_id=None,
-        reseller_id=rid,
         target_type="reseller",
         target_id=rid,
         meta_json={
@@ -217,6 +215,8 @@ async def update_reseller_settings(
             "smtp_touched": "smtp" in body,
         },
         **actor_fields(current_user),
+        org_id=None,
+        reseller_id=rid,
         db=db,
         commit=False,
     )
@@ -268,13 +268,13 @@ async def test_reseller_smtp(
             event_type="smtp_test_success",
             severity="info",
             status="success",
-            org_id=None,
-            reseller_id=rid,
             meta_json={
                 "scope": "reseller",
                 "test_recipient_masked": mask_email(test_email),
             },
             **actor_fields(current_user),
+            org_id=None,
+            reseller_id=rid,
             db=db,
             commit=True,
         )
@@ -284,8 +284,6 @@ async def test_reseller_smtp(
             event_type="smtp_test_failed",
             severity="warning",
             status="failure",
-            org_id=None,
-            reseller_id=rid,
             error_code="smtp_test_exception",
             error_message_redacted=redact_exception_message(exc),
             meta_json={
@@ -293,6 +291,8 @@ async def test_reseller_smtp(
                 "test_recipient_masked": mask_email(test_email),
             },
             **actor_fields(current_user),
+            org_id=None,
+            reseller_id=rid,
             db=db,
             commit=True,
         )

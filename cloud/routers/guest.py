@@ -264,8 +264,8 @@ async def guest_landing(
             status="success",
             target_type="history",
             target_id=h.id,
-            org_id=user.org_id,
             **actor_fields(None),
+            org_id=user.org_id,
             db=db,
             commit=True,
         )
@@ -630,9 +630,9 @@ async def guest_register_submit(
                         status="success" if sms_ok else "failure",
                         target_type="guest",
                         target_id=existing.id,
-                        org_id=user.org_id if user else None,
                         error_code=None if sms_ok else "sms_send_failed",
                         **actor_fields(None),
+                        org_id=user.org_id if user else None,
                         db=db,
                         commit=True,
                     )
@@ -681,8 +681,8 @@ async def guest_register_submit(
                     status="success",
                     target_type="guest",
                     target_id=existing.id,
-                    org_id=user.org_id if user else None,
                     **actor_fields(None),
+                    org_id=user.org_id if user else None,
                     db=db,
                     commit=False,
                 )
@@ -713,9 +713,9 @@ async def guest_register_submit(
                 status="success" if sms_ok else "failure",
                 target_type="guest",
                 target_id=guest.id,
-                org_id=user.org_id if user else None,
                 error_code=None if sms_ok else "sms_send_failed",
                 **actor_fields(None),
+                org_id=user.org_id if user else None,
                 db=db,
                 commit=False,
             )

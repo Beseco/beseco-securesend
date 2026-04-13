@@ -740,13 +740,13 @@ async def test_org_smtp(
             event_type="smtp_test_success",
             severity="info",
             status="success",
-            org_id=resolved_org,
-            reseller_id=current_user.reseller_id,
             meta_json={
                 "scope": "org",
                 "test_recipient_masked": mask_email(test_email),
             },
             **actor_fields(current_user),
+            org_id=resolved_org,
+            reseller_id=current_user.reseller_id,
             db=db,
             commit=True,
         )
@@ -756,8 +756,6 @@ async def test_org_smtp(
             event_type="smtp_test_failed",
             severity="warning",
             status="failure",
-            org_id=resolved_org,
-            reseller_id=current_user.reseller_id,
             error_code="smtp_test_exception",
             error_message_redacted=redact_exception_message(exc),
             meta_json={
@@ -765,6 +763,8 @@ async def test_org_smtp(
                 "test_recipient_masked": mask_email(test_email),
             },
             **actor_fields(current_user),
+            org_id=resolved_org,
+            reseller_id=current_user.reseller_id,
             db=db,
             commit=True,
         )
@@ -809,8 +809,6 @@ async def update_org_settings(
         event_type="org_settings_updated",
         severity="info",
         status="success",
-        org_id=org_id,
-        reseller_id=current_user.reseller_id,
         target_type="organization",
         target_id=org_id,
         meta_json={
@@ -818,6 +816,8 @@ async def update_org_settings(
             "smtp_touched": "smtp" in normalized_body or "use_own_smtp" in normalized_body,
         },
         **actor_fields(current_user),
+        org_id=org_id,
+        reseller_id=current_user.reseller_id,
         db=db,
         commit=False,
     )

@@ -335,12 +335,12 @@ async def revoke_send(
         event_type="revoke_send",
         severity="info",
         status="success",
-        org_id=org_id,
-        reseller_id=current_user.reseller_id,
         target_type="history",
         target_id=history_id,
         meta_json={"reason_len": len((reason or "").strip())},
         **actor_fields(current_user),
+        org_id=org_id,
+        reseller_id=current_user.reseller_id,
         commit=True,
     )
     return {
@@ -397,11 +397,11 @@ async def unrevoke_send(
         event_type="unrevoke_send",
         severity="info",
         status="success",
-        org_id=org_id,
-        reseller_id=current_user.reseller_id,
         target_type="history",
         target_id=history_id,
         **actor_fields(current_user),
+        org_id=org_id,
+        reseller_id=current_user.reseller_id,
         commit=True,
     )
     return {"ok": True, "message": "Link wurde wiederhergestellt"}
@@ -455,12 +455,12 @@ async def extend_send(
         event_type="extend_send",
         severity="info",
         status="success",
-        org_id=org_id,
-        reseller_id=current_user.reseller_id,
         target_type="history",
         target_id=history_id,
         meta_json={"days_added": days, "expiry_days": history.expiry_days},
         **actor_fields(current_user),
+        org_id=org_id,
+        reseller_id=current_user.reseller_id,
         commit=True,
     )
     return {
