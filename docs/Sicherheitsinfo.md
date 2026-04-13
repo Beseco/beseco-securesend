@@ -4,6 +4,14 @@ Dokumentation zum Schutz von Nachrichten und Dateien.
 
 ---
 
+## Inhaltsverzeichnis
+
+1. [Teil 1: Einfach erklärt für alle](#teil-1-einfach-erklärt-für-alle)
+2. [Teil 2: Technische Details](#teil-2-technische-details)
+3. [Zusammenfassung](#-zusammenfassung)
+
+---
+
 ## Teil 1: Einfach erklärt für alle
 
 ### 🔒 Wie Ihre Daten geschützt werden

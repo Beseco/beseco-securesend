@@ -2,6 +2,16 @@
 
 Dieses Dokument beschreibt das Zielbild, die umgesetzten Phasen und den Betrieb des **gehosteten Speichers** („SecureSend Storage“). Technischer Anbieter-Typ in der Datenbank: `securesend_hosted` (ein Eintrag pro Organisation). Das tatsächliche Backend (lokales Dateisystem oder S3-kompatibel) wird **nur serverseitig** über Umgebungsvariablen gesteuert — keine Secrets im Org-`config_json`.
 
+## Inhaltsverzeichnis
+
+1. [Zielbild und Nicht-Ziele](#zielbild-und-nicht-ziele)
+2. [Architektur (kurz)](#architektur-kurz)
+3. [Umgebungsvariablen](#umgebungsvariablen)
+4. [Phasen (Umsetzung)](#phasen-umsetzung)
+5. [Betrieb](#betrieb)
+6. [Risiken / Produktentscheidungen](#risiken--produktentscheidungen)
+7. [Verwandte Doku](#verwandte-doku)
+
 ## Zielbild und Nicht-Ziele
 
 **Ziel:** Mehrdatei-Upload, Ordner-Metapher, E2E-Abruf und alle Sicherheitsstufen können über den gehosteten Speicher laufen; Kontingent pro Organisation (Standard 5 GB) mit Anzeige in der Admin-Oberfläche; Reseller können Standard-Kontingent und benannte Stufen (inkl. `price_hint` als reine Anzeige) pflegen.

@@ -4,6 +4,17 @@ Diese Dokumentation erklärt die 6 Sicherheitsstufen von SecureSend Cloud.
 
 ---
 
+## Inhaltsverzeichnis
+
+1. [Übersicht](#übersicht)
+2. [Detailierte Erklärung](#detailierte-erklärung)
+3. [Vergleichstabelle](#vergleichstabelle)
+4. [Für wen welche Stufe?](#für-wen-welche-stufe)
+5. [Technische Details](#technische-details)
+6. [Konfiguration (für Administratoren)](#konfiguration-für-administratoren)
+
+---
+
 ## Übersicht
 
 | Stufe | Icon | Verschlüsselung | Passwort | SMS | 2FA | Client-Verschlüsselung |

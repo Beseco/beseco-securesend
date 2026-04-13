@@ -16,6 +16,8 @@ Sichere Übermittlung von Dateien und Nachrichten über verschlüsselte Cloud-Li
 8. [Handynummer anfragen](#8-handynummer-anfragen)
 9. [Upload-Link senden](#9-upload-link-senden)
 10. [Selbstregistrierung](#10-selbstregistrierung)
+11. [Technische Details](#technische-details)
+12. [Weitere Dokumentation](#weitere-dokumentation)
 
 ---
 
@@ -257,3 +259,19 @@ Jeder eingeloggte Benutzer kann sein Passwort über das **Schlüssel-Icon** unte
 | E-Mail | SMTP (STARTTLS / SSL) |
 | Frontend | Jinja2 Templates + Tailwind CSS |
 | Deployment | Docker + optional nginx Reverse Proxy |
+
+---
+
+## Weitere Dokumentation
+
+Zusätzliche Markdown-Dateien unter [`docs/`](docs/) — jeweils mit **Inhaltsverzeichnis** am Anfang (Navigation in der Editor-**Outline** und in der Vorschau):
+
+| Dokument | Inhalt |
+|----------|--------|
+| [Benutzer-Anleitung](docs/Benutzer-Anleitung.md) | Funktionen für Organisations-Benutzer |
+| [Gast-Portal-Anleitung](docs/Gast-Portal-Anleitung.md) | Anleitung für Empfänger (Gast-Portal) |
+| [Sicherheitsstufen](docs/Sicherheitsstufen.md) | Erklärung der sechs Stufen |
+| [Sicherheitsinfo](docs/Sicherheitsinfo.md) | Schutzmaßnahmen und technischer Überblick |
+| [Umsetzungsplan SecureSend Storage](docs/Umsetzungsplan-SecureSend-Storage.md) | Gehosteter Speicher, Umgebung, Betrieb |
+| [Coolify-Deployment](docs/Coolify-Deployment.md) | Deployment mit Coolify |
+| [Vergleich SecureSend vs. FTAPI SecuMails](docs/Vergleich-SecureSend-SecuMails.md) | Abgleich mit öffentlicher SecuMails-Produktseite (kein Rechtsrat) |
