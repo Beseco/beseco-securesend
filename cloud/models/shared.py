@@ -484,3 +484,37 @@ class Guest(Base):
 
     def __repr__(self) -> str:
         return f"<Guest id={self.id!r} email={self.email!r}>"
+
+
+class AuditEvent(Base):
+    """Admin-/Debug-Audit (ohne Nachrichten- oder Dateiinhalte)."""
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False, index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False, default="info")
+    actor_user_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True, index=True
+    )
+    actor_role: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    org_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, index=True)
+    reseller_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True, index=True
+    )
+    target_type: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
+    target_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="success")
+    error_code: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    error_message_redacted: Mapped[Optional[str]] = mapped_column(
+        String(500), nullable=True
+    )
+    meta_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<AuditEvent id={self.id!r} type={self.event_type!r}>"

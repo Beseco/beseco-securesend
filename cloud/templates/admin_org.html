@@ -18,6 +18,7 @@
   <button onclick="showTab('providers')" id="tabProviders" style="padding:0.5rem 1.25rem;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;background:transparent;color:#64748b;transition:all 0.15s;">Anbieter</button>
   <button onclick="showTab('settings')" id="tabSettings" style="padding:0.5rem 1.25rem;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;background:transparent;color:#64748b;transition:all 0.15s;">Einstellungen</button>
   <button onclick="showTab('gateways')" id="tabGateways" style="padding:0.5rem 1.25rem;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;background:transparent;color:#64748b;transition:all 0.15s;">SMS-Gateway</button>
+  <button onclick="showTab('audit')" id="tabAudit" style="padding:0.5rem 1.25rem;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;background:transparent;color:#64748b;transition:all 0.15s;">Audit-Log</button>
 </div>
 
 <!-- ── Users Tab ───────────────────────────────────────────────────────────── -->
@@ -287,6 +288,57 @@
   </div>
   <div id="gatewayCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(22rem,1fr));gap:1rem;">
     <div style="text-align:center;padding:2rem;color:#94a3b8;">Lade…</div>
+  </div>
+</div>
+
+<!-- ── Audit-Log Tab (Debug, DSGVO: keine Inhalte) ─────────────────────────── -->
+<div id="panelAudit" style="display:none;">
+  <div class="card" style="overflow:hidden;">
+    <div style="padding:1rem 1.25rem;border-bottom:1px solid #f1f5f9;">
+      <h3 style="font-size:0.9375rem;font-weight:700;color:#1e293b;margin-bottom:0.5rem;">Audit-Log</h3>
+      <p style="font-size:0.8125rem;color:#64748b;margin:0;">Technische Ereignisse für Debugging (keine Nachrichten- oder Dateiinhalte). Logins und Sendungen mit Organisationsbezug erscheinen hier.</p>
+    </div>
+    <div style="padding:1rem 1.25rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-end;border-bottom:1px solid #f1f5f9;">
+      <div>
+        <label class="form-label" style="margin-bottom:0.25rem;">Von (ISO-Datum)</label>
+        <input type="text" id="auditFrom" class="form-input" placeholder="2026-01-01" style="min-width:9rem;" />
+      </div>
+      <div>
+        <label class="form-label" style="margin-bottom:0.25rem;">Bis</label>
+        <input type="text" id="auditTo" class="form-input" placeholder="2026-12-31" style="min-width:9rem;" />
+      </div>
+      <div>
+        <label class="form-label" style="margin-bottom:0.25rem;">Event-Typ</label>
+        <input type="text" id="auditEventType" class="form-input" placeholder="z. B. send_success" style="min-width:12rem;" />
+      </div>
+      <div>
+        <label class="form-label" style="margin-bottom:0.25rem;">Status</label>
+        <select id="auditStatus" class="form-input" style="min-width:8rem;">
+          <option value="">alle</option>
+          <option value="success">success</option>
+          <option value="failure">failure</option>
+        </select>
+      </div>
+      <button type="button" onclick="loadAuditEvents()" class="btn-primary" style="font-size:0.8125rem;padding:0.45rem 1rem;">Aktualisieren</button>
+      <button type="button" onclick="exportAuditCsv()" class="btn-secondary" style="font-size:0.8125rem;padding:0.45rem 1rem;">CSV exportieren</button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:0.8125rem;">
+        <thead>
+          <tr class="table-header">
+            <th style="padding:0.5rem 1rem;text-align:left;color:#64748b;">Zeit</th>
+            <th style="padding:0.5rem 1rem;text-align:left;color:#64748b;">Event</th>
+            <th style="padding:0.5rem 1rem;text-align:left;color:#64748b;">Status</th>
+            <th style="padding:0.5rem 1rem;text-align:left;color:#64748b;">Akteur</th>
+            <th style="padding:0.5rem 1rem;text-align:left;color:#64748b;">Ziel</th>
+            <th style="padding:0.5rem 1rem;text-align:left;color:#64748b;">Fehler</th>
+          </tr>
+        </thead>
+        <tbody id="auditBody">
+          <tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">Tab öffnen und „Aktualisieren“ wählen</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -654,7 +706,7 @@
 
   function showTab(tab) {
     activeTab = tab;
-    ['users','providers','settings','gateways'].forEach(t => {
+    ['users','providers','settings','gateways','audit'].forEach(t => {
       document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = t === tab ? 'block' : 'none';
       const btn = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
       btn.style.background = t === tab ? '#1a56db' : 'transparent';
@@ -664,9 +716,10 @@
     if (tab === 'providers' && !providersLoaded) loadProviders();
     if (tab === 'settings' && !settingsLoaded) loadSettings();
     if (tab === 'gateways' && !gatewaysLoaded) loadGateways();
+    if (tab === 'audit' && !auditLoaded) loadAuditEvents();
   }
 
-  let usersLoaded = false, providersLoaded = false, settingsLoaded = false, gatewaysLoaded = false;
+  let usersLoaded = false, providersLoaded = false, settingsLoaded = false, gatewaysLoaded = false, auditLoaded = false;
 
   function getOrgParam() {
     // If superadmin is in org context, use CTX_ORG_ID
@@ -676,8 +729,66 @@
   }
 
   function onOrgChange() {
-    usersLoaded = false; providersLoaded = false; settingsLoaded = false;
+    usersLoaded = false; providersLoaded = false; settingsLoaded = false; auditLoaded = false;
     showTab(activeTab);
+  }
+
+  function _auditFilterParams() {
+    const p = new URLSearchParams();
+    const from = document.getElementById('auditFrom')?.value?.trim();
+    const to = document.getElementById('auditTo')?.value?.trim();
+    const et = document.getElementById('auditEventType')?.value?.trim();
+    const st = document.getElementById('auditStatus')?.value?.trim();
+    if (from) p.set('from', from);
+    if (to) p.set('to', to);
+    if (et) p.set('event_type', et);
+    if (st) p.set('status', st);
+    return p;
+  }
+
+  function _auditUrl(path) {
+    const orgQ = getOrgParam();
+    const p = _auditFilterParams();
+    if (orgQ.startsWith('?')) {
+      new URLSearchParams(orgQ.slice(1)).forEach((v, k) => p.set(k, v));
+    }
+    return path + '?' + p.toString();
+  }
+
+  async function loadAuditEvents() {
+    const sel = document.getElementById('orgSelector');
+    if (sel && !CTX_ORG_ID && !sel.value) {
+      document.getElementById('auditBody').innerHTML = '<tr><td colspan="6" style="padding:2rem;text-align:center;color:#ca8a04;">Bitte zuerst eine Organisation wählen (Superadmin).</td></tr>';
+      return;
+    }
+    const res = await apiFetch(_auditUrl('/admin/org/audit-events'));
+    if (!res.ok) {
+      document.getElementById('auditBody').innerHTML = '<tr><td colspan="6" style="padding:2rem;text-align:center;color:#ef4444;">Fehler beim Laden</td></tr>';
+      return;
+    }
+    const rows = await res.json();
+    auditLoaded = true;
+    const tbody = document.getElementById('auditBody');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">Keine Einträge</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => {
+      const t = r.created_at ? new Date(r.created_at).toLocaleString('de-DE') : '—';
+      const tgt = [r.target_type, r.target_id ? r.target_id.slice(0, 8) + '…' : ''].filter(Boolean).join(' ');
+      const actor = [r.actor_role || '', r.actor_user_id ? r.actor_user_id.slice(0, 8) + '…' : ''].filter(Boolean).join(' ');
+      const err = (r.error_code || '') + (r.error_message_redacted ? ': ' + esc(r.error_message_redacted).slice(0, 80) : '');
+      return `<tr style="border-top:1px solid #f1f5f9;"><td style="padding:0.5rem 1rem;white-space:nowrap;">${esc(t)}</td><td style="padding:0.5rem 1rem;">${esc(r.event_type)}</td><td style="padding:0.5rem 1rem;">${esc(r.status)}</td><td style="padding:0.5rem 1rem;">${esc(actor || '—')}</td><td style="padding:0.5rem 1rem;">${esc(tgt || '—')}</td><td style="padding:0.5rem 1rem;color:#991b1b;max-width:14rem;overflow:hidden;text-overflow:ellipsis;">${esc(err || '—')}</td></tr>`;
+    }).join('');
+  }
+
+  function exportAuditCsv() {
+    const sel = document.getElementById('orgSelector');
+    if (sel && !CTX_ORG_ID && !sel.value) {
+      showToast('Bitte Organisation wählen', 'error');
+      return;
+    }
+    window.open(_auditUrl('/admin/org/audit-events/export'), '_blank');
   }
 
   // ── Users ──────────────────────────────────────────────────────────────────
@@ -1102,7 +1213,7 @@
       from_name: document.getElementById('smtpFromName').value,
     };
     try {
-      const res = await apiFetch('/admin/org/smtp/test', { method: 'POST', body: JSON.stringify({ smtp, test_email: testEmail }) });
+      const res = await apiFetch('/admin/org/smtp/test' + getOrgParam(), { method: 'POST', body: JSON.stringify({ smtp, test_email: testEmail }) });
       const data = await res.json();
       if (data.ok) {
         result.style.display = 'inline';

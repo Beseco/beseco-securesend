@@ -10,6 +10,7 @@ GET   /auth/me       → current user info
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 import logging
 
@@ -46,6 +47,7 @@ from schemas.auth import (
     RefreshRequest,
     TokenResponse,
 )
+from services.audit import actor_fields, log_audit_event, mask_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -104,16 +106,49 @@ async def login(
             body.email,
             request.client.host if request.client else "unknown",
         )
+        await log_audit_event(
+            event_type="login_failed",
+            severity="warning",
+            status="failure",
+            error_code="invalid_credentials",
+            meta_json={
+                "email_masked": mask_email(body.email),
+                "client_ip": (request.client.host if request.client else "")[:45],
+            },
+            commit=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
     if not user.is_active:
+        await log_audit_event(
+            event_type="login_failed",
+            severity="warning",
+            status="failure",
+            error_code="account_disabled",
+            meta_json={
+                "email_masked": mask_email(body.email),
+                "client_ip": (request.client.host if request.client else "")[:45],
+            },
+            **actor_fields(user),
+            commit=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is disabled",
         )
 
+    await log_audit_event(
+        event_type="login_success",
+        severity="info",
+        status="success",
+        meta_json={
+            "client_ip": (request.client.host if request.client else "")[:45],
+        },
+        **actor_fields(user),
+        commit=True,
+    )
     return TokenResponse(
         access_token=_make_access_token(user),
         refresh_token=_make_refresh_token(user),
@@ -178,7 +213,14 @@ async def change_password(
             detail="Neues Passwort muss mindestens 12 Zeichen haben",
         )
     current_user.password_hash = hash_password(body.new_password)
-    current_user.password_hash = hash_password(body.new_password)
+    await log_audit_event(
+        event_type="password_changed",
+        severity="info",
+        status="success",
+        **actor_fields(current_user),
+        db=db,
+        commit=False,
+    )
     await db.commit()
 
 
@@ -204,6 +246,14 @@ async def twofa_setup(
     secret = pyotp.random_base32()
     current_user.totp_secret = secret
     current_user.totp_enabled = False
+    await log_audit_event(
+        event_type="twofa_setup_started",
+        severity="info",
+        status="success",
+        **actor_fields(current_user),
+        db=db,
+        commit=False,
+    )
     await db.commit()
     totp = pyotp.TOTP(secret)
     uri = totp.provisioning_uri(name=current_user.email, issuer_name="SecureSend Cloud")
@@ -226,6 +276,14 @@ async def twofa_enable(
     if not totp.verify(body.code, valid_window=1):
         raise HTTPException(status_code=400, detail="Ungültiger Code")
     current_user.totp_enabled = True
+    await log_audit_event(
+        event_type="twofa_enabled",
+        severity="info",
+        status="success",
+        **actor_fields(current_user),
+        db=db,
+        commit=False,
+    )
     await db.commit()
     return {"enabled": True}
 
@@ -241,6 +299,14 @@ async def twofa_disable(
         raise HTTPException(status_code=400, detail="Falsches Passwort")
     current_user.totp_enabled = False
     current_user.totp_secret = None
+    await log_audit_event(
+        event_type="twofa_disabled",
+        severity="info",
+        status="success",
+        **actor_fields(current_user),
+        db=db,
+        commit=False,
+    )
     await db.commit()
     return {"enabled": False}
 

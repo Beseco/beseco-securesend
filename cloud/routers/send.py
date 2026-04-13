@@ -43,12 +43,20 @@ from models.reseller import Reseller
 from models.shared import CloudProvider, History, SmsGateway
 from models.user import User
 from schemas.shared import CloudProviderSendOption, SendResponse
+from services.audit import (
+    actor_fields,
+    email_domain_hash,
+    log_audit_event,
+    mask_email,
+    redact_exception_message,
+)
 from services.hosted_provider import (
     ensure_hosted_cloud_provider,
     merge_org_settings_with_storage_defaults,
     resolve_send_cloud_provider,
     resolve_storage_quota_bytes,
 )
+from services.smtp_resolve import resolve_smtp_with_fallback
 
 
 def _parse_single_recipient_email(raw: str) -> str:
@@ -87,8 +95,8 @@ def _parse_single_recipient_email(raw: str) -> str:
         )
     return ""
 
+from config import settings as app_settings
 from core.hosted_storage import HOSTED_SERVICE_NAME
-from core.smtp_config import get_env_smtp_cfg
 
 router = APIRouter(prefix="/send", tags=["send"])
 
@@ -561,6 +569,18 @@ async def send_secure(
         _log.getLogger("securesend").exception(
             "Upload fehlgeschlagen für User %s: %s", current_user.id, exc
         )
+        await log_audit_event(
+            event_type="send_failed_upload",
+            severity="error",
+            status="failure",
+            error_code="upload_failed",
+            error_message_redacted=redact_exception_message(exc),
+            meta_json={
+                "security_level": security_level,
+            },
+            **actor_fields(current_user),
+            commit=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Fehler beim Hochladen. Bitte versuchen Sie es erneut.",
@@ -571,84 +591,30 @@ async def send_secure(
     post_sj["storage_used_bytes"] = used_bytes + total_size
     org_ent.settings_json = post_sj
 
-    # ── SMTP-Konfiguration ermitteln (Org → Reseller Fallback) ─────────────
+    # ── SMTP + Signatur (Org → Reseller → ENV, nur nutzbare Konfigurationen) ─
     org_settings: dict = post_sj
-
-    smtp_cfg: Optional[dict] = org_settings.get("smtp")
     signature: str = org_settings.get("signature", "")
-
-    if not smtp_cfg and current_user.organization:
+    reseller_json: Optional[dict] = None
+    if current_user.organization:
         res_result = await db.execute(
             select(Reseller).where(Reseller.id == current_user.organization.reseller_id)
         )
         reseller = res_result.scalar_one_or_none()
         if reseller and reseller.settings_json:
-            smtp_cfg = reseller.settings_json.get("smtp")
+            reseller_json = dict(reseller.settings_json)
             if not signature:
-                signature = reseller.settings_json.get("signature", "")
-    if not smtp_cfg:
-        smtp_cfg = get_env_smtp_cfg()
+                signature = reseller_json.get("signature", "")
 
-    # ── Verlauf speichern (vor E-Mail, damit tracking_token verfügbar) ─────
-    client_ip = request.client.host if request.client else ""
-    history_id = str(uuid.uuid4())
-    now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
-    expires_at = now_naive + timedelta(days=expiry_days)
-    msg_src = (personal_message or message or "").strip()
-    if len(msg_src) > 600:
-        message_preview = msg_src[:597] + "..."
-    else:
-        message_preview = msg_src or None
+    smtp_cfg, smtp_source = resolve_smtp_with_fallback(org_settings, reseller_json)
 
-    # Nur Metadaten für E2E (keine Passwörter persistieren)
-    encrypted_files_store = None
-    if security_level in ("advanced", "maximal") and enc_data_parsed:
-        encrypted_files_store = {
-            "folder_path": folder_path,
-            "provider_id": provider.id,
-            "files": [
-                {
-                    "filename": item["filename"],
-                    "storage_name": f"{item['filename']}.enc",
-                }
-                for item in enc_data_parsed
-            ],
-        }
-
-    h = History(
-        id=history_id,
-        user_id=current_user.id,
-        to_email=to_email,
-        to_phone=to_phone,
-        filename=filename,
-        subject=subject,
-        message_preview=message_preview,
-        share_url=share_url,
-        provider=provider.service,
-        expiry_days=expiry_days,
-        expires_at=expires_at,
-        security_level=security_level,
-        ip_address=client_ip,
-        encrypted_files_json=encrypted_files_store,
-        files_json=files_json,
-        storage_folder_path=storage_folder_path,
-        storage_delete_filename=storage_delete_filename,
-        cloud_provider_id=provider.id,
-    )
-    db.add(h)
-    await db.commit()
-    await db.refresh(h)
-
-    # ── E-Mail senden ──────────────────────────────────────────────────────
-    from config import settings as app_settings
-
+    tracking_token = secrets.token_urlsafe(32)
     base_url = str(request.base_url).rstrip("/")
     if is_hosted_service(provider.service):
         eff = (app_settings.PUBLIC_BASE_URL or base_url).rstrip("/")
-        h.share_url = f"{eff}/track/l/{h.tracking_token}"
-        await db.commit()
-        await db.refresh(h)
-    effective_password = zip_password or share_password or e2e_sms_password
+        persisted_share_url = f"{eff}/track/l/{tracking_token}"
+    else:
+        persisted_share_url = share_url
+
     sender_name = (
         f"{current_user.first_name or ''} {current_user.last_name or ''}".strip()
         or current_user.email
@@ -657,7 +623,31 @@ async def send_secure(
         current_user.organization.name if current_user.organization else ""
     ) or ""
 
-    if to_email and smtp_cfg:
+    if to_email:
+        if not smtp_cfg:
+            await log_audit_event(
+                event_type="send_failed_smtp",
+                severity="error",
+                status="failure",
+                error_code="smtp_not_configured",
+                error_message_redacted="Kein nutzbares SMTP (Org/Reseller/ENV).",
+                meta_json={
+                    "smtp_source": smtp_source,
+                    "recipient_masked": mask_email(to_email),
+                    "recipient_domain_sha256_16": email_domain_hash(to_email),
+                    "security_level": security_level,
+                    "provider": provider.service,
+                },
+                **actor_fields(current_user),
+                commit=True,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=(
+                    "E-Mail konnte nicht gesendet werden: Es ist kein gültiger SMTP-Server "
+                    "konfiguriert (Organisation, Reseller oder Server-Umgebung)."
+                ),
+            )
         try:
             from core.email import send_email  # type: ignore
 
@@ -698,8 +688,8 @@ async def send_secure(
                 pw_hint = "<p>Das Passwort für den Link erhalten Sie separat per SMS.</p>"
                 link_hint = ""
 
-            tracking_link = f"{base_url}/track/l/{h.tracking_token}"
-            tracking_pixel = f'<img src="{base_url}/track/o/{h.tracking_token}" width="1" height="1" style="display:none" alt="" />'
+            tracking_link = f"{base_url}/track/l/{tracking_token}"
+            tracking_pixel = f'<img src="{base_url}/track/o/{tracking_token}" width="1" height="1" style="display:none" alt="" />'
 
             body_html = f"""
             <div style="font-family:sans-serif;color:#1e293b;max-width:540px;">
@@ -715,7 +705,7 @@ async def send_secure(
                 </a>
               </p>
               <p style="font-size:0.875rem;color:#64748b;word-break:break-all;">
-                Link: <a href="{tracking_link}" style="color:#1a56db;">{share_url}</a>
+                Link: <a href="{tracking_link}" style="color:#1a56db;">{persisted_share_url}</a>
               </p>
               {pw_hint}{link_hint}
               <p style="font-size:0.8125rem;color:#94a3b8;">Gültig für {expiry_days} Tag(e).</p>
@@ -728,6 +718,100 @@ async def send_secure(
             import logging
 
             logging.getLogger("send").warning("Email send failed: %s", exc)
+            await log_audit_event(
+                event_type="send_failed_smtp",
+                severity="error",
+                status="failure",
+                error_code="smtp_send_failed",
+                error_message_redacted=redact_exception_message(exc),
+                meta_json={
+                    "smtp_source": smtp_source,
+                    "recipient_masked": mask_email(to_email),
+                    "recipient_domain_sha256_16": email_domain_hash(to_email),
+                    "security_level": security_level,
+                    "provider": provider.service,
+                },
+                **actor_fields(current_user),
+                commit=True,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=(
+                    "E-Mail-Zustellung fehlgeschlagen. Bitte SMTP-Einstellungen prüfen "
+                    "(Organisation, Reseller oder Server-Umgebung)."
+                ),
+            ) from exc
+
+    # ── Verlauf speichern (nach erfolgreicher E-Mail, falls erforderlich) ───
+    client_ip = request.client.host if request.client else ""
+    history_id = str(uuid.uuid4())
+    now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+    expires_at = now_naive + timedelta(days=expiry_days)
+    msg_src = (personal_message or message or "").strip()
+    if len(msg_src) > 600:
+        message_preview = msg_src[:597] + "..."
+    else:
+        message_preview = msg_src or None
+
+    encrypted_files_store = None
+    if security_level in ("advanced", "maximal") and enc_data_parsed:
+        encrypted_files_store = {
+            "folder_path": folder_path,
+            "provider_id": provider.id,
+            "files": [
+                {
+                    "filename": item["filename"],
+                    "storage_name": f"{item['filename']}.enc",
+                }
+                for item in enc_data_parsed
+            ],
+        }
+
+    h = History(
+        id=history_id,
+        user_id=current_user.id,
+        to_email=to_email,
+        to_phone=to_phone,
+        filename=filename,
+        subject=subject,
+        message_preview=message_preview,
+        share_url=persisted_share_url,
+        provider=provider.service,
+        expiry_days=expiry_days,
+        expires_at=expires_at,
+        security_level=security_level,
+        ip_address=client_ip,
+        encrypted_files_json=encrypted_files_store,
+        files_json=files_json,
+        storage_folder_path=storage_folder_path,
+        storage_delete_filename=storage_delete_filename,
+        cloud_provider_id=provider.id,
+        tracking_token=tracking_token,
+    )
+    db.add(h)
+    await log_audit_event(
+        event_type="send_success",
+        severity="info",
+        status="success",
+        target_type="history",
+        target_id=history_id,
+        meta_json={
+            "smtp_source": smtp_source if to_email else None,
+            "has_email": bool(to_email),
+            "recipient_masked": mask_email(to_email) if to_email else None,
+            "recipient_domain_sha256_16": email_domain_hash(to_email) if to_email else None,
+            "security_level": security_level,
+            "provider": provider.service,
+            "file_label_len": len(filename or ""),
+        },
+        **actor_fields(current_user),
+        db=db,
+        commit=False,
+    )
+    await db.commit()
+    await db.refresh(h)
+
+    effective_password = zip_password or share_password or e2e_sms_password
 
     # ── SMS senden ─────────────────────────────────────────────────────────
     if use_sms and to_phone and effective_password:
@@ -737,12 +821,12 @@ async def send_secure(
                 from core.sms import send_sms_sipgate  # type: ignore
 
                 if security_level == "extended":
-                    sms_text = f"{subject}\nLink: {share_url}\nZIP-Passwort: {effective_password}"
+                    sms_text = f"{subject}\nLink: {persisted_share_url}\nZIP-Passwort: {effective_password}"
                 elif security_level in ("advanced", "maximal") and enc_data_parsed:
                     short_link = f"{base_url}/track/l/{h.tracking_token}"
                     sms_text = f"{subject}\n{short_link}\nE2E-Passwort: {effective_password}"
                 else:
-                    sms_text = f"{subject}\nLink: {share_url}\nPW: {effective_password}"
+                    sms_text = f"{subject}\nLink: {persisted_share_url}\nPW: {effective_password}"
                 if len(sms_text) > 160:
                     sms_text = sms_text[:157] + "..."
                 send_sms_sipgate(gateway.config_json, to_phone, sms_text)
@@ -752,7 +836,7 @@ async def send_secure(
                 logging.getLogger("send").warning("SMS send failed: %s", exc)
 
     return SendResponse(
-        share_url=share_url,
+        share_url=persisted_share_url,
         filename=filename,
         provider=provider.service,
         expiry_days=expiry_days,

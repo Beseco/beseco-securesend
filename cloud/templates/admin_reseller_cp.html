@@ -293,7 +293,7 @@
       from_name: document.getElementById('rSmtpFromName').value,
     };
     try {
-      const res = await apiFetch('/admin/reseller/smtp/test', {
+      const res = await apiFetch('/admin/reseller/smtp/test?reseller_id=' + encodeURIComponent(RESELLER_ID), {
         method: 'POST',
         body: JSON.stringify({ smtp, test_email: testEmail })
       });
