@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from jose import JWTError, jwt
 from pathlib import Path
-from sqlalchemy import select
+from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from config import settings
@@ -117,6 +117,63 @@ async def portal_login_submit(
         path="/",
     )
     return resp
+
+
+@router.get("/forgot-password", response_class=HTMLResponse)
+async def portal_forgot_password_page(request: Request, db: AsyncSession = Depends(get_db)):
+    if await _load_guest(request, db):
+        return RedirectResponse(url="/portal/", status_code=302)
+    return templates.TemplateResponse(
+        "portal_forgot_password.html",
+        {"request": request, "error": "", "message": "", "email": ""},
+    )
+
+
+@router.post("/forgot-password")
+async def portal_forgot_password_submit(
+    request: Request,
+    email: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """Leitet zum bestehenden Gast-Reset (/r/reset/{token}), sobald ein Verlauf mit diesem Konto existiert."""
+    if await _load_guest(request, db):
+        return RedirectResponse(url="/portal/", status_code=302)
+    email_n = email.strip().lower()
+    r = await db.execute(select(Guest).where(Guest.email == email_n))
+    guest = r.scalar_one_or_none()
+    if not guest:
+        return templates.TemplateResponse(
+            "portal_forgot_password.html",
+            {
+                "request": request,
+                "error": "Diese E-Mail-Adresse ist uns nicht bekannt.",
+                "message": "",
+                "email": email_n,
+            },
+            status_code=404,
+        )
+    hr = await db.execute(
+        select(History)
+        .where(History.guest_id == guest.id)
+        .order_by(desc(History.created_at))
+        .limit(1)
+    )
+    h = hr.scalar_one_or_none()
+    if not h or not (h.tracking_token or "").strip():
+        return templates.TemplateResponse(
+            "portal_forgot_password.html",
+            {
+                "request": request,
+                "error": "",
+                "message": (
+                    "Für dieses Konto liegt kein verknüpfter Versand vor. Bitte öffnen Sie eine "
+                    "empfangene SecureSend-E-Mail und nutzen Sie dort den Link „Passwort vergessen“ "
+                    "bzw. den Zugang zum Posteingang, oder wenden Sie sich an den Absender."
+                ),
+                "email": email_n,
+            },
+        )
+    return RedirectResponse(url=f"/r/reset/{h.tracking_token}", status_code=302)
 
 
 @router.post("/logout")
