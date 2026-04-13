@@ -249,6 +249,11 @@ async def _run_migrations(conn) -> None:
             "phone_verified_at",
             "ALTER TABLE guests ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMP",
         ),
+        (
+            "guests",
+            "twofa_pending",
+            "ALTER TABLE guests ADD COLUMN IF NOT EXISTS twofa_pending BOOLEAN NOT NULL DEFAULT FALSE",
+        ),
     ]
 
     if is_postgres:

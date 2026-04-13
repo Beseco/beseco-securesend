@@ -467,6 +467,8 @@ class Guest(Base):
     sms_code: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
     sms_code_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     phone_verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # True bis zweite Registrierungsstufe (2FA-Wahl) abgeschlossen; bestehende Konten: False
+    twofa_pending: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False

@@ -11,191 +11,50 @@
 </head>
 <body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
     <div class="bg-white rounded-lg shadow-lg max-w-md w-full p-8">
-        <!-- Header -->
         <div class="text-center mb-6">
-            <h1 class="text-2xl font-bold text-gray-900">
-                🔐 Konto erstellen
-            </h1>
-            <p class="text-gray-600 mt-1">
-                Erstellen Sie ein Konto für zukünftige Zugänge
-            </p>
+            <h1 class="text-2xl font-bold text-gray-900">🔐 Konto erstellen</h1>
+            <p class="text-gray-600 mt-1">Schritt 1 von 2: Zugangsdaten</p>
         </div>
-        
-        <!-- Error Message -->
+
         {% if error %}
-        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
-            {{ error }}
-        </div>
+        <div class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">{{ error }}</div>
         {% endif %}
         {% if message %}
-        <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4">
-            {{ message }}
-        </div>
+        <div class="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4">{{ message }}</div>
         {% endif %}
-        
-        <!-- Registration Form -->
+
+        <p class="text-sm text-gray-600 mb-4">
+            Passwort: mindestens <strong>10 Zeichen</strong>, mit Groß- und Kleinbuchstaben, einer Ziffer und einem Sonderzeichen (z.&nbsp;B. !@#$%).
+        </p>
+
         <form method="POST" action="/r/register/{{ token }}">
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        E-Mail-Adresse
-                    </label>
-                    <input 
-                        type="email" 
-                        name="email" 
-                        value="{{ email }}"
-                        required
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
+                    <label class="block text-sm font-medium text-gray-700 mb-1">E-Mail-Adresse</label>
+                    <input type="email" name="email" value="{{ email }}" required
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 </div>
-
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        Mobilnummer {% if require_phone %}<span class="text-red-600">*</span>{% else %}<span class="text-gray-400">(optional)</span>{% endif %}
-                    </label>
-                    <input
-                        type="tel"
-                        name="mobile"
-                        value="{{ mobile }}"
-                        {% if require_phone %}required{% endif %}
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="+49..."
-                    >
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Passwort</label>
+                    <input type="password" name="password" required minlength="10" autocomplete="new-password"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 </div>
-                
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        Passwort
-                    </label>
-                    <input 
-                        type="password" 
-                        name="password" 
-                        required
-                        minlength="8"
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Mindestens 8 Zeichen"
-                    >
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Passwort bestätigen</label>
+                    <input type="password" name="password2" required minlength="10" autocomplete="new-password"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                 </div>
-                
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        Passwort bestätigen
-                    </label>
-                    <input 
-                        type="password" 
-                        name="password2" 
-                        required
-                        minlength="8"
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Passwort wiederholen"
-                    >
-                </div>
-
-                {% if require_phone %}
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">
-                        SMS-Code (4-stellig)
-                    </label>
-                    <input
-                        type="text"
-                        name="sms_code"
-                        minlength="4"
-                        maxlength="4"
-                        inputmode="numeric"
-                        pattern="[0-9]{4}"
-                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="1234"
-                    >
-                    <p class="text-xs text-gray-500 mt-1">
-                        Beim ersten Absenden senden wir einen Aktivierungscode per SMS.
-                    </p>
-                </div>
-                {% endif %}
-                
-                <button 
-                    type="submit"
-                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition"
-                >
-                    Konto erstellen
+                <button type="submit"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition">
+                    Weiter zu Schritt 2
                 </button>
             </div>
         </form>
-        
-        <!-- 2FA Option (optionaler Teil) -->
-        <div class="mt-6 pt-6 border-t">
-            <h3 class="font-medium text-gray-900 mb-3">
-                📱 Zwei-Faktor-Authentifizierung (optional)
-            </h3>
-            <p class="text-sm text-gray-600 mb-4">
-                Erhöhen Sie die Sicherheit mit einem zweiten Faktor.
-            </p>
-            
-            <div class="space-y-3">
-                <button 
-                    type="button"
-                    onclick="setup2FA('app')"
-                    class="w-full flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition"
-                >
-                    <div class="flex items-center gap-3">
-                        <span class="text-2xl">📱</span>
-                        <div class="text-left">
-                            <p class="font-medium">Authenticator App</p>
-                            <p class="text-sm text-gray-500">Google Authenticator, Authy, etc.</p>
-                        </div>
-                    </div>
-                    <span class="text-gray-400">→</span>
-                </button>
-                
-                <button 
-                    type="button"
-                    onclick="setup2FA('email')"
-                    class="w-full flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition"
-                >
-                    <div class="flex items-center gap-3">
-                        <span class="text-2xl">✉️</span>
-                        <div class="text-left">
-                            <p class="font-medium">E-Mail</p>
-                            <p class="text-sm text-gray-500">Code per E-Mail</p>
-                        </div>
-                    </div>
-                    <span class="text-gray-400">→</span>
-                </button>
-            </div>
-        </div>
-        
-        <!-- Footer -->
+
         <p class="text-center text-sm text-gray-500 mt-6">
             Bereits registriert? <a href="/portal/login" class="text-blue-600 hover:underline">Zum Gast-Portal</a>
         </p>
-        <p class="text-center text-xs text-gray-400 mt-2">
-            SecureSend Cloud – Sicheres Senden
-        </p>
+        <p class="text-center text-xs text-gray-400 mt-2">SecureSend Cloud – Sicheres Senden</p>
     </div>
-    
-    <script>
-        async function setup2FA(method) {
-            const response = await fetch(`/r/register/{{ token }}/2fa`, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: `method=${method}`
-            });
-            const data = await response.json();
-            
-            if (data.secret) {
-                // Show TOTP setup
-                alert(`TOTP Secret: ${data.secret}\n\nQR URI: ${data.uri}`);
-            } else if (data.sent) {
-                const code = prompt('Code aus E-Mail eingeben:');
-                if (code) {
-                    await fetch(`/r/register/{{ token }}/2fa/verify`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                        body: `code=${code}`
-                    });
-                    alert('2FA aktiviert!');
-                }
-            }
-        }
-    </script>
 </body>
 </html>

@@ -5,15 +5,15 @@ GET  /r/{token}           — Landing (passwortgeschützt)
 POST /r/{token}/verify   — Passwort/SMS-Code verifizieren
 GET  /r/{token}/download/{file} — Datei-Download
 
-GET  /r/register/{token}  — Registrierungsformular
-POST /r/register/{token}  — Konto erstellen + 2FA
+GET  /r/register/{token}  — Registrierung Schritt 1
+POST /r/register/{token}  — Schritt 1: E-Mail + Passwort
+GET/POST /r/register/{token}/2fa — Schritt 2: 2FA (E-Mail / SMS / App)
 
 GET  /r/dashboard/{token} — Dateien + Nachricht
 POST /r/dashboard/{token} — Datei-Upload
 
 GET  /r/reset/{token}     — Passwort-Reset
-POST /r/reset/{token}     — E-Mail Link senden
-POST /r/reset/{token}/sms — SMS PIN senden
+POST /r/reset/{token}     — Reset per E-Mail oder SMS anstoßen
 POST /r/reset/{token}/confirm — Neues Passwort setzen
 """
 
@@ -39,7 +39,7 @@ from fastapi import (
     Request,
     UploadFile,
 )
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from fastapi.templating import Jinja2Templates
@@ -58,6 +58,7 @@ from models.reseller import Reseller
 from models.shared import CloudProvider, Contact, History, Guest, SmsGateway, UploadRequest
 from models.user import User
 from services.audit import log_audit_event, merge_actor_fields
+from services.guest_password import validate_guest_password
 from services.security_levels import (
     LEVEL_1,
     LEVEL_2,
@@ -242,8 +243,10 @@ async def guest_landing(
 
     # Prüfe ob bereits als Guest registriert
     if h.guest_id:
-        # Check Guest password/session
-        # Redirect to dashboard
+        gr = await db.execute(select(Guest).where(Guest.id == h.guest_id))
+        _g = gr.scalar_one_or_none()
+        if _g and _g.twofa_pending:
+            return RedirectResponse(url=f"/r/register/{token}/2fa", status_code=302)
         return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
 
     # Security level determines auth method
@@ -337,6 +340,12 @@ async def guest_dashboard(
     level = normalize_security_level(h.security_level)
     if requires_guest_account(level) and not h.guest_id:
         return RedirectResponse(url=f"/r/register/{token}", status_code=302)
+
+    if h.guest_id:
+        gr = await db.execute(select(Guest).where(Guest.id == h.guest_id))
+        _gp = gr.scalar_one_or_none()
+        if _gp and _gp.twofa_pending:
+            return RedirectResponse(url=f"/r/register/{token}/2fa", status_code=302)
 
     # Hole User und Org
     result = await db.execute(select(User).where(User.id == h.user_id))
@@ -486,7 +495,10 @@ async def guest_register(
         return HTMLResponse("Link nicht gefunden", status_code=404)
 
     if h.guest_id:
-        # Already registered
+        gr = await db.execute(select(Guest).where(Guest.id == h.guest_id))
+        ex = gr.scalar_one_or_none()
+        if ex and ex.twofa_pending:
+            return RedirectResponse(url=f"/r/register/{token}/2fa", status_code=302)
         return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
 
     # Hole Organisation
@@ -509,11 +521,70 @@ async def guest_register(
             "security_level": level,
             "require_phone": requires_guest_account(level),
             "email": h.to_email or "",
-            "mobile": h.to_phone or "",
             "error": "",
             "message": "",
         },
     )
+
+
+def _guest_now_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+async def _render_register_2fa(
+    request: Request,
+    db: AsyncSession,
+    token: str,
+    *,
+    error: str = "",
+    message: str = "",
+    totp_uri: str = "",
+    app_started: bool = False,
+) -> HTMLResponse:
+    result = await db.execute(select(History).where(History.tracking_token == token))
+    h = result.scalar_one_or_none()
+    if not h or not h.guest_id:
+        return HTMLResponse("Link nicht gefunden", status_code=404)
+    gr = await db.execute(select(Guest).where(Guest.id == h.guest_id))
+    guest = gr.scalar_one_or_none()
+    if not guest or not guest.twofa_pending:
+        return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
+    user = (
+        await db.execute(select(User).where(User.id == h.user_id))
+    ).scalar_one_or_none()
+    org = None
+    if user:
+        org = (
+            await db.execute(select(Organization).where(Organization.id == user.org_id))
+        ).scalar_one_or_none()
+    level = normalize_security_level(h.security_level)
+    require_phone = requires_guest_account(level)
+    return templates.TemplateResponse(
+        "receive-register-2fa.html",
+        {
+            "request": request,
+            "token": token,
+            "org_name": org.name if org else "",
+            "email": guest.email,
+            "default_phone": (guest.phone or h.to_phone or "").strip(),
+            "security_level": level,
+            "require_phone": require_phone,
+            "error": error,
+            "message": message,
+            "totp_uri": totp_uri,
+            "app_started": app_started,
+        },
+    )
+
+
+@router.get("/r/register/{token}/2fa", response_class=HTMLResponse)
+async def guest_register_2fa_page(
+    token: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> HTMLResponse:
+    """Schritt 2: 2FA-Methode wählen und abschließen."""
+    return await _render_register_2fa(request, db, token)
 
 
 @router.post("/r/register/{token}")
@@ -523,11 +594,9 @@ async def guest_register_submit(
     password: str = Form(...),
     password2: str = Form(...),
     email: str = Form(...),
-    mobile: str = Form(""),
-    sms_code: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
-    """Konto erstellen."""
+    """Schritt 1: E-Mail + Passwort + Bestätigung."""
     result = await db.execute(select(History).where(History.tracking_token == token))
     h = result.scalar_one_or_none()
 
@@ -535,27 +604,27 @@ async def guest_register_submit(
         return HTMLResponse("Link nicht gefunden", status_code=404)
 
     if h.guest_id:
+        gr = await db.execute(select(Guest).where(Guest.id == h.guest_id))
+        exg = gr.scalar_one_or_none()
+        if exg and exg.twofa_pending:
+            return RedirectResponse(url=f"/r/register/{token}/2fa", status_code=302)
         return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
 
     level = normalize_security_level(h.security_level)
     require_phone = requires_guest_account(level)
-    user_res = await db.execute(select(User).where(User.id == h.user_id))
-    user = user_res.scalar_one_or_none()
     email_n = (email or "").strip().lower()
-    mobile_n = (mobile or "").strip() or (h.to_phone or "").strip()
 
-    # Validate passwords
-    if len(password) < 12:
+    pw_ok, pw_err = validate_guest_password(password)
+    if not pw_ok:
         return templates.TemplateResponse(
             "receive-register.html",
             {
                 "request": request,
                 "token": token,
                 "email": email,
-                "mobile": mobile_n,
                 "security_level": level,
                 "require_phone": require_phone,
-                "error": "Passwort muss mindestens 12 Zeichen haben",
+                "error": pw_err,
                 "message": "",
             },
             status_code=400,
@@ -567,33 +636,15 @@ async def guest_register_submit(
             {
                 "request": request,
                 "token": token,
-                "email": email,
-                "mobile": mobile_n,
-                "security_level": level,
-                "require_phone": require_phone,
-                "error": "Passwörter stimmen nicht überein",
-                "message": "",
-            },
-            status_code=400,
-        )
-
-    if require_phone and not mobile_n:
-        return templates.TemplateResponse(
-            "receive-register.html",
-            {
-                "request": request,
-                "token": token,
                 "email": email_n,
-                "mobile": "",
                 "security_level": level,
                 "require_phone": require_phone,
-                "error": "Für diese Sicherheitsstufe ist eine Mobilnummer erforderlich.",
+                "error": "Passwörter stimmen nicht überein.",
                 "message": "",
             },
             status_code=400,
         )
 
-    # Bestehendes Gastkonto: gleiche E-Mail + Passwort → verknüpfen (Posteingang)
     result = await db.execute(select(Guest).where(Guest.email == email_n))
     existing = result.scalar_one_or_none()
 
@@ -605,283 +656,211 @@ async def guest_register_submit(
                     "request": request,
                     "token": token,
                     "email": email_n,
-                    "mobile": mobile_n,
                     "security_level": level,
                     "require_phone": require_phone,
-                    "error": "E-Mail bereits registriert — falsches Passwort",
+                    "error": "E-Mail bereits registriert — falsches Passwort.",
                     "message": "",
                 },
                 status_code=400,
             )
-        if mobile_n and not existing.phone:
-            existing.phone = mobile_n
-
-        if require_phone:
-            if not existing.phone_verified_at:
-                now = datetime.now(timezone.utc).replace(tzinfo=None)
-                if not sms_code:
-                    existing.sms_code = "".join(secrets.choice(string.digits) for _ in range(4))
-                    existing.sms_code_expires_at = now + timedelta(minutes=10)
-                    sms_ok = await _send_guest_sms_code(db, user.org_id if user else None, existing.phone or mobile_n, existing.sms_code)
-                    await log_audit_event(
-                        event_type="guest_sms_activation_sent",
-                        severity="info" if sms_ok else "warning",
-                        status="success" if sms_ok else "failure",
-                        target_type="guest",
-                        target_id=existing.id,
-                        error_code=None if sms_ok else "sms_send_failed",
-                        **merge_actor_fields(None, org_id=user.org_id if user else None),
-                        db=db,
-                        commit=True,
-                    )
-                    return templates.TemplateResponse(
-                        "receive-register.html",
-                        {
-                            "request": request,
-                            "token": token,
-                            "email": email_n,
-                            "mobile": existing.phone or mobile_n,
-                            "security_level": level,
-                            "require_phone": require_phone,
-                            "error": "" if sms_ok else "SMS-Code konnte nicht gesendet werden.",
-                            "message": "SMS-Code gesendet. Bitte 4-stelligen Code eingeben.",
-                        },
-                        status_code=400 if not sms_ok else 200,
-                    )
-                if (
-                    not existing.sms_code
-                    or existing.sms_code != sms_code.strip()
-                    or (
-                        existing.sms_code_expires_at
-                        and existing.sms_code_expires_at < now
-                    )
-                ):
-                    return templates.TemplateResponse(
-                        "receive-register.html",
-                        {
-                            "request": request,
-                            "token": token,
-                            "email": email_n,
-                            "mobile": existing.phone or mobile_n,
-                            "security_level": level,
-                            "require_phone": require_phone,
-                            "error": "Ungültiger oder abgelaufener SMS-Code.",
-                            "message": "",
-                        },
-                        status_code=400,
-                    )
-                existing.phone_verified_at = now
-                existing.sms_code = None
-                existing.sms_code_expires_at = None
-                await log_audit_event(
-                    event_type="guest_sms_activation_verified",
-                    severity="info",
-                    status="success",
-                    target_type="guest",
-                    target_id=existing.id,
-                    **merge_actor_fields(None, org_id=user.org_id if user else None),
-                    db=db,
-                    commit=False,
-                )
-
+        if require_phone and not existing.phone_verified_at:
+            existing.twofa_pending = True
         h.guest_id = existing.id
-        h.password_changed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        h.password_changed_at = _guest_now_naive()
         await db.commit()
+        if existing.twofa_pending:
+            return RedirectResponse(url=f"/r/register/{token}/2fa", status_code=302)
         return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
 
-    # Neues Gastkonto
+    phone0 = (h.to_phone or "").strip()
     guest = Guest(
         email=email_n,
-        phone=mobile_n or "",
+        phone=phone0,
         password_hash=bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(),
         history_id=h.id,
+        twofa_pending=True,
     )
-    if require_phone:
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
-        if not sms_code:
-            guest.sms_code = "".join(secrets.choice(string.digits) for _ in range(4))
-            guest.sms_code_expires_at = now + timedelta(minutes=10)
-            sms_ok = await _send_guest_sms_code(db, user.org_id if user else None, guest.phone or "", guest.sms_code)
-            db.add(guest)
-            await db.flush()
-            await log_audit_event(
-                event_type="guest_sms_activation_sent",
-                severity="info" if sms_ok else "warning",
-                status="success" if sms_ok else "failure",
-                target_type="guest",
-                target_id=guest.id,
-                error_code=None if sms_ok else "sms_send_failed",
-                **merge_actor_fields(None, org_id=user.org_id if user else None),
-                db=db,
-                commit=False,
-            )
-            await db.commit()
-            return templates.TemplateResponse(
-                "receive-register.html",
-                {
-                    "request": request,
-                    "token": token,
-                    "email": email_n,
-                    "mobile": guest.phone,
-                    "security_level": level,
-                    "require_phone": require_phone,
-                    "error": "" if sms_ok else "SMS-Code konnte nicht gesendet werden.",
-                    "message": "SMS-Code gesendet. Bitte 4-stelligen Code eingeben.",
-                },
-                status_code=400 if not sms_ok else 200,
-            )
-        if not sms_code.strip():
-            return templates.TemplateResponse(
-                "receive-register.html",
-                {
-                    "request": request,
-                    "token": token,
-                    "email": email_n,
-                    "mobile": guest.phone,
-                    "security_level": level,
-                    "require_phone": require_phone,
-                    "error": "Bitte zuerst SMS-Code anfordern.",
-                    "message": "",
-                },
-                status_code=400,
-            )
-
-        # Falls Frontend direkt mit Code kommt, existiert noch kein Datensatz für Vergleich.
-        return templates.TemplateResponse(
-            "receive-register.html",
-            {
-                "request": request,
-                "token": token,
-                "email": email_n,
-                "mobile": guest.phone,
-                "security_level": level,
-                "require_phone": require_phone,
-                "error": "Bitte zuerst SMS-Code anfordern.",
-                "message": "",
-            },
-            status_code=400,
-        )
-
     db.add(guest)
     await db.flush()
-
     h.guest_id = guest.id
-    h.password_changed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    h.password_changed_at = _guest_now_naive()
     await db.commit()
-
-    return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
+    return RedirectResponse(url=f"/r/register/{token}/2fa", status_code=302)
 
 
 @router.post("/r/register/{token}/2fa")
-async def guest_enable_2fa(
+async def guest_register_2fa_submit(
     token: str,
     request: Request,
-    method: str = Form("app"),  # "app" or "email"
-    code: str = Form(""),
+    action: str = Form(...),
+    email_code: str = Form(""),
+    sms_code_in: str = Form(""),
+    phone: str = Form(""),
+    totp_code: str = Form(""),
     db: AsyncSession = Depends(get_db),
-) -> JSONResponse:
-    """2FA aktivieren."""
+) -> HTMLResponse:
+    """Schritt 2: E-Mail-, SMS- oder App-2FA."""
     result = await db.execute(select(History).where(History.tracking_token == token))
     h = result.scalar_one_or_none()
-
     if not h or not h.guest_id:
-        return JSONResponse({"error": "Nicht autorisiert"}, status_code=401)
+        return HTMLResponse("Link nicht gefunden", status_code=404)
+    gr = await db.execute(select(Guest).where(Guest.id == h.guest_id))
+    guest = gr.scalar_one_or_none()
+    if not guest or not guest.twofa_pending:
+        return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
 
-    result = await db.execute(select(Guest).where(Guest.id == h.guest_id))
-    guest = result.scalar_one_or_none()
+    user = (
+        await db.execute(select(User).where(User.id == h.user_id))
+    ).scalar_one_or_none()
+    level = normalize_security_level(h.security_level)
+    require_phone = requires_guest_account(level)
+    now_n = _guest_now_naive()
 
-    if not guest:
-        return JSONResponse({"error": "Gast nicht gefunden"}, status_code=404)
+    def _phone_blocked_for_non_sms() -> bool:
+        return bool(require_phone and not guest.phone_verified_at)
 
-    if method == "app":
-        # Generate TOTP secret
-        totp_secret = pyotp.random_base32()
-        guest.totp_secret = totp_secret
-        await db.commit()
-
-        # Generate QR code URL
-        totp_uri = pyotp.totp.TOTP(totp_secret).provisioning_uri(
-            name=guest.email, issuer_name="SecureSend"
-        )
-        return JSONResponse(
-            {
-                "secret": totp_secret,
-                "uri": totp_uri,
-            }
-        )
-
-    elif method == "email":
-        # Generate email code
-        email_code = "".join(secrets.choice(string.digits) for _ in range(6))
-        guest.email_code = email_code
-        guest.email_code_expires = datetime.now(timezone.utc) + timedelta(minutes=10)
-        await db.commit()
-
-        # Send email
-        result = await db.execute(select(User).where(User.id == h.user_id))
-        user = result.scalar_one_or_none()
-
-        if user:
-            _send_email_simple(
-                user.email,
-                f"2FA Code: {email_code}",
-                f"Ihr Bestätigungscode: {email_code}",
+    if action == "email_send":
+        if _phone_blocked_for_non_sms():
+            return await _render_register_2fa(
+                request,
+                db,
+                token,
+                error="Bitte bestätigen Sie zuerst Ihre Mobilnummer per SMS (Pflicht für diese Nachricht).",
             )
-
-        return JSONResponse({"sent": True})
-
-    return JSONResponse({"error": "Ungültige Methode"}, status_code=400)
-
-
-@router.post("/r/register/{token}/2fa/verify")
-async def guest_verify_2fa(
-    token: str,
-    request: Request,
-    code: str = Form(""),
-    secret: str = Form(""),
-    db: AsyncSession = Depends(get_db),
-) -> JSONResponse:
-    """2FA Code verifizieren und aktivieren."""
-    result = await db.execute(select(History).where(History.tracking_token == token))
-    h = result.scalar_one_or_none()
-
-    if not h or not h.guest_id:
-        return JSONResponse({"error": "Nicht autorisiert"}, status_code=401)
-
-    result = await db.execute(select(Guest).where(Guest.id == h.guest_id))
-    guest = result.scalar_one_or_none()
-
-    if not guest:
-        return JSONResponse({"error": "Gast nicht gefunden"}, status_code=404)
-
-    if secret:
-        # TOTP verify
-        totp = pyotp.TOTP(secret)
-        if not totp.verify(code):
-            return JSONResponse({"error": "Falscher Code"}, status_code=400)
-
-        guest.totp_secret = secret
-        guest.totp_enabled = True
+        code = "".join(secrets.choice(string.digits) for _ in range(6))
+        guest.email_code = code
+        guest.email_code_expires = now_n + timedelta(minutes=10)
         await db.commit()
-        return JSONResponse({"enabled": True})
+        _send_email_simple(
+            guest.email,
+            "SecureSend – Bestätigungscode",
+            f"Ihr Code: {code}\n\nGültig 10 Minuten.",
+        )
+        return await _render_register_2fa(
+            request, db, token, message="Code wurde an Ihre E-Mail gesendet."
+        )
 
-    elif guest.email_code:
-        # Email code verify
-        if guest.email_code != code:
-            return JSONResponse({"error": "Falscher Code"}, status_code=400)
-
-        if guest.email_code_expires and guest.email_code_expires < datetime.now(
-            timezone.utc
+    if action == "email_verify":
+        if (
+            not guest.email_code
+            or (guest.email_code or "").strip() != (email_code or "").strip()
         ):
-            return JSONResponse({"error": "Code abgelaufen"}, status_code=400)
-
+            return await _render_register_2fa(
+                request, db, token, error="Ungültiger E-Mail-Code."
+            )
+        if guest.email_code_expires and guest.email_code_expires < now_n:
+            return await _render_register_2fa(
+                request, db, token, error="Code abgelaufen. Bitte neu anfordern."
+            )
         guest.email_code = None
         guest.email_code_expires = None
         guest.totp_enabled = True
+        guest.twofa_pending = False
         await db.commit()
-        return JSONResponse({"enabled": True})
+        return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
 
-    return JSONResponse({"error": "Keine 2FA konfiguriert"}, status_code=400)
+    if action == "sms_send":
+        ph = (phone or guest.phone or h.to_phone or "").strip()
+        if not ph:
+            return await _render_register_2fa(
+                request, db, token, error="Bitte Mobilnummer angeben."
+            )
+        guest.phone = ph
+        guest.sms_code = "".join(secrets.choice(string.digits) for _ in range(4))
+        guest.sms_code_expires_at = now_n + timedelta(minutes=10)
+        sms_ok = await _send_guest_sms_code(
+            db, user.org_id if user else None, ph, guest.sms_code
+        )
+        await log_audit_event(
+            event_type="guest_sms_activation_sent",
+            severity="info" if sms_ok else "warning",
+            status="success" if sms_ok else "failure",
+            target_type="guest",
+            target_id=guest.id,
+            error_code=None if sms_ok else "sms_send_failed",
+            **merge_actor_fields(None, org_id=user.org_id if user else None),
+            db=db,
+            commit=True,
+        )
+        return await _render_register_2fa(
+            request,
+            db,
+            token,
+            message="SMS-Code gesendet." if sms_ok else "",
+            error="" if sms_ok else "SMS konnte nicht gesendet werden.",
+        )
+
+    if action == "sms_verify":
+        if (
+            not guest.sms_code
+            or guest.sms_code != (sms_code_in or "").strip()
+            or (
+                guest.sms_code_expires_at
+                and guest.sms_code_expires_at < now_n
+            )
+        ):
+            return await _render_register_2fa(
+                request, db, token, error="Ungültiger oder abgelaufener SMS-Code."
+            )
+        guest.phone_verified_at = now_n
+        guest.sms_code = None
+        guest.sms_code_expires_at = None
+        guest.totp_enabled = True
+        guest.twofa_pending = False
+        await log_audit_event(
+            event_type="guest_sms_activation_verified",
+            severity="info",
+            status="success",
+            target_type="guest",
+            target_id=guest.id,
+            **merge_actor_fields(None, org_id=user.org_id if user else None),
+            db=db,
+            commit=True,
+        )
+        return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
+
+    if action == "app_prepare":
+        if _phone_blocked_for_non_sms():
+            return await _render_register_2fa(
+                request,
+                db,
+                token,
+                error="Bitte bestätigen Sie zuerst Ihre Mobilnummer per SMS (Pflicht für diese Nachricht).",
+            )
+        totp_secret = pyotp.random_base32()
+        guest.totp_secret = totp_secret
+        await db.commit()
+        totp_uri = pyotp.TOTP(totp_secret).provisioning_uri(
+            name=guest.email, issuer_name="SecureSend"
+        )
+        return await _render_register_2fa(
+            request, db, token, totp_uri=totp_uri, app_started=True
+        )
+
+    if action == "app_verify":
+        if not guest.totp_secret or not (totp_code or "").strip():
+            return await _render_register_2fa(
+                request, db, token, error="Bitte zuerst Authenticator einrichten und Code eingeben."
+            )
+        totp = pyotp.TOTP(guest.totp_secret)
+        if not totp.verify((totp_code or "").strip(), valid_window=1):
+            uri = pyotp.TOTP(guest.totp_secret).provisioning_uri(
+                name=guest.email, issuer_name="SecureSend"
+            )
+            return await _render_register_2fa(
+                request,
+                db,
+                token,
+                error="Ungültiger Authenticator-Code.",
+                totp_uri=uri,
+                app_started=True,
+            )
+        guest.totp_enabled = True
+        guest.twofa_pending = False
+        await db.commit()
+        return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
+
+    return await _render_register_2fa(request, db, token, error="Unbekannte Aktion.")
 
 
 # ── Passwort vergessen ─────────────────────────────────────────────────
@@ -891,6 +870,7 @@ async def guest_verify_2fa(
 async def guest_reset(
     token: str,
     request: Request,
+    code: Optional[str] = Query(default=None),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     """Passwort-Reset Formular."""
@@ -905,6 +885,8 @@ async def guest_reset(
         {
             "request": request,
             "token": token,
+            "prefilled_code": (code or "").strip(),
+            "message": "",
             "error": "",
         },
     )
@@ -914,10 +896,10 @@ async def guest_reset(
 async def guest_reset_send(
     token: str,
     request: Request,
-    method: str = Form("email"),  # "email" or "sms"
+    method: str = Form("email"),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
-    """Reset-Link oder PIN senden."""
+    """Reset-Link (E-Mail) oder PIN (SMS) senden."""
     result = await db.execute(select(History).where(History.tracking_token == token))
     h = result.scalar_one_or_none()
 
@@ -930,31 +912,81 @@ async def guest_reset_send(
     if not guest:
         return HTMLResponse("Gast nicht gefunden", status_code=404)
 
+    user = (
+        await db.execute(select(User).where(User.id == h.user_id))
+    ).scalar_one_or_none()
+    now_n = _guest_now_naive()
+    base = (settings.PUBLIC_BASE_URL or str(request.base_url)).rstrip("/")
+
     if method == "email":
-        # Generate reset token
+        guest.sms_code = None
+        guest.sms_code_expires_at = None
         reset_token = secrets.token_urlsafe(32)
         guest.email_code = reset_token
-        guest.email_code_expires = datetime.now(timezone.utc) + timedelta(hours=24)
-
-        # Send email
-        result = await db.execute(select(User).where(User.id == h.user_id))
-        user = result.scalar_one_or_none()
-
-        if user:
-            reset_url = f"{settings.PUBLIC_BASE_URL}/r/reset/{token}?code={reset_token}"
-            _send_email_simple(
-                guest.email, "Passwort zurücksetzen", f"Klicken Sie hier: {reset_url}"
-            )
-
+        guest.email_code_expires = now_n + timedelta(hours=24)
+        reset_url = f"{base}/r/reset/{token}?code={reset_token}"
+        _send_email_simple(
+            guest.email,
+            "Passwort zurücksetzen",
+            f"Öffnen Sie den Link zum Zurücksetzen:\n{reset_url}",
+        )
         await db.commit()
+        return templates.TemplateResponse(
+            "receive-reset.html",
+            {
+                "request": request,
+                "token": token,
+                "prefilled_code": "",
+                "message": "Wir haben Ihnen einen Link an Ihre E-Mail gesendet.",
+                "error": "",
+            },
+        )
+
+    if method == "sms":
+        guest.email_code = None
+        guest.email_code_expires = None
+        ph = (guest.phone or "").strip()
+        if not ph:
+            return templates.TemplateResponse(
+                "receive-reset.html",
+                {
+                    "request": request,
+                    "token": token,
+                    "prefilled_code": "",
+                    "message": "",
+                    "error": "Keine Mobilnummer im Konto hinterlegt. Nutzen Sie die E-Mail-Option oder kontaktieren Sie den Support.",
+                },
+                status_code=400,
+            )
+        pin = "".join(secrets.choice(string.digits) for _ in range(6))
+        guest.sms_code = pin
+        guest.sms_code_expires_at = now_n + timedelta(minutes=15)
+        sms_ok = await _send_guest_sms_code(
+            db, user.org_id if user else None, ph, pin
+        )
+        await db.commit()
+        return templates.TemplateResponse(
+            "receive-reset.html",
+            {
+                "request": request,
+                "token": token,
+                "prefilled_code": "",
+                "message": "SMS-PIN gesendet." if sms_ok else "",
+                "error": "" if sms_ok else "SMS konnte nicht gesendet werden.",
+            },
+            status_code=400 if not sms_ok else 200,
+        )
 
     return templates.TemplateResponse(
         "receive-reset.html",
         {
             "request": request,
             "token": token,
-            "message": "Reset-Link gesendet" if method == "email" else "PIN gesendet",
+            "prefilled_code": "",
+            "message": "",
+            "error": "Unbekannte Methode.",
         },
+        status_code=400,
     )
 
 
@@ -967,7 +999,7 @@ async def guest_reset_confirm(
     password2: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
-    """Neues Passwort setzen."""
+    """Neues Passwort setzen (nach gültigem Code / Link-Token)."""
     result = await db.execute(select(History).where(History.tracking_token == token))
     h = result.scalar_one_or_none()
 
@@ -980,14 +1012,62 @@ async def guest_reset_confirm(
     if not guest:
         return HTMLResponse("Gast nicht gefunden", status_code=404)
 
-    # Validate
-    if len(password) < 12:
+    now_n = _guest_now_naive()
+    code_n = (code or "").strip()
+    ok_code = False
+    ec = (guest.email_code or "").strip()
+    if ec and len(ec) > 12 and code_n == ec:
+        if guest.email_code_expires and guest.email_code_expires < now_n:
+            return templates.TemplateResponse(
+                "receive-reset.html",
+                {
+                    "request": request,
+                    "token": token,
+                    "prefilled_code": code_n,
+                    "error": "Link oder Code abgelaufen.",
+                    "message": "",
+                },
+                status_code=400,
+            )
+        ok_code = True
+    elif guest.sms_code and code_n == (guest.sms_code or "").strip():
+        if guest.sms_code_expires_at and guest.sms_code_expires_at < now_n:
+            return templates.TemplateResponse(
+                "receive-reset.html",
+                {
+                    "request": request,
+                    "token": token,
+                    "prefilled_code": code_n,
+                    "error": "SMS-Code abgelaufen.",
+                    "message": "",
+                },
+                status_code=400,
+            )
+        ok_code = True
+
+    if not ok_code or not code_n:
         return templates.TemplateResponse(
             "receive-reset.html",
             {
                 "request": request,
                 "token": token,
-                "error": "Passwort zu kurz",
+                "prefilled_code": code_n,
+                "error": "Ungültiger Code oder Link.",
+                "message": "",
+            },
+            status_code=400,
+        )
+
+    pw_ok, pw_err = validate_guest_password(password)
+    if not pw_ok:
+        return templates.TemplateResponse(
+            "receive-reset.html",
+            {
+                "request": request,
+                "token": token,
+                "prefilled_code": code_n,
+                "error": pw_err,
+                "message": "",
             },
             status_code=400,
         )
@@ -998,16 +1078,19 @@ async def guest_reset_confirm(
             {
                 "request": request,
                 "token": token,
-                "error": "Passwörter stimmen nicht",
+                "prefilled_code": code_n,
+                "error": "Passwörter stimmen nicht überein.",
+                "message": "",
             },
             status_code=400,
         )
 
-    # Update password
     guest.password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
     guest.email_code = None
     guest.email_code_expires = None
-    h.password_changed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+    guest.sms_code = None
+    guest.sms_code_expires_at = None
+    h.password_changed_at = now_n
     await db.commit()
 
     return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
