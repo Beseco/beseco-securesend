@@ -234,6 +234,21 @@ async def _run_migrations(conn) -> None:
             "settings_json",
             "ALTER TABLE organizations ADD COLUMN IF NOT EXISTS settings_json JSONB",
         ),
+        (
+            "guests",
+            "sms_code",
+            "ALTER TABLE guests ADD COLUMN IF NOT EXISTS sms_code VARCHAR(8)",
+        ),
+        (
+            "guests",
+            "sms_code_expires_at",
+            "ALTER TABLE guests ADD COLUMN IF NOT EXISTS sms_code_expires_at TIMESTAMP",
+        ),
+        (
+            "guests",
+            "phone_verified_at",
+            "ALTER TABLE guests ADD COLUMN IF NOT EXISTS phone_verified_at TIMESTAMP",
+        ),
     ]
 
     if is_postgres:

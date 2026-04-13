@@ -44,6 +44,11 @@ from services.hosted_provider import (
 )
 from core.smtp_config import get_env_smtp_cfg
 from services.audit import actor_fields, log_audit_event, mask_email, redact_exception_message
+from services.security_levels import (
+    DEFAULT_SECURITY_LEVEL,
+    normalize_allowed_security_levels,
+    normalize_security_level,
+)
 
 from core.hosted_storage import HOSTED_SERVICE_NAME
 from schemas.shared import (
@@ -681,6 +686,14 @@ async def get_org_settings(
     if not org:
         raise HTTPException(status_code=404, detail="Organisation not found")
     data = dict(org.settings_json or {})
+    data["allowed_security_levels"] = normalize_allowed_security_levels(
+        data.get("allowed_security_levels")
+    )
+    data["default_security_level"] = normalize_security_level(
+        data.get("default_security_level"), default=DEFAULT_SECURITY_LEVEL
+    )
+    if data["default_security_level"] not in data["allowed_security_levels"]:
+        data["default_security_level"] = data["allowed_security_levels"][0]
     data["org_slug"] = org.slug   # expose slug so the UI can build the registration link
     return data
 
@@ -771,9 +784,25 @@ async def update_org_settings(
     if not org:
         raise HTTPException(status_code=404, detail="Organisation not found")
 
+    normalized_body = dict(body)
+    if "allowed_security_levels" in normalized_body:
+        normalized_body["allowed_security_levels"] = normalize_allowed_security_levels(
+            normalized_body.get("allowed_security_levels")
+        )
+    if "default_security_level" in normalized_body:
+        normalized_body["default_security_level"] = normalize_security_level(
+            normalized_body.get("default_security_level"),
+            default=DEFAULT_SECURITY_LEVEL,
+        )
+    if "allowed_security_levels" in normalized_body:
+        allowed_levels = normalized_body["allowed_security_levels"]
+        default_level = normalized_body.get("default_security_level")
+        if not default_level or default_level not in allowed_levels:
+            normalized_body["default_security_level"] = allowed_levels[0]
+
     # Merge (do not replace outright so callers can patch individual keys)
     current_settings = dict(org.settings_json or {})
-    current_settings.update(body)
+    current_settings.update(normalized_body)
     org.settings_json = current_settings
 
     await log_audit_event(
@@ -785,8 +814,8 @@ async def update_org_settings(
         target_type="organization",
         target_id=org_id,
         meta_json={
-            "updated_keys": sorted(body.keys()),
-            "smtp_touched": "smtp" in body or "use_own_smtp" in body,
+            "updated_keys": sorted(normalized_body.keys()),
+            "smtp_touched": "smtp" in normalized_body or "use_own_smtp" in normalized_body,
         },
         **actor_fields(current_user),
         db=db,

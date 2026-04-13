@@ -43,7 +43,11 @@
           <label class="form-label" for="to_phone">Mobilnummer</label>
           <input type="tel" id="to_phone" name="to_phone" class="form-input"
                  placeholder="+49 170 1234567" oninput="checkPhoneWarning(); syncContactIdFromEmail();" />
-          <span id="phoneOptLabel" style="font-size:0.7rem;color:#94a3b8;">(für SMS)</span>
+          <span id="phoneOptLabel" style="font-size:0.7rem;color:#94a3b8;">(optional)</span>
+          <label style="display:flex;align-items:center;gap:0.5rem;margin-top:0.375rem;font-size:0.8125rem;color:#475569;">
+            <input type="checkbox" id="sms_password_delivery" name="sms_password_delivery" value="1" onchange="checkPhoneWarning()" />
+            Passwort per SMS senden (optional)
+          </label>
         </div>
       </div>
 
@@ -51,7 +55,7 @@
         <svg style="width:1rem;height:1rem;color:#ca8a04;flex-shrink:0;" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
         </svg>
-        <span style="font-size:0.8125rem;color:#92400e;flex:1;">Keine Handynummer — das Passwort kann nicht per SMS gesendet werden.</span>
+        <span style="font-size:0.8125rem;color:#92400e;flex:1;">SMS-Zustellung aktiviert, aber keine Handynummer hinterlegt.</span>
         <button type="button" id="btnRequestPhone" onclick="requestPhoneFromSendPage()"
                 style="font-size:0.75rem;font-weight:600;background:#fbbf24;color:#1c1917;border:none;border-radius:0.375rem;padding:0.25rem 0.625rem;cursor:pointer;white-space:nowrap;">📱 Nummer anfragen</button>
       </div>
@@ -141,71 +145,43 @@
         <label class="form-label" style="margin-top:0.5rem;">Sicherheitsstufe wählen</label>
         <div style="display:flex;flex-direction:column;gap:0.5rem;">
 
-          <label class="sec-card" id="lvl_normal" {% if 'normal' not in allowed_security_levels %}style="display:none;"{% endif %}>
-            <input type="radio" name="security_level" value="normal" {% if default_security_level == 'normal' %}checked{% endif %} onchange="onSecLevelChange()" />
+          <label class="sec-card" id="lvl_level1" {% if 'level1' not in allowed_security_levels %}style="display:none;"{% endif %}>
+            <input type="radio" name="security_level" value="level1" {% if default_security_level == 'level1' %}checked{% endif %} onchange="onSecLevelChange()" />
             <span style="font-size:1.375rem;line-height:1.2;flex-shrink:0;">📧</span>
             <div>
-              <div style="font-size:0.875rem;font-weight:700;color:#1e293b;">Normal</div>
-              <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">Link per E-Mail — kein Passwort, kein SMS</div>
+              <div style="font-size:0.875rem;font-weight:700;color:#1e293b;">Stufe 1</div>
+              <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">Sicherer Link, optional Passwort über separaten Kanal</div>
             </div>
           </label>
 
-          <label class="sec-card" id="lvl_standard" {% if 'standard' not in allowed_security_levels %}style="display:none;"{% endif %}>
-            <input type="radio" name="security_level" value="standard" {% if default_security_level == 'standard' %}checked{% endif %} onchange="onSecLevelChange()" />
+          <label class="sec-card" id="lvl_level2" {% if 'level2' not in allowed_security_levels %}style="display:none;"{% endif %}>
+            <input type="radio" name="security_level" value="level2" {% if default_security_level == 'level2' %}checked{% endif %} onchange="onSecLevelChange()" />
             <span style="font-size:1.375rem;line-height:1.2;flex-shrink:0;">🔑</span>
             <div>
-              <div style="font-size:0.875rem;font-weight:700;color:#1e293b;">Standard</div>
-              <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">Manuelles Passwort (selbst vergeben)</div>
+              <div style="font-size:0.875rem;font-weight:700;color:#1e293b;">Stufe 2</div>
+              <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">Sicherer Link + Gast-Login</div>
             </div>
           </label>
 
-          <label class="sec-card {% if default_security_level == 'secure' %}selected{% endif %}" id="lvl_secure" {% if 'secure' not in allowed_security_levels %}style="display:none;"{% endif %}>
-            <input type="radio" name="security_level" value="secure" {% if default_security_level == 'secure' %}checked{% endif %} onchange="onSecLevelChange()" />
-            <span style="font-size:1.375rem;line-height:1.2;flex-shrink:0;">🔒</span>
-            <div>
-              <div style="font-size:0.875rem;font-weight:700;color:#1e293b;">
-                Sicher
-                {% if default_security_level == 'secure' %}<span style="font-size:0.7rem;background:#dbeafe;color:#1e40af;padding:0.1rem 0.4rem;border-radius:9999px;font-weight:600;margin-left:0.375rem;">Standard</span>{% endif %}
-              </div>
-              <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">Passwortgeschützter Link per E-Mail + Passwort per SMS</div>
-            </div>
-          </label>
-
-          <label class="sec-card" id="lvl_extended" {% if 'extended' not in allowed_security_levels %}style="display:none;"{% endif %}>
-            <input type="radio" name="security_level" value="extended" {% if default_security_level == 'extended' %}checked{% endif %} onchange="onSecLevelChange()" />
-            <span style="font-size:1.375rem;line-height:1.2;flex-shrink:0;">🛡️</span>
-            <div>
-              <div style="font-size:0.875rem;font-weight:700;color:#1e293b;">Erweiterte Sicherheit</div>
-              <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">
-                Dateien in AES-256-verschlüsseltem ZIP · Link per E-Mail + Passwort per SMS · inkl. Info.txt
-              </div>
-            </div>
-          </label>
-
-          <label class="sec-card" id="lvl_advanced" {% if 'advanced' not in allowed_security_levels %}style="display:none;"{% endif %}>
-            <input type="radio" name="security_level" value="advanced" {% if default_security_level == 'advanced' %}checked{% endif %} onchange="onSecLevelChange()" />
+          <label class="sec-card {% if default_security_level == 'level3' %}selected{% endif %}" id="lvl_level3" {% if 'level3' not in allowed_security_levels %}style="display:none;"{% endif %}>
+            <input type="radio" name="security_level" value="level3" {% if default_security_level == 'level3' %}checked{% endif %} onchange="onSecLevelChange()" />
             <span style="font-size:1.375rem;line-height:1.2;flex-shrink:0;">🔐</span>
             <div>
-              <div style="font-size:0.875rem;font-weight:700;color:#92400e;">
-                Fortgeschritten
-                <span style="font-size:0.7rem;background:#fef3c7;color:#92400e;padding:0.1rem 0.4rem;border-radius:9999px;font-weight:600;margin-left:0.375rem;">SecureSend Storage</span>
+              <div style="font-size:0.875rem;font-weight:700;color:#1e293b;">
+                Stufe 3
+                {% if default_security_level == 'level3' %}<span style="font-size:0.7rem;background:#dbeafe;color:#1e40af;padding:0.1rem 0.4rem;border-radius:9999px;font-weight:600;margin-left:0.375rem;">Standard</span>{% endif %}
               </div>
-              <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">
-                Client-Side Verschlüsselung · Zero-Knowledge · Rückruf möglich
-              </div>
+              <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">E2E für Dateien + Gast-Login, SMS optional</div>
             </div>
           </label>
 
-          <label class="sec-card" id="lvl_maximal" {% if 'maximal' not in allowed_security_levels %}style="display:none;"{% endif %}>
-            <input type="radio" name="security_level" value="maximal" {% if default_security_level == 'maximal' %}checked{% endif %} onchange="onSecLevelChange()" />
+          <label class="sec-card" id="lvl_level4" {% if 'level4' not in allowed_security_levels %}style="display:none;"{% endif %}>
+            <input type="radio" name="security_level" value="level4" {% if default_security_level == 'level4' %}checked{% endif %} onchange="onSecLevelChange()" />
             <span style="font-size:1.375rem;line-height:1.2;flex-shrink:0;">🏢</span>
             <div>
-              <div style="font-size:0.875rem;font-weight:700;color:#92400e;">
-                Maximal
-                <span style="font-size:0.7rem;background:#fef3c7;color:#92400e;padding:0.1rem 0.4rem;border-radius:9999px;font-weight:600;margin-left:0.375rem;">E2E + Audit</span>
-              </div>
+              <div style="font-size:0.875rem;font-weight:700;color:#92400e;">Stufe 4</div>
               <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">
-                Ende-zu-Ende-Verschlüsselung · Vollständiger Audit Trail · Für Behörden
+                E2E für Dateien und Nachrichtentext + Gast-Login, SMS optional
               </div>
             </div>
           </label>
@@ -344,7 +320,7 @@
     minio: "MinIO",
   };
 
-  // ── Client-Side Encryption Utilities (for advanced security level) ───────────
+  // ── Client-Side Encryption Utilities (for level3/level4) ─────────────────
   const ENCRYPTION_ENABLED = true;
   
   // Generate random password for encryption
@@ -462,24 +438,19 @@
   });
 
   const SEC_SUMMARY_LABELS = {
-    normal: '📧 Normal',
-    standard: '🔑 Standard',
-    secure: '🔒 Sicher',
-    extended: '🛡️ Erweitert',
-    advanced: '🔐 Fortgeschritten',
-    maximal: '🏢 Maximal',
+    level1: '📧 Stufe 1',
+    level2: '🔑 Stufe 2',
+    level3: '🔐 Stufe 3',
+    level4: '🏢 Stufe 4',
   };
 
   // ── Sicherheitsstufe ─────────────────────────────────────────────────────
   function onSecLevelChange() {
-    const selected = document.querySelector('input[name="security_level"]:checked')?.value || 'secure';
-    ['normal', 'standard', 'secure', 'extended', 'advanced', 'maximal'].forEach((l) => {
+    const selected = document.querySelector('input[name="security_level"]:checked')?.value || 'level2';
+    ['level1', 'level2', 'level3', 'level4'].forEach((l) => {
       const el = document.getElementById('lvl_' + l);
       if (el) el.classList.toggle('selected', l === selected);
     });
-    const pol = document.getElementById('phoneOptLabel');
-    if (pol) pol.textContent =
-      selected === 'normal' || selected === 'standard' ? '(optional)' : '(für SMS)';
     const sum = document.getElementById('secSummaryText');
     if (sum) sum.textContent = SEC_SUMMARY_LABELS[selected] || selected;
     checkPhoneWarning();
@@ -836,10 +807,10 @@
   function checkPhoneWarning() {
     const email  = document.getElementById('to_email').value.trim();
     const phone  = document.getElementById('to_phone').value.trim();
-    const level  = document.querySelector('input[name="security_level"]:checked')?.value || 'secure';
+    const level  = document.querySelector('input[name="security_level"]:checked')?.value || 'level2';
     const warn   = document.getElementById('noPhoneWarning');
-    warn.style.display =
-      email && !phone && level !== 'normal' && level !== 'standard' ? 'flex' : 'none';
+    const smsChecked = document.getElementById('sms_password_delivery')?.checked;
+    warn.style.display = email && !phone && !!smsChecked ? 'flex' : 'none';
   }
 
   async function requestPhoneFromSendPage() {
@@ -881,16 +852,28 @@
       return;
     }
 
-    const securityLevel = document.querySelector('input[name="security_level"]:checked')?.value || 'secure';
+    const securityLevel = document.querySelector('input[name="security_level"]:checked')?.value || 'level2';
     const fd = new FormData(this);
     fd.set('message', editor ? editor.getMarkdown() : '');
 
-    // ── Client-Side Encryption for advanced/maximal security level ─────────
-    if (securityLevel === 'advanced' || securityLevel === 'maximal') {
-      if (inp.files && inp.files.length > 0) {
+    // ── Client-Side Encryption for level3/level4 ────────────────────────────
+    if (securityLevel === 'level3' || securityLevel === 'level4') {
+      if (inp.files && inp.files.length > 0 || (securityLevel === 'level4' && (editor ? editor.getMarkdown().trim() : '').length > 0)) {
         try {
           showToast('Verschlüssele Dateien…', 'info');
-          const encryptedFiles = await encryptFilesForAdvanced(inp.files);
+          const encryptedFiles = await encryptFilesForAdvanced(inp.files || []);
+          if (securityLevel === 'level4') {
+            const text = editor ? editor.getMarkdown().trim() : '';
+            if (text) {
+              const pw = encryptedFiles[0]?.password || generateEncryptionPassword();
+              const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+              const msgFile = new File([blob], '__securesend_message__.md', { type: 'text/markdown' });
+              const encryptedMessage = await encryptFile(msgFile, pw);
+              encryptedFiles.push(encryptedMessage);
+              fd.set('message', '');
+              fd.set('personal_message', '');
+            }
+          }
           
           // Add encrypted files as JSON to form
           fd.set('encrypted_files', JSON.stringify(encryptedFiles));
@@ -934,9 +917,12 @@
           _pendingSavePhone = document.getElementById('to_phone').value.trim();
           openModal('saveContactAskModal');
         }
+        if (data.recipient_has_guest_account) {
+          showToast('Empfänger hat bereits ein Gastkonto – höhere Sicherheitsstufen sind direkt nutzbar.', 'info');
+        }
         
-        // Show encryption info for advanced/maximal
-        if (securityLevel === 'advanced' || securityLevel === 'maximal') {
+        // Show encryption info for E2E levels
+        if (securityLevel === 'level3' || securityLevel === 'level4') {
           showToast('Erfolgreich gesendet! (Ende-zu-Ende verschlüsselt)', 'success');
         } else {
           showToast('Erfolgreich gesendet!', 'success');
@@ -978,7 +964,8 @@
     dismissSaveContactAsk();
     closeModal('saveContactFormModal');
     if (editor) editor.reset();
-    selectSecLevel('secure');  // wird durch onSecLevelChange nicht aufgerufen bei reset
+    document.getElementById('sms_password_delivery').checked = false;
+    selectSecLevel('level2');  // wird durch onSecLevelChange nicht aufgerufen bei reset
     onSecLevelChange();
   }
 </script>

@@ -196,7 +196,7 @@ class SendRequest(BaseModel):
     subject: str = "Ihr sicheres Dokument"
     message: str
     expiry_days: int = 7
-    security_level: str = "standard"
+    security_level: str = "level2"
     send_sms: bool = False
     send_email: bool = True
     provider_id: Optional[str] = None      # override default org provider
@@ -208,3 +208,4 @@ class SendResponse(BaseModel):
     provider: str
     expiry_days: int
     history_id: str
+    recipient_has_guest_account: bool = False

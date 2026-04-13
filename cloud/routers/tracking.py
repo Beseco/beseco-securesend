@@ -25,6 +25,7 @@ from services.hosted_provider import (
     merge_org_settings_with_storage_defaults,
     resolve_storage_quota_bytes,
 )
+from services.security_levels import is_e2e_level
 
 from core.hosted_storage import HOSTED_SERVICE_NAME
 from core.smtp_config import get_env_smtp_cfg
@@ -65,11 +66,7 @@ async def track_link(
             h.link_clicked_at = datetime.now(timezone.utc).replace(tzinfo=None)
             await db.commit()
         enc = h.encrypted_files_json or {}
-        if (
-            h.security_level in ("advanced", "maximal")
-            and enc.get("folder_path")
-            and enc.get("files")
-        ):
+        if is_e2e_level(h.security_level) and enc.get("folder_path") and enc.get("files"):
             url = f"/decrypt/{token}"
         else:
             url = h.share_url or "#"
@@ -570,7 +567,7 @@ async def track_e2e_bundle(
         raise HTTPException(status_code=404, detail="Nicht gefunden")
     if h.is_revoked:
         raise HTTPException(status_code=410, detail="Dieser Versand wurde zurückgerufen")
-    if h.security_level not in ("advanced", "maximal"):
+    if not is_e2e_level(h.security_level):
         raise HTTPException(status_code=400, detail="Kein E2E-Versand")
     payload = await _e2e_ciphertext_bundle(db, h)
     return JSONResponse(
@@ -691,7 +688,7 @@ async def decrypt_page(
     if not h:
         raise HTTPException(status_code=404, detail="Nicht gefunden")
 
-    if h.security_level not in ("advanced", "maximal"):
+    if not is_e2e_level(h.security_level):
         if h.share_url:
             return RedirectResponse(url=h.share_url, status_code=302)
         raise HTTPException(status_code=400, detail="Keine verschlüsselten Dateien")

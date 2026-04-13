@@ -59,6 +59,11 @@ from routers.requests_router import (
     create_upload_request_impl,
     list_upload_requests_data,
 )
+from services.security_levels import (
+    DEFAULT_SECURITY_LEVEL,
+    normalize_allowed_security_levels,
+    normalize_security_level,
+)
 
 router = APIRouter(prefix="/ui", tags=["ui"])
 limiter = Limiter(key_func=get_remote_address)
@@ -821,11 +826,14 @@ async def send_page(
     from services.hosted_provider import merge_org_settings_with_storage_defaults
 
     merged_os = merge_org_settings_with_storage_defaults(org_settings)
-    allowed_levels = merged_os.get(
-        "allowed_security_levels",
-        ["normal", "standard", "secure", "extended", "advanced", "maximal"],
+    allowed_levels = normalize_allowed_security_levels(
+        merged_os.get("allowed_security_levels")
     )
-    default_level = merged_os.get("default_security_level", "secure")
+    default_level = normalize_security_level(
+        merged_os.get("default_security_level"), default=DEFAULT_SECURITY_LEVEL
+    )
+    if default_level not in allowed_levels:
+        default_level = allowed_levels[0]
     storage_preference = merged_os.get("storage_preference", "securesend_cloud")
 
     return templates.TemplateResponse(

@@ -14,6 +14,7 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
+from services.security_levels import DEFAULT_SECURITY_LEVEL
 
 
 class CloudProvider(Base):
@@ -155,7 +156,7 @@ class History(Base):
         DateTime, nullable=True
     )  # Lesebestätigung (Gast-Portal)
     security_level: Mapped[str] = mapped_column(
-        String(50), nullable=False, default="standard"
+        String(50), nullable=False, default=DEFAULT_SECURITY_LEVEL
     )
     ip_address: Mapped[str] = mapped_column(String(45), nullable=False, default="")
     # For client-side encrypted files (advanced/maximal)
@@ -463,6 +464,9 @@ class Guest(Base):
     email_code_expires: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True
     )
+    sms_code: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
+    sms_code_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    phone_verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False

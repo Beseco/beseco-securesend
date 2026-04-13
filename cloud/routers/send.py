@@ -2,17 +2,15 @@
 cloud/routers/send.py — Secure send endpoint.
 
 Sicherheitsstufen:
-  normal    — Link per E-Mail, kein Passwort, kein SMS
-  standard  — wie secure, Passwort am Share (ohne SMS)
-  secure    — Passwortgeschützter Link per E-Mail + Passwort per SMS  (Standard)
-  extended  — AES-ZIP im Ordner + ZIP-Passwort per SMS
-  advanced  — Client AES-GCM, Schlüssel nur per SMS, Entschlüsselung im Browser (/decrypt)
+  level1  — Sicherer Link
+  level2  — Sicherer Link + Gastkonto
+  level3  — E2E-Dateien + Gastkonto
+  level4  — E2E-Dateien+Text + Gastkonto
 """
 
 from __future__ import annotations
 
 import base64
-import io
 import json
 import re
 import secrets
@@ -40,7 +38,7 @@ from dependencies import get_current_user, org_user_required
 from hosted_cfg import merge_hosted_storage_cfg, is_hosted_service
 from models.organization import Organization
 from models.reseller import Reseller
-from models.shared import CloudProvider, History, SmsGateway
+from models.shared import CloudProvider, Guest, History, SmsGateway
 from models.user import User
 from schemas.shared import CloudProviderSendOption, SendResponse
 from services.audit import (
@@ -57,6 +55,15 @@ from services.hosted_provider import (
     resolve_storage_quota_bytes,
 )
 from services.smtp_resolve import resolve_smtp_with_fallback
+from services.security_levels import (
+    DEFAULT_SECURITY_LEVEL,
+    LEVEL_1,
+    LEVEL_2,
+    LEVEL_3,
+    LEVEL_4,
+    normalize_allowed_security_levels,
+    normalize_security_level,
+)
 
 
 def _parse_single_recipient_email(raw: str) -> str:
@@ -94,6 +101,17 @@ def _parse_single_recipient_email(raw: str) -> str:
             detail="Bitte eine gültige E-Mail-Adresse angeben.",
         )
     return ""
+
+
+def _form_bool(raw: str | None, default: bool = False) -> bool:
+    if raw is None:
+        return default
+    v = str(raw).strip().lower()
+    if v in ("1", "true", "yes", "on"):
+        return True
+    if v in ("0", "false", "no", "off", ""):
+        return False
+    return default
 
 from config import settings as app_settings
 from core.hosted_storage import HOSTED_SERVICE_NAME
@@ -138,74 +156,8 @@ BLOCKED_EXTENSIONS: frozenset[str] = frozenset(
     }
 )
 
-_INFO_TXT = """\
-=== SecureSend – Sicherheitshinweis ===
-
-Die Datei(en) in diesem Ordner sind in einem verschlüsselten
-ZIP-Archiv (AES-256) gespeichert.
-
-Das Passwort haben Sie separat per SMS erhalten.
-
-So öffnen Sie die Dateien:
-─────────────────────────────────────
-  Windows : 7-Zip oder WinRAR
-  macOS   : Finder oder „The Unarchiver"
-  Linux   : unzip -P <passwort> datei.zip
-
-1. ZIP-Datei herunterladen
-2. Entpackprogramm öffnen
-3. Per SMS erhaltenes Passwort eingeben
-4. Fertig
-
-Warum zwei Kanäle?
-──────────────────
-  Link  →  E-Mail   (etwas das Sie haben)
-  PW    →  SMS      (etwas das Ihr Handy hat)
-
-Nur wer Zugang zu beiden Kanälen hat, kann die Dateien öffnen.
-
-Gesendet mit SecureSend – Sicheres Übermittlungssystem
-"""
-
-
 def _random_password(length: int = 12) -> str:
     return "".join(secrets.choice(_ALPHABET) for _ in range(length))
-
-
-def _build_encrypted_zip(
-    file_entries: list[tuple[str, bytes, str]],
-    message: str,
-    password: str,
-) -> bytes:
-    """Erstellt ein AES-256-verschlüsseltes ZIP (pyzipper), Fallback: Standard-ZIP."""
-    buf = io.BytesIO()
-    try:
-        import pyzipper
-
-        with pyzipper.AESZipFile(
-            buf,
-            "w",
-            compression=pyzipper.ZIP_DEFLATED,
-            encryption=pyzipper.WZ_AES,
-        ) as zf:
-            zf.setpassword(password.encode())
-            for fname, data, _ in file_entries:
-                zf.writestr(fname, data)
-            if message:
-                zf.writestr("nachricht.md", message.encode("utf-8"))
-    except ImportError:
-        import zipfile
-        import logging
-
-        logging.getLogger("send").warning(
-            "pyzipper not installed – falling back to unencrypted ZIP"
-        )
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            for fname, data, _ in file_entries:
-                zf.writestr(fname, data)
-            if message:
-                zf.writestr("nachricht.md", message.encode("utf-8"))
-    return buf.getvalue()
 
 
 async def _get_sms_gateway(db: AsyncSession, org_id: str) -> Optional[SmsGateway]:
@@ -258,9 +210,8 @@ async def send_secure(
     message: str = Form(default=""),
     personal_message: str = Form(default=""),
     expiry_days: int = Form(default=7),
-    security_level: str = Form(
-        default="secure"
-    ),  # normal | secure | extended | advanced | maximal
+    security_level: str = Form(default=DEFAULT_SECURITY_LEVEL),
+    sms_password_delivery: str = Form(default="0"),
     provider_id: Optional[str] = Form(default=None),
     encrypted_files: Optional[str] = Form(
         default=None
@@ -288,32 +239,40 @@ async def send_secure(
     if current_user.organization and current_user.organization.settings_json:
         org_settings = current_user.organization.settings_json
 
-    allowed_levels = org_settings.get(
-        "allowed_security_levels",
-        ["normal", "standard", "secure", "extended", "advanced", "maximal"],
+    allowed_levels = normalize_allowed_security_levels(
+        org_settings.get("allowed_security_levels")
     )
+    default_level = normalize_security_level(
+        org_settings.get("default_security_level"), default=DEFAULT_SECURITY_LEVEL
+    )
+    if default_level not in allowed_levels:
+        default_level = allowed_levels[0]
+
+    security_level = normalize_security_level(security_level, default=default_level)
     if security_level not in allowed_levels:
-        security_level = org_settings.get("default_security_level", "secure")
-        if security_level not in allowed_levels:
-            security_level = allowed_levels[0] if allowed_levels else "secure"
+        security_level = default_level
 
-    # Sicherheitsstufe normalisieren (alle bekannten Stufen)
-    valid_levels = ["normal", "standard", "secure", "extended", "advanced", "maximal"]
-    if security_level not in valid_levels:
-        security_level = "secure"
-
-    # use_sms für Stufen die SMS benötigen
-    use_sms = security_level in ("secure", "extended", "advanced", "maximal")
+    use_sms = _form_bool(sms_password_delivery, default=False)
+    if use_sms and not to_phone:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Für Passwortversand per SMS ist eine Mobilnummer erforderlich.",
+        )
     share_password: Optional[str] = None
-    zip_password: Optional[str] = None
     e2e_sms_password: Optional[str] = None
     enc_data_parsed: Optional[list] = None
+    recipient_has_guest_account = False
 
-    if security_level == "secure":
+    if to_email:
+        existing_guest = await db.execute(
+            select(Guest).where(Guest.email == to_email.strip().lower())
+        )
+        recipient_has_guest_account = existing_guest.scalar_one_or_none() is not None
+
+    if security_level in (LEVEL_1, LEVEL_2) and use_sms:
         share_password = _random_password()
-    elif security_level == "extended":
-        zip_password = _random_password()
-    elif security_level in ("advanced", "maximal"):
+
+    if security_level in (LEVEL_3, LEVEL_4):
         if encrypted_files:
             try:
                 enc_data_parsed = json.loads(encrypted_files)
@@ -323,25 +282,31 @@ async def send_secure(
                     detail="Ungültiges verschlüsseltes Dateiformat",
                 )
             if not enc_data_parsed:
-                share_password = _random_password()
-            else:
-                pws = {
-                    item.get("password")
-                    for item in enc_data_parsed
-                    if item.get("password")
-                }
-                if len(pws) == 1:
-                    e2e_sms_password = next(iter(pws))
-                elif pws:
-                    e2e_sms_password = enc_data_parsed[0].get("password")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Für Stufe 3/4 ist Ende-zu-Ende-Verschlüsselung erforderlich.",
+                )
+            pws = {item.get("password") for item in enc_data_parsed if item.get("password")}
+            if len(pws) == 1:
+                e2e_sms_password = next(iter(pws))
+            elif pws:
+                e2e_sms_password = enc_data_parsed[0].get("password")
+            if not e2e_sms_password:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="E2E-Passwort fehlt in den verschlüsselten Daten.",
+                )
         else:
-            share_password = _random_password()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Für Stufe 3/4 sind verschlüsselte Daten erforderlich.",
+            )
 
     # ── Dateien validieren und lesen ───────────────────────────────────────
     valid_files = [f for f in files if f.filename]
     file_entries: list[tuple[str, bytes, str]] = []
 
-    if security_level in ("advanced", "maximal") and enc_data_parsed:
+    if security_level in (LEVEL_3, LEVEL_4) and enc_data_parsed:
         for item in enc_data_parsed:
             if "filename" not in item or "encryptedData" not in item:
                 raise HTTPException(
@@ -453,31 +418,7 @@ async def send_secure(
         import asyncio
         from core.storage import upload_files_and_share_folder, upload_and_share  # type: ignore
 
-        if security_level == "extended":
-            # Alle Dateien + Nachricht in verschlüsseltem ZIP
-            zip_bytes = _build_encrypted_zip(file_entries, message, zip_password)
-            upload_list = [
-                ("securesend_verschluesselt.zip", zip_bytes, "application/zip"),
-                ("Info.txt", _INFO_TXT.encode("utf-8"), "text/plain"),
-            ]
-            share_url = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: upload_files_and_share_folder(
-                    cfg=cfg,
-                    files=upload_list,
-                    folder_path=folder_path,
-                    password=None,  # kein Passwort auf Share, Datei selbst ist verschlüsselt
-                    days=expiry_days,
-                ),
-            )
-            filename = (
-                f"{len(file_entries)} Datei(en) (verschlüsselt)"
-                if file_entries
-                else "Nachricht (verschlüsselt)"
-            )
-            storage_folder_path = folder_path
-
-        elif security_level in ("advanced", "maximal") and enc_data_parsed:
+        if security_level in (LEVEL_3, LEVEL_4) and enc_data_parsed:
             upload_list = list(file_entries)
             share_url = await asyncio.get_event_loop().run_in_executor(
                 None,
@@ -655,37 +596,35 @@ async def send_secure(
                 f"<div style='background:#f8fafc;border-left:3px solid #1a56db;"
                 f"padding:0.75rem 1rem;margin-bottom:1.5rem;border-radius:0 0.375rem 0.375rem 0;"
                 f"font-style:italic;color:#475569;'>{personal_message}</div>"
-                if personal_message
+                if personal_message and security_level != LEVEL_4
                 else ""
             )
 
-            if security_level == "normal":
+            if security_level == LEVEL_1:
                 pw_hint = ""
-                link_hint = "<p>Der Link ist ohne Passwort zugänglich.</p>"
-            elif security_level == "standard":
-                pw_hint = (
-                    "<p>Dieser Link ist passwortgeschützt. Das Passwort wurde mit Ihnen "
-                    "auf anderem Weg vereinbart.</p>"
+                link_hint = (
+                    "<p>Sicherer Link ohne Login. Optionales Passwort wurde "
+                    + ("per SMS zugestellt." if use_sms else "separat vereinbart.")
+                    + "</p>"
                 )
-                link_hint = ""
-            elif security_level == "secure":
-                pw_hint = "<p>Das Passwort für den Link erhalten Sie separat per SMS.</p>"
-                link_hint = ""
-            elif security_level in ("advanced", "maximal") and enc_data_parsed:
+            elif security_level == LEVEL_2:
+                pw_hint = (
+                    "<p>Zum Öffnen erstellen Sie ein Gastkonto oder melden sich im vorhandenen "
+                    "Gastkonto an.</p>"
+                )
+                link_hint = "<p>Für zukünftige Sendungen ist damit eine höhere Sicherheit möglich.</p>"
+            elif security_level in (LEVEL_3, LEVEL_4) and enc_data_parsed:
                 pw_hint = (
                     "<p><strong>Ende-zu-Ende-Verschlüsselung:</strong> Öffnen Sie den Link "
-                    "und geben Sie das Entschlüsselungspasswort ein, das Sie per SMS erhalten.</p>"
+                    "und geben Sie das Entschlüsselungspasswort ein.</p>"
                     "<p>Der Server speichert Ihre Dateiinhalte nicht im Klartext.</p>"
                 )
-                link_hint = ""
-            elif security_level == "extended":
-                pw_hint = (
-                    "<p>Das Passwort zum Entschlüsseln der ZIP-Datei erhalten Sie per SMS.</p>"
-                    "<p>Bitte beachten Sie die <strong>Info.txt</strong> im Download-Ordner.</p>"
-                )
-                link_hint = ""
-            elif security_level in ("advanced", "maximal"):
-                pw_hint = "<p>Das Passwort für den Link erhalten Sie separat per SMS.</p>"
+                if security_level == LEVEL_4:
+                    link_hint = "<p>Auch der Nachrichtentext wurde Ende-zu-Ende verschlüsselt übertragen.</p>"
+                else:
+                    link_hint = ""
+            else:
+                pw_hint = ""
                 link_hint = ""
 
             tracking_link = f"{base_url}/track/l/{tracking_token}"
@@ -748,13 +687,15 @@ async def send_secure(
     now_naive = datetime.now(timezone.utc).replace(tzinfo=None)
     expires_at = now_naive + timedelta(days=expiry_days)
     msg_src = (personal_message or message or "").strip()
-    if len(msg_src) > 600:
+    if security_level == LEVEL_4:
+        message_preview = None
+    elif len(msg_src) > 600:
         message_preview = msg_src[:597] + "..."
     else:
         message_preview = msg_src or None
 
     encrypted_files_store = None
-    if security_level in ("advanced", "maximal") and enc_data_parsed:
+    if security_level in (LEVEL_3, LEVEL_4) and enc_data_parsed:
         encrypted_files_store = {
             "folder_path": folder_path,
             "provider_id": provider.id,
@@ -800,6 +741,7 @@ async def send_secure(
             "has_email": bool(to_email),
             "recipient_masked": mask_email(to_email) if to_email else None,
             "recipient_domain_sha256_16": email_domain_hash(to_email) if to_email else None,
+                    "recipient_has_guest_account": recipient_has_guest_account,
             "security_level": security_level,
             "provider": provider.service,
             "file_label_len": len(filename or ""),
@@ -811,7 +753,7 @@ async def send_secure(
     await db.commit()
     await db.refresh(h)
 
-    effective_password = zip_password or share_password or e2e_sms_password
+    effective_password = share_password or e2e_sms_password
 
     # ── SMS senden ─────────────────────────────────────────────────────────
     if use_sms and to_phone and effective_password:
@@ -820,9 +762,7 @@ async def send_secure(
             try:
                 from core.sms import send_sms_sipgate  # type: ignore
 
-                if security_level == "extended":
-                    sms_text = f"{subject}\nLink: {persisted_share_url}\nZIP-Passwort: {effective_password}"
-                elif security_level in ("advanced", "maximal") and enc_data_parsed:
+                if security_level in (LEVEL_3, LEVEL_4) and enc_data_parsed:
                     short_link = f"{base_url}/track/l/{h.tracking_token}"
                     sms_text = f"{subject}\n{short_link}\nE2E-Passwort: {effective_password}"
                 else:
@@ -841,4 +781,5 @@ async def send_secure(
         provider=provider.service,
         expiry_days=expiry_days,
         history_id=history_id,
+        recipient_has_guest_account=recipient_has_guest_account,
     )

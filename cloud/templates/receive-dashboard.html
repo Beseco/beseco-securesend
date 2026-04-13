@@ -25,11 +25,11 @@
             </div>
             <div class="text-right">
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
-                    {% if security_level == 'normal' %}bg-green-100 text-green-800
-                    {% elif security_level == 'standard' %}bg-blue-100 text-blue-800
-                    {% elif security_level == 'secure' %}bg-yellow-100 text-yellow-800
+                    {% if security_level == 'level1' %}bg-green-100 text-green-800
+                    {% elif security_level == 'level2' %}bg-blue-100 text-blue-800
+                    {% elif security_level == 'level3' %}bg-yellow-100 text-yellow-800
                     {% else %}bg-red-100 text-red-800{% endif %}">
-                    {{ security_level }}
+                    {{ security_level|replace('level','Stufe ') }}
                 </span>
             </div>
         </div>

@@ -55,8 +55,17 @@ from config import settings
 from database import get_db
 from models.organization import Organization
 from models.reseller import Reseller
-from models.shared import CloudProvider, Contact, History, Guest, UploadRequest
+from models.shared import CloudProvider, Contact, History, Guest, SmsGateway, UploadRequest
 from models.user import User
+from services.audit import actor_fields, log_audit_event
+from services.security_levels import (
+    LEVEL_1,
+    LEVEL_2,
+    LEVEL_3,
+    LEVEL_4,
+    normalize_security_level,
+    requires_guest_account,
+)
 
 log = logging.getLogger("securesend")
 limiter = Limiter(key_func=get_remote_address)
@@ -161,6 +170,34 @@ def _get_client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
+async def _get_sms_gateway(db: AsyncSession, org_id: Optional[str]) -> Optional[SmsGateway]:
+    if not org_id:
+        return None
+    result = await db.execute(
+        select(SmsGateway).where(
+            SmsGateway.org_id == org_id,
+            SmsGateway.is_default == True,  # noqa: E712
+            SmsGateway.is_active == True,  # noqa: E712
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def _send_guest_sms_code(
+    db: AsyncSession, org_id: Optional[str], phone: str, code: str
+) -> bool:
+    gateway = await _get_sms_gateway(db, org_id)
+    if not gateway or not gateway.config_json:
+        return False
+    try:
+        from core.sms import send_sms_sipgate  # type: ignore
+
+        send_sms_sipgate(gateway.config_json, phone, f"Ihr SecureSend Code: {code}")
+        return True
+    except Exception:
+        return False
+
+
 @router.get("/r/{token}", response_class=HTMLResponse)
 async def guest_landing(
     token: str,
@@ -176,6 +213,10 @@ async def guest_landing(
 
     if h.is_revoked:
         return HTMLResponse("<h1>Dieser Link wurde zurückgerufen</h1>", status_code=410)
+
+    level = normalize_security_level(h.security_level)
+    if requires_guest_account(level) and not h.guest_id:
+        return RedirectResponse(url=f"/r/register/{token}", status_code=302)
 
     # Hole Organisation und Reseller
     result = await db.execute(select(User).where(User.id == h.user_id))
@@ -205,16 +246,32 @@ async def guest_landing(
         return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
 
     # Security level determines auth method
-    level = h.security_level or "standard"
+    level = normalize_security_level(h.security_level)
+    if requires_guest_account(level):
+        return RedirectResponse(url=f"/r/register/{token}", status_code=302)
 
     # Normale Stufe: kein Passwort
-    if level == "normal":
+    if level == LEVEL_1:
         # Direkt weiterleiten
         # Track access
         h.access_count = (h.access_count or 0) + 1
         h.link_clicked_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await db.commit()
+        await log_audit_event(
+            event_type="guest_link_opened",
+            severity="info",
+            status="success",
+            target_type="history",
+            target_id=h.id,
+            org_id=user.org_id,
+            **actor_fields(None),
+            db=db,
+            commit=True,
+        )
         return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
+
+    if requires_guest_account(level):
+        return RedirectResponse(url=f"/r/register/{token}", status_code=302)
 
     # Andere Stufen: Passwort erforderlich
     return templates.TemplateResponse(
@@ -250,36 +307,7 @@ async def guest_verify(
     if h.is_revoked:
         return HTMLResponse("Dieser Link wurde zurückgerufen", status_code=410)
 
-    level = h.security_level or "standard"
-
-    # Prüfe Passwort
-    if h.password_hash:
-        if not password:
-            return templates.TemplateResponse(
-                "guest_message_gate.html",
-                {
-                    "request": request,
-                    "token": token,
-                    "level": level,
-                    "security_level": level,
-                    "error": "Passwort erforderlich",
-                },
-                status_code=401,
-            )
-
-        # Verify password
-        if not bcrypt.checkpw(password.encode(), h.password_hash.encode()):
-            return templates.TemplateResponse(
-                "guest_message_gate.html",
-                {
-                    "request": request,
-                    "token": token,
-                    "level": level,
-                    "security_level": level,
-                    "error": "Falsches Passwort",
-                },
-                status_code=401,
-            )
+    level = normalize_security_level(h.security_level)
 
     # Erfolgreich - Track access
     h.access_count = (h.access_count or 0) + 1
@@ -372,7 +400,7 @@ async def guest_dashboard(
             "created_at": h.created_at.isoformat() if h.created_at else "",
             "download_count": h.download_count or 0,
             "guest": guest,
-            "security_level": h.security_level or "standard",
+            "security_level": level,
         },
     )
 
@@ -465,6 +493,7 @@ async def guest_register(
     )
     org = result.scalar_one_or_none()
 
+    level = normalize_security_level(h.security_level)
     return templates.TemplateResponse(
         "receive-register.html",
         {
@@ -472,8 +501,12 @@ async def guest_register(
             "token": token,
             "org": org,
             "org_name": org.name if org else "",
+            "security_level": level,
+            "require_phone": requires_guest_account(level),
             "email": h.to_email or "",
+            "mobile": h.to_phone or "",
             "error": "",
+            "message": "",
         },
     )
 
@@ -485,6 +518,8 @@ async def guest_register_submit(
     password: str = Form(...),
     password2: str = Form(...),
     email: str = Form(...),
+    mobile: str = Form(""),
+    sms_code: str = Form(""),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
     """Konto erstellen."""
@@ -497,6 +532,13 @@ async def guest_register_submit(
     if h.guest_id:
         return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
 
+    level = normalize_security_level(h.security_level)
+    require_phone = requires_guest_account(level)
+    user_res = await db.execute(select(User).where(User.id == h.user_id))
+    user = user_res.scalar_one_or_none()
+    email_n = (email or "").strip().lower()
+    mobile_n = (mobile or "").strip() or (h.to_phone or "").strip()
+
     # Validate passwords
     if len(password) < 12:
         return templates.TemplateResponse(
@@ -505,7 +547,11 @@ async def guest_register_submit(
                 "request": request,
                 "token": token,
                 "email": email,
-                "error": "Passwort muss mindestens 8 Zeichen haben",
+                "mobile": mobile_n,
+                "security_level": level,
+                "require_phone": require_phone,
+                "error": "Passwort muss mindestens 12 Zeichen haben",
+                "message": "",
             },
             status_code=400,
         )
@@ -517,13 +563,33 @@ async def guest_register_submit(
                 "request": request,
                 "token": token,
                 "email": email,
+                "mobile": mobile_n,
+                "security_level": level,
+                "require_phone": require_phone,
                 "error": "Passwörter stimmen nicht überein",
+                "message": "",
+            },
+            status_code=400,
+        )
+
+    if require_phone and not mobile_n:
+        return templates.TemplateResponse(
+            "receive-register.html",
+            {
+                "request": request,
+                "token": token,
+                "email": email_n,
+                "mobile": "",
+                "security_level": level,
+                "require_phone": require_phone,
+                "error": "Für diese Sicherheitsstufe ist eine Mobilnummer erforderlich.",
+                "message": "",
             },
             status_code=400,
         )
 
     # Bestehendes Gastkonto: gleiche E-Mail + Passwort → verknüpfen (Posteingang)
-    result = await db.execute(select(Guest).where(Guest.email == email))
+    result = await db.execute(select(Guest).where(Guest.email == email_n))
     existing = result.scalar_one_or_none()
 
     if existing:
@@ -533,25 +599,167 @@ async def guest_register_submit(
                 {
                     "request": request,
                     "token": token,
-                    "email": email,
+                    "email": email_n,
+                    "mobile": mobile_n,
+                    "security_level": level,
+                    "require_phone": require_phone,
                     "error": "E-Mail bereits registriert — falsches Passwort",
+                    "message": "",
                 },
                 status_code=400,
             )
+        if mobile_n and not existing.phone:
+            existing.phone = mobile_n
+
+        if require_phone:
+            if not existing.phone_verified_at:
+                now = datetime.now(timezone.utc).replace(tzinfo=None)
+                if not sms_code:
+                    existing.sms_code = "".join(secrets.choice(string.digits) for _ in range(4))
+                    existing.sms_code_expires_at = now + timedelta(minutes=10)
+                    sms_ok = await _send_guest_sms_code(db, user.org_id if user else None, existing.phone or mobile_n, existing.sms_code)
+                    await log_audit_event(
+                        event_type="guest_sms_activation_sent",
+                        severity="info" if sms_ok else "warning",
+                        status="success" if sms_ok else "failure",
+                        target_type="guest",
+                        target_id=existing.id,
+                        org_id=user.org_id if user else None,
+                        error_code=None if sms_ok else "sms_send_failed",
+                        **actor_fields(None),
+                        db=db,
+                        commit=True,
+                    )
+                    return templates.TemplateResponse(
+                        "receive-register.html",
+                        {
+                            "request": request,
+                            "token": token,
+                            "email": email_n,
+                            "mobile": existing.phone or mobile_n,
+                            "security_level": level,
+                            "require_phone": require_phone,
+                            "error": "" if sms_ok else "SMS-Code konnte nicht gesendet werden.",
+                            "message": "SMS-Code gesendet. Bitte 4-stelligen Code eingeben.",
+                        },
+                        status_code=400 if not sms_ok else 200,
+                    )
+                if (
+                    not existing.sms_code
+                    or existing.sms_code != sms_code.strip()
+                    or (
+                        existing.sms_code_expires_at
+                        and existing.sms_code_expires_at < now
+                    )
+                ):
+                    return templates.TemplateResponse(
+                        "receive-register.html",
+                        {
+                            "request": request,
+                            "token": token,
+                            "email": email_n,
+                            "mobile": existing.phone or mobile_n,
+                            "security_level": level,
+                            "require_phone": require_phone,
+                            "error": "Ungültiger oder abgelaufener SMS-Code.",
+                            "message": "",
+                        },
+                        status_code=400,
+                    )
+                existing.phone_verified_at = now
+                existing.sms_code = None
+                existing.sms_code_expires_at = None
+                await log_audit_event(
+                    event_type="guest_sms_activation_verified",
+                    severity="info",
+                    status="success",
+                    target_type="guest",
+                    target_id=existing.id,
+                    org_id=user.org_id if user else None,
+                    **actor_fields(None),
+                    db=db,
+                    commit=False,
+                )
+
         h.guest_id = existing.id
         h.password_changed_at = datetime.now(timezone.utc).replace(tzinfo=None)
-        if not existing.phone and h.to_phone:
-            existing.phone = h.to_phone
         await db.commit()
         return RedirectResponse(url=f"/r/dashboard/{token}", status_code=302)
 
     # Neues Gastkonto
     guest = Guest(
-        email=email,
-        phone=h.to_phone or "",
+        email=email_n,
+        phone=mobile_n or "",
         password_hash=bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode(),
         history_id=h.id,
     )
+    if require_phone:
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        if not sms_code:
+            guest.sms_code = "".join(secrets.choice(string.digits) for _ in range(4))
+            guest.sms_code_expires_at = now + timedelta(minutes=10)
+            sms_ok = await _send_guest_sms_code(db, user.org_id if user else None, guest.phone or "", guest.sms_code)
+            db.add(guest)
+            await db.flush()
+            await log_audit_event(
+                event_type="guest_sms_activation_sent",
+                severity="info" if sms_ok else "warning",
+                status="success" if sms_ok else "failure",
+                target_type="guest",
+                target_id=guest.id,
+                org_id=user.org_id if user else None,
+                error_code=None if sms_ok else "sms_send_failed",
+                **actor_fields(None),
+                db=db,
+                commit=False,
+            )
+            await db.commit()
+            return templates.TemplateResponse(
+                "receive-register.html",
+                {
+                    "request": request,
+                    "token": token,
+                    "email": email_n,
+                    "mobile": guest.phone,
+                    "security_level": level,
+                    "require_phone": require_phone,
+                    "error": "" if sms_ok else "SMS-Code konnte nicht gesendet werden.",
+                    "message": "SMS-Code gesendet. Bitte 4-stelligen Code eingeben.",
+                },
+                status_code=400 if not sms_ok else 200,
+            )
+        if not sms_code.strip():
+            return templates.TemplateResponse(
+                "receive-register.html",
+                {
+                    "request": request,
+                    "token": token,
+                    "email": email_n,
+                    "mobile": guest.phone,
+                    "security_level": level,
+                    "require_phone": require_phone,
+                    "error": "Bitte zuerst SMS-Code anfordern.",
+                    "message": "",
+                },
+                status_code=400,
+            )
+
+        # Falls Frontend direkt mit Code kommt, existiert noch kein Datensatz für Vergleich.
+        return templates.TemplateResponse(
+            "receive-register.html",
+            {
+                "request": request,
+                "token": token,
+                "email": email_n,
+                "mobile": guest.phone,
+                "security_level": level,
+                "require_phone": require_phone,
+                "error": "Bitte zuerst SMS-Code anfordern.",
+                "message": "",
+            },
+            status_code=400,
+        )
+
     db.add(guest)
     await db.flush()
 

@@ -39,23 +39,23 @@
         <!-- Security Level Info -->
         <div class="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <div class="flex items-center gap-2">
-                {% if security_level == 'normal' %}
+                {% if security_level == 'level1' %}
                 <span class="text-2xl">📧</span>
                 <div>
-                    <p class="font-medium">Normal</p>
-                    <p class="text-sm text-gray-600">Kein Passwort erforderlich</p>
+                    <p class="font-medium">Stufe 1</p>
+                    <p class="text-sm text-gray-600">Sicherer Link</p>
                 </div>
-                {% elif security_level == 'standard' %}
+                {% elif security_level == 'level2' %}
                 <span class="text-2xl">🔑</span>
                 <div>
-                    <p class="font-medium">Standard</p>
-                    <p class="text-sm text-gray-600">Manuelles Passwort erforderlich</p>
+                    <p class="font-medium">Stufe 2</p>
+                    <p class="text-sm text-gray-600">Gastkonto erforderlich</p>
                 </div>
-                {% elif security_level in ['secure', 'extended', 'advanced', 'maximal'] %}
+                {% elif security_level in ['level3', 'level4'] %}
                 <span class="text-2xl">🔒</span>
                 <div>
-                    <p class="font-medium">Sicher ({{ security_level|e }})</p>
-                    <p class="text-sm text-gray-600">Passwort + SMS-Code erforderlich</p>
+                    <p class="font-medium">Stufe {{ '3' if security_level == 'level3' else '4' }}</p>
+                    <p class="text-sm text-gray-600">E2E-Verschlüsselung aktiv</p>
                 </div>
                 {% endif %}
             </div>
@@ -64,7 +64,7 @@
         <!-- Password Form -->
         <form method="POST" action="/r/{{ token }}/verify">
             <div class="space-y-4">
-                {% if security_level != 'normal' %}
+                {% if security_level == 'level1' %}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">
                         Passwort
@@ -83,7 +83,7 @@
                     type="submit"
                     class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition"
                 >
-                    {% if security_level == 'normal' %}
+                    {% if security_level == 'level1' %}
                     Nachricht ansehen
                     {% else %}
                     Zugang

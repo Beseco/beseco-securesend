@@ -1,34 +1,54 @@
 # SecureSend Cloud – Sicherheitsstufen
 
-Diese Dokumentation erklärt die 6 Sicherheitsstufen von SecureSend Cloud.
+Diese Dokumentation erklärt das aktuelle 4-Stufen-Modell von SecureSend Cloud.
 
 ---
 
 ## Inhaltsverzeichnis
 
 1. [Übersicht](#übersicht)
-2. [Detailierte Erklärung](#detailierte-erklärung)
-3. [Vergleichstabelle](#vergleichstabelle)
-4. [Für wen welche Stufe?](#für-wen-welche-stufe)
-5. [Technische Details](#technische-details)
-6. [Konfiguration (für Administratoren)](#konfiguration-für-administratoren)
+2. [Stufe 1 bis 4](#stufe-1-bis-4)
+3. [Konfiguration (für Administratoren)](#konfiguration-für-administratoren)
 
 ---
 
 ## Übersicht
 
-| Stufe | Icon | Verschlüsselung | Passwort | SMS | 2FA | Client-Verschlüsselung |
-|------|------|---------------|----------|-----|-----|---------------------|
-| Normal | 📧 | TLS | ❌ | ❌ | ❌ | ❌ |
-| Standard | 🔑 | TLS | ✓ (selbst) | ❌ | ❌ | ❌ |
-| Secure | 🔒 | TLS | ✓ | ✓ | ❌ | ❌ |
-| Extended | 🛡️ | TLS | ✓ | ✓ | ✓ | ❌ |
-| Advanced | ⚡ | TLS + E2E | ✓ | ✓ | ✓ | ✓ |
-| Maximal | 🔐 | TLS + E2E | ✓ | ✓ | ✓ | ✓ + Video |
+| Stufe | Kernfunktion | E2E Dateien | E2E Text | Gastkonto | SMS Passwort |
+|------|---------------|-------------|----------|-----------|--------------|
+| Stufe 1 | Sicherer Link | ❌ | ❌ | ❌ | Optional |
+| Stufe 2 | Link + Login | ❌ | ❌ | ✓ | Optional |
+| Stufe 3 | E2E Dateien + Login | ✓ | ❌ | ✓ | Optional |
+| Stufe 4 | E2E Dateien + Text + Login | ✓ | ✓ | ✓ | Optional |
 
 ---
 
-## Detailierte Erklärung
+## Stufe 1 bis 4
+
+### Stufe 1
+- Sicherer Link ohne Pflicht-Login
+- Optional kann ein Passwort über SMS/Telefon/Chat separat übermittelt werden
+
+### Stufe 2
+- Sicherer Link mit Gastkonto
+- Bestehende Gastkonten werden wiederverwendet
+- Optionales Passwort per SMS möglich
+
+### Stufe 3
+- Ende-zu-Ende-Verschlüsselung für Dateien
+- Gastkonto erforderlich
+- Passwortübermittlung per SMS optional
+
+### Stufe 4
+- Ende-zu-Ende-Verschlüsselung für Dateien und Nachrichtentext
+- Gastkonto erforderlich
+- Passwortübermittlung per SMS optional
+
+---
+
+## Hinweis zur Alt-Doku
+
+Die nachfolgenden Abschnitte zur alten 6-Stufen-Logik werden sukzessive bereinigt.
 
 ### 🔵 Stufe 1: Normal 📧
 
