@@ -159,6 +159,19 @@ async def portal_forgot_password_submit(
         .limit(1)
     )
     h = hr.scalar_one_or_none()
+    # Fallback: Konto existiert, aber noch keine explizite guest_id-Verknüpfung.
+    # Dann letzten Versand für dieselbe Empfänger-E-Mail nutzen und verknüpfen.
+    if not h:
+        hr = await db.execute(
+            select(History)
+            .where(History.to_email == email_n)
+            .order_by(desc(History.created_at))
+            .limit(1)
+        )
+        h = hr.scalar_one_or_none()
+        if h and not h.guest_id:
+            h.guest_id = guest.id
+            await db.commit()
     if not h or not (h.tracking_token or "").strip():
         return templates.TemplateResponse(
             "portal_forgot_password.html",
