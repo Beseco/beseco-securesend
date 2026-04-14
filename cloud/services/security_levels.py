@@ -51,3 +51,34 @@ def is_text_e2e_level(level: str) -> bool:
 
 def requires_guest_account(level: str) -> bool:
     return normalize_security_level(level) in (LEVEL_2, LEVEL_3, LEVEL_4)
+
+
+ADDIN_CLIENT_CHANNELS: tuple[str, ...] = ("outlook-addin", "ftapi-addin")
+LEVEL4_ADDIN_ONLY_NOTICE = (
+    "Stufe 4 ist aktuell nur über das Outlook-Add-in verfügbar. "
+    "Der Versand wurde als Stufe 3 verarbeitet."
+)
+
+
+def normalize_client_channel(raw: str | None) -> str:
+    return (raw or "").strip().lower()
+
+
+def is_addin_channel(raw: str | None) -> bool:
+    return normalize_client_channel(raw) in ADDIN_CLIENT_CHANNELS
+
+
+def should_downgrade_level4(level: str, client_channel: str | None) -> bool:
+    # Sicherheits-/Produktstatus aktuell: level4 wird serverseitig generell
+    # auf level3 heruntergestuft, bis der Add-in-Flow produktiv freigegeben ist.
+    _ = client_channel
+    return normalize_security_level(level) == LEVEL_4
+
+
+def resolve_effective_level_for_channel(
+    requested_level: str, client_channel: str | None
+) -> tuple[str, str | None]:
+    normalized = normalize_security_level(requested_level)
+    if should_downgrade_level4(normalized, client_channel):
+        return LEVEL_3, LEVEL4_ADDIN_ONLY_NOTICE
+    return normalized, None

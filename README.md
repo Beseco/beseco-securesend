@@ -270,7 +270,7 @@ Zusätzliche Markdown-Dateien unter [`docs/`](docs/) — jeweils mit **Inhaltsve
 |----------|--------|
 | [Benutzer-Anleitung](docs/Benutzer-Anleitung.md) | Funktionen für Organisations-Benutzer |
 | [Gast-Portal-Anleitung](docs/Gast-Portal-Anleitung.md) | Anleitung für Empfänger (Gast-Portal) |
-| [Sicherheitsstufen](docs/Sicherheitsstufen.md) | Erklärung der sechs Stufen |
+| [Sicherheitsstufen](docs/Sicherheitsstufen.md) | Aktuelles 4-Stufen-Modell (Web: Stufe 1-3, Stufe 4 Add-in-only) |
 | [Sicherheitsinfo](docs/Sicherheitsinfo.md) | Schutzmaßnahmen und technischer Überblick |
 | [Umsetzungsplan SecureSend Storage](docs/Umsetzungsplan-SecureSend-Storage.md) | Gehosteter Speicher, Umgebung, Betrieb |
 | [Coolify-Deployment](docs/Coolify-Deployment.md) | Deployment mit Coolify |

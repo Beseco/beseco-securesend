@@ -209,3 +209,6 @@ class SendResponse(BaseModel):
     expiry_days: int
     history_id: str
     recipient_has_guest_account: bool = False
+    requested_security_level: Optional[str] = None
+    effective_security_level: Optional[str] = None
+    level_downgrade_notice: Optional[str] = None

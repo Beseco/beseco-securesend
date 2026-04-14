@@ -227,7 +227,7 @@
           <input type="checkbox" id="secLevel4" style="accent-color:#1a56db;width:1rem;height:1rem;" />
           <div>
             <div style="font-size:0.875rem;font-weight:600;color:#92400e;">Stufe 4</div>
-            <div style="font-size:0.75rem;color:#92400e;">E2E Dateien + Text</div>
+            <div style="font-size:0.75rem;color:#92400e;">In Entwicklung: nur Outlook-Add-in</div>
           </div>
         </label>
       </div>
@@ -251,7 +251,7 @@
           </select>
         </div>
       </div>
-      <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.25rem;">Alle Stufen können auf Kunden-Cloud oder SecureSend Storage genutzt werden.</p>
+      <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.25rem;">Stufe 4 ist in der Web-App nur als Vorschau sichtbar. Web-Versand mit Stufe 4 wird derzeit serverseitig als Stufe 3 verarbeitet; echte Stufe 4 ist für das Outlook-Add-in vorgesehen.</p>
     </div>
 
     <button onclick="saveSettings()" class="btn-primary" style="display:inline-flex;align-items:center;gap:0.5rem;" id="saveSettingsBtn">
@@ -1229,6 +1229,10 @@
       showToast('Bitte mindestens eine Sicherheitsstufe auswählen', 'error');
       return;
     }
+    const selectedDefaultLevel = document.getElementById('defaultSecurityLevel').value;
+    if (selectedDefaultLevel === 'level4') {
+      showToast('Hinweis: Stufe 4 ist aktuell nur über das Outlook-Add-in produktiv nutzbar. Web-Sendungen werden als Stufe 3 verarbeitet.', 'info');
+    }
     
     const useOwnSmtp = document.getElementById('useOwnSmtp').checked;
     const smtpHost = document.getElementById('smtpHost').value.trim();
@@ -1255,7 +1259,7 @@
       allowed_domains: document.getElementById('allowedDomains').value
         .split(',').map(s => s.trim().replace(/^@/, '')).filter(Boolean),
       allowed_security_levels: allowedLevels,
-      default_security_level: document.getElementById('defaultSecurityLevel').value,
+      default_security_level: selectedDefaultLevel,
       storage_preference: document.getElementById('storagePreference').value,
     };
     const btn = document.getElementById('saveSettingsBtn');

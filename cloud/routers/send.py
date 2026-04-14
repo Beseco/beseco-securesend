@@ -61,8 +61,11 @@ from services.security_levels import (
     LEVEL_2,
     LEVEL_3,
     LEVEL_4,
+    is_addin_channel,
+    normalize_client_channel,
     normalize_allowed_security_levels,
     normalize_security_level,
+    resolve_effective_level_for_channel,
 )
 
 
@@ -248,9 +251,21 @@ async def send_secure(
     if default_level not in allowed_levels:
         default_level = allowed_levels[0]
 
-    security_level = normalize_security_level(security_level, default=default_level)
-    if security_level not in allowed_levels:
-        security_level = default_level
+    requested_security_level = normalize_security_level(
+        security_level, default=default_level
+    )
+    if requested_security_level not in allowed_levels:
+        requested_security_level = default_level
+
+    client_channel = normalize_client_channel(
+        request.headers.get("x-securesend-client")
+        or request.headers.get("x-client-channel")
+        or request.headers.get("x-client-type")
+    )
+    level_downgrade_notice: Optional[str] = None
+    security_level, level_downgrade_notice = resolve_effective_level_for_channel(
+        requested_security_level, client_channel
+    )
 
     use_sms = _form_bool(sms_password_delivery, default=False)
     if use_sms and not to_phone:
@@ -630,6 +645,11 @@ async def send_secure(
                     + e2e_pw_channel
                     + "<p>Der Server speichert Ihre Dateiinhalte nicht im Klartext.</p>"
                 )
+                if level_downgrade_notice:
+                    pw_hint += (
+                        "<p><strong>Hinweis:</strong> Die angeforderte Stufe 4 ist aktuell nur über das "
+                        "Outlook-Add-in verfügbar. Dieser Versand wurde als Stufe 3 erstellt.</p>"
+                    )
                 if security_level == LEVEL_4:
                     link_hint = "<p>Auch der Nachrichtentext wurde Ende-zu-Ende verschlüsselt übertragen.</p>"
                 else:
@@ -757,7 +777,15 @@ async def send_secure(
             "has_email": bool(to_email),
             "recipient_masked": mask_email(to_email) if to_email else None,
             "recipient_domain_sha256_16": email_domain_hash(to_email) if to_email else None,
-                    "recipient_has_guest_account": recipient_has_guest_account,
+            "recipient_has_guest_account": recipient_has_guest_account,
+            "requested_security_level": requested_security_level,
+            "effective_security_level": security_level,
+            "level4_downgraded": bool(level_downgrade_notice),
+            "level4_downgrade_reason": (
+                "web_channel_addin_only" if level_downgrade_notice else None
+            ),
+            "client_channel": client_channel or None,
+            "client_is_addin": is_addin_channel(client_channel),
             "security_level": security_level,
             "provider": provider.service,
             "file_label_len": len(filename or ""),
@@ -798,4 +826,7 @@ async def send_secure(
         expiry_days=expiry_days,
         history_id=history_id,
         recipient_has_guest_account=recipient_has_guest_account,
+        requested_security_level=requested_security_level,
+        effective_security_level=security_level,
+        level_downgrade_notice=level_downgrade_notice,
     )

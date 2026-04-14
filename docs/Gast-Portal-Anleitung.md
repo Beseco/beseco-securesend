@@ -36,48 +36,20 @@ Im Gegensatz zu normalen E-Mails bietet SecureSend:
 
 ## 2. Sicherheitsstufen im Überblick
 
-SecureSend bietet **6 verschiedene Sicherheitsstufen**:
+SecureSend nutzt aktuell ein **4-Stufen-Modell**:
 
-| Stufe | Icon | Passwort | SMS | 2FA | Use-Case |
-|-------|------|---------|-----|-----|----------|
-| **Normal** | 📧 | ❌ | ❌ | ❌ | Interne, unkritische Nachrichten |
-| **Standard** | 🔑 | ✓ (selbst) | ❌ | ❌ | Einfache Freigaben mit selbstgewähltem Passwort |
-| **Secure** | 🔒 | ✓ + | ✓ | ❌ | Standard-Geschäftskommunikation |
-| **Extended** | 🛡️ | ✓ + | ✓ | ✓ | Vertrauliche Daten |
-| **Advanced** | ⚡ | ✓ + | ✓ | ✓ | Streng vertraulich + Client-Verschlüsselung |
-| **Maximal** | 🔐 | ✓ + | ✓ | ✓ | Maximaler Schutz + Verifikation |
+| Stufe | Icon | Bedeutung |
+|---|---|---|
+| **Stufe 1** | 📧 | Sicherer Link |
+| **Stufe 2** | 🔑 | Sicherer Link + Gast-Login |
+| **Stufe 3** | 🔐 | E2E-Dateien + Gast-Login |
+| **Stufe 4** | 🏢 | E2E-Dateien + Text + Gast-Login (derzeit Add-in-only) |
 
-### Erklärung der Stufen
+### Wichtiger Produktstatus
 
-#### 🔵 Normal
-- **Kein Passwort** erforderlich
-- Direkter Zugang zur Nachricht
-- Für: interne Abstimmungen, unkritische Dokumente
-
-#### 🟢 Standard  
-- **Selbst vergebenes Passwort** erforderlich
-- Sie erhalten das Passwort separat (z.B. telefonisch)
-- Für: einfache Freigaben
-
-#### 🟡 Secure (Standard empfohlen)
-- **Passwort + SMS-Code**
-- Das Passwort wird per SMS an Ihr Handy gesendet
-- Für: Standard-Geschäftskommunikation
-
-#### 🟠 Extended
-- **Passwort + SMS + 2FA**
-- Zusätzlicher Sicherheits-Code erforderlich
-- Für: vertrauliche Daten
-
-#### 🔴 Advanced
-- **SMS + E-Mail-Verifizierung + Client-Verschlüsselung**
-- Dateien werden im Browser verschlüsselt
-- Für: streng vertrauliche Informationen
-
-#### ⚫ Maximal
-- **SMS + Video-Verify + Client-Verschlüsselung**
-- Höchste Sicherheitsstufe
-- Für: besonders schützenswerte Daten
+- In der Web-App sind Stufe 1–3 produktiv.
+- Wenn ein Sender im Web Stufe 4 auswählt, wird der Versand aktuell als Stufe 3 verarbeitet.
+- Die produktive Stufe-4-Umsetzung ist für den Outlook-Add-in-Flow vorgesehen.
 
 ---
 
@@ -89,13 +61,11 @@ Wenn Sie einen SecureSend-Link erhalten, gehen Sie so vor:
 Klicken Sie auf den Link in Ihrer E-Mail.
 
 ### Schritt 2: Sicherheitsstufe erkennen
-Oben auf der Seite sehen Sie die Stufe:
-- 📧 = Normal (kein Passwort)
-- 🔑 = Standard (selbst gewähltes Passwort)
-- 🔒 = Secure (SMS-Passwort)
-- 🛡️ = Extended (SMS + 2FA)
-- ⚡ = Advanced (SMS + Verschlüsselung)
-- 🔐 = Maximal (SMS + Verifikation)
+Oben auf der Seite sehen Sie die zugehörige Stufe:
+- 📧 = Stufe 1
+- 🔑 = Stufe 2
+- 🔐 = Stufe 3
+- 🏢 = Stufe 4 (Add-in-Zielbild)
 
 ### Schritt 3: Passwort eingeben (falls erforderlich)
 Geben Sie Ihr Passwort ein und klicken Sie auf "Zugang".

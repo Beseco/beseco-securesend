@@ -181,11 +181,14 @@
             <div>
               <div style="font-size:0.875rem;font-weight:700;color:#92400e;">Stufe 4</div>
               <div style="font-size:0.8125rem;color:#64748b;margin-top:0.125rem;">
-                E2E für Dateien und Nachrichtentext + Gast-Login, SMS optional
+                In Entwicklung: nur Outlook-Add-in (Web sendet als Stufe 3)
               </div>
             </div>
           </label>
 
+        </div>
+        <div id="level4AddonHint" style="display:none;margin-top:0.625rem;padding:0.625rem 0.75rem;background:#fef3c7;border:1px solid #fde68a;border-radius:0.5rem;font-size:0.8125rem;color:#92400e;">
+          Stufe 4 ist in der Web-App noch in Entwicklung und aktuell nur über das Outlook-Add-in verfügbar. Ein Versand aus der Web-App wird automatisch als Stufe 3 verarbeitet.
         </div>
 
       <!-- ── Cloud-Anbieter + Ablauf ──────────────────────────────────────── -->
@@ -441,7 +444,7 @@
     level1: '📧 Stufe 1',
     level2: '🔑 Stufe 2',
     level3: '🔐 Stufe 3',
-    level4: '🏢 Stufe 4',
+    level4: '🏢 Stufe 4 (nur Outlook-Add-in)',
   };
 
   // ── Sicherheitsstufe ─────────────────────────────────────────────────────
@@ -453,6 +456,8 @@
     });
     const sum = document.getElementById('secSummaryText');
     if (sum) sum.textContent = SEC_SUMMARY_LABELS[selected] || selected;
+    const l4Hint = document.getElementById('level4AddonHint');
+    if (l4Hint) l4Hint.style.display = selected === 'level4' ? 'block' : 'none';
     checkPhoneWarning();
   }
 
@@ -855,25 +860,17 @@
     const securityLevel = document.querySelector('input[name="security_level"]:checked')?.value || 'level2';
     const fd = new FormData(this);
     fd.set('message', editor ? editor.getMarkdown() : '');
+    const level4WebRequested = securityLevel === 'level4';
+    if (level4WebRequested) {
+      showToast('Stufe 4 wird in der Web-App aktuell als Stufe 3 verarbeitet (Add-in-only).', 'info');
+    }
 
     // ── Client-Side Encryption for level3/level4 ────────────────────────────
     if (securityLevel === 'level3' || securityLevel === 'level4') {
-      if (inp.files && inp.files.length > 0 || (securityLevel === 'level4' && (editor ? editor.getMarkdown().trim() : '').length > 0)) {
+      if (inp.files && inp.files.length > 0) {
         try {
           showToast('Verschlüssele Dateien…', 'info');
           const encryptedFiles = await encryptFilesForAdvanced(inp.files || []);
-          if (securityLevel === 'level4') {
-            const text = editor ? editor.getMarkdown().trim() : '';
-            if (text) {
-              const pw = encryptedFiles[0]?.password || generateEncryptionPassword();
-              const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
-              const msgFile = new File([blob], '__securesend_message__.md', { type: 'text/markdown' });
-              const encryptedMessage = await encryptFile(msgFile, pw);
-              encryptedFiles.push(encryptedMessage);
-              fd.set('message', '');
-              fd.set('personal_message', '');
-            }
-          }
           
           // Add encrypted files as JSON to form
           fd.set('encrypted_files', JSON.stringify(encryptedFiles));
@@ -920,9 +917,13 @@
         if (data.recipient_has_guest_account) {
           showToast('Empfänger hat bereits ein Gastkonto – höhere Sicherheitsstufen sind direkt nutzbar.', 'info');
         }
+        if (data.level_downgrade_notice) {
+          showToast(data.level_downgrade_notice, 'info');
+        }
         
         // Show encryption info for E2E levels
-        if (securityLevel === 'level3' || securityLevel === 'level4') {
+        const effectiveLevel = data.effective_security_level || securityLevel;
+        if (effectiveLevel === 'level3') {
           showToast('Erfolgreich gesendet! (Ende-zu-Ende verschlüsselt)', 'success');
         } else {
           showToast('Erfolgreich gesendet!', 'success');

@@ -46,6 +46,7 @@ from core.smtp_config import get_env_smtp_cfg
 from services.audit import log_audit_event, mask_email, merge_actor_fields, redact_exception_message
 from services.security_levels import (
     DEFAULT_SECURITY_LEVEL,
+    LEVEL_4,
     normalize_allowed_security_levels,
     normalize_security_level,
 )
@@ -818,6 +819,9 @@ async def update_org_settings(
         meta_json={
             "updated_keys": sorted(normalized_body.keys()),
             "smtp_touched": "smtp" in normalized_body or "use_own_smtp" in normalized_body,
+            "level4_allowed": LEVEL_4 in list(current_settings.get("allowed_security_levels") or []),
+            "level4_default": current_settings.get("default_security_level") == LEVEL_4,
+            "level4_web_status": "addin_only_web_downgrade_to_level3",
         },
         **merge_actor_fields(
             current_user,
