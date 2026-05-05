@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
 
   postgres:
@@ -32,10 +30,19 @@ services:
     volumes:
       - securesend_files:/data
     environment:
-      DATABASE_URL: ${DATABASE_URL}
-      SECRET_KEY: ${SECRET_KEY}
-      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://your-domain.com}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://securesend:${POSTGRES_PASSWORD:-securesend_pw_change_me}@postgres:5432/securesend}
+      SECRET_KEY: ${SECRET_KEY:-default_key_change_in_production}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8001}
+      SECURESEND_STORAGE_ENABLED: ${SECURESEND_STORAGE_ENABLED:-true}
+      SECURESEND_STORAGE_BACKEND: ${SECURESEND_STORAGE_BACKEND:-local}
+      SECURESEND_STORAGE_ROOT: ${SECURESEND_STORAGE_ROOT:-/data/hosted}
+      SECURESEND_S3_ENDPOINT: ${SECURESEND_S3_ENDPOINT:-}
+      SECURESEND_S3_BUCKET: ${SECURESEND_S3_BUCKET:-}
+      SECURESEND_S3_ACCESS_KEY: ${SECURESEND_S3_ACCESS_KEY:-}
+      SECURESEND_S3_SECRET_KEY: ${SECURESEND_S3_SECRET_KEY:-}
+      SECURESEND_S3_REGION: ${SECURESEND_S3_REGION:-us-east-1}
+      UVICORN_HOST: "0.0.0.0"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-securesend_pw_change_me}
       # SMTP (optional)
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
@@ -44,12 +51,32 @@ services:
       # SMS Gateway (optional)
       SIPGATE_TOKEN_ID: ${SIPGATE_TOKEN_ID:-}
       SIPGATE_DEVICE_ID: ${SIPGATE_DEVICE_ID:-}
+      # true = Dev-Routen + bei 500 echter Fehlertext in JSON (Produktion: false)
+      DEV_MODE: ${DEV_MODE:-true}
+      # ClamAV: Standard-Compose startet keinen Scanner — ohne Container wäre Hostname „clamav“ tot.
+      # Mit Profil: docker compose --profile clamav up -d  und CLAMAV_ENABLED=true setzen.
+      CLAMAV_ENABLED: ${CLAMAV_ENABLED:-false}
+      CLAMAV_HOST: ${CLAMAV_HOST:-clamav}
+      CLAMAV_PORT: ${CLAMAV_PORT:-3310}
+      CLAMAV_FAIL_OPEN: ${CLAMAV_FAIL_OPEN:-true}
     networks:
       - securesend_network
+
+  # Optional: Virenscanner (schwer, erster Start lädt Signaturen — mehrere Minuten)
+  clamav:
+    profiles: ["clamav"]
+    image: clamav/clamav:1.4.2
+    container_name: securesend_clamav
+    restart: unless-stopped
+    networks:
+      - securesend_network
+    volumes:
+      - clamav_data:/var/lib/clamav
 
 volumes:
   postgres_data:
   securesend_files:
+  clamav_data:
 
 networks:
   securesend_network:

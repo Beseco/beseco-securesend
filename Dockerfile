@@ -12,7 +12,8 @@ COPY cloud/requirements.txt cloud/requirements.txt
 RUN pip install --no-cache-dir -r cloud/requirements.txt \
     && pip install --no-cache-dir requests msal
 
-# Projektdateien kopieren
+# Projektdateien kopieren (VERSION = CalVer-Fallback ohne .git)
+COPY VERSION VERSION
 COPY core/ core/
 COPY cloud/ cloud/
 COPY run_cloud.py run_cloud.py

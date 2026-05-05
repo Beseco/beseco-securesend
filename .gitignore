@@ -29,3 +29,4 @@ venv/
 # Uploads / temp
 uploads/
 *.tmp
+.cursor/skills/outline-content-management/.env.local

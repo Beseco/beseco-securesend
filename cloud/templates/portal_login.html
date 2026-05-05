@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Anmelden – Gast-Portal</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f1f5f9; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+    .card { background: #fff; border-radius: 0.75rem; padding: 2rem; width: 100%; max-width: 22rem; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    h1 { font-size: 1.25rem; margin: 0 0 1rem; color: #0f172a; }
+    label { display: block; font-size: 0.8125rem; font-weight: 600; color: #475569; margin-bottom: 0.25rem; }
+    input { width: 100%; box-sizing: border-box; padding: 0.5rem 0.75rem; border: 1px solid #e2e8f0; border-radius: 0.5rem; margin-bottom: 1rem; font-size: 0.9375rem; }
+    button { width: 100%; padding: 0.625rem; background: #1a56db; color: #fff; border: none; border-radius: 0.5rem; font-weight: 700; cursor: pointer; font-size: 0.9375rem; }
+    button:hover { background: #1d4ed8; }
+    .err { background: #fee2e2; color: #991b1b; padding: 0.75rem; border-radius: 0.5rem; font-size: 0.875rem; margin-bottom: 1rem; }
+    p.hint { font-size: 0.8125rem; color: #64748b; margin-top: 1rem; }
+    .forgot { text-align: center; margin-top: 0.75rem; }
+    .forgot a { font-size: 0.8125rem; color: #1a56db; font-weight: 600; text-decoration: none; }
+    .forgot a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Gast-Portal</h1>
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+    <form method="post" action="/portal/login">
+      <label for="email">E-Mail</label>
+      <input id="email" name="email" type="email" autocomplete="username" required />
+      <label for="password">Passwort</label>
+      <input id="password" name="password" type="password" autocomplete="current-password" required />
+      <button type="submit">Anmelden</button>
+    </form>
+    <p class="forgot"><a href="/portal/forgot-password">Passwort vergessen?</a></p>
+    <p class="hint">Hier sehen Sie alle Nachrichten, die mit Ihrem Gastkonto verknüpft sind. Neue Links können Sie unten im Posteingang hinzufügen.</p>
+  </div>
+</body>
+</html>

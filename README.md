@@ -16,6 +16,8 @@ Sichere Übermittlung von Dateien und Nachrichten über verschlüsselte Cloud-Li
 8. [Handynummer anfragen](#8-handynummer-anfragen)
 9. [Upload-Link senden](#9-upload-link-senden)
 10. [Selbstregistrierung](#10-selbstregistrierung)
+11. [Technische Details](#technische-details)
+12. [Weitere Dokumentation](#weitere-dokumentation)
 
 ---
 
@@ -47,8 +49,11 @@ docker compose up -d
 | `SECRET_KEY` | JWT-Schlüssel — **unbedingt ändern!** | `openssl rand -hex 32` |
 | `PUBLIC_BASE_URL` | Öffentliche URL der App | `https://securesend.firma.de` |
 | `DATABASE_URL` | SQLite (Standard) oder PostgreSQL | `sqlite+aiosqlite:///./securesend.db` |
+| `SECURESEND_STORAGE_*` | Gehosteter Speicher (lokal oder S3), siehe Tabelle in [docs/Umsetzungsplan-SecureSend-Storage.md](docs/Umsetzungsplan-SecureSend-Storage.md) | — |
 
 > **Tipp:** Ohne `PUBLIC_BASE_URL` werden E-Mail-Links automatisch aus der Anfrage-URL abgeleitet — funktioniert hinter nginx mit korrekten `proxy_set_header`-Einträgen.
+
+Ausführlicher Betrieb und Phasenübersicht: [docs/Umsetzungsplan-SecureSend-Storage.md](docs/Umsetzungsplan-SecureSend-Storage.md).
 
 ### Update
 
@@ -254,3 +259,19 @@ Jeder eingeloggte Benutzer kann sein Passwort über das **Schlüssel-Icon** unte
 | E-Mail | SMTP (STARTTLS / SSL) |
 | Frontend | Jinja2 Templates + Tailwind CSS |
 | Deployment | Docker + optional nginx Reverse Proxy |
+
+---
+
+## Weitere Dokumentation
+
+Zusätzliche Markdown-Dateien unter [`docs/`](docs/) — jeweils mit **Inhaltsverzeichnis** am Anfang (Navigation in der Editor-**Outline** und in der Vorschau):
+
+| Dokument | Inhalt |
+|----------|--------|
+| [Benutzer-Anleitung](docs/Benutzer-Anleitung.md) | Funktionen für Organisations-Benutzer |
+| [Gast-Portal-Anleitung](docs/Gast-Portal-Anleitung.md) | Anleitung für Empfänger (Gast-Portal) |
+| [Sicherheitsstufen](docs/Sicherheitsstufen.md) | Aktuelles 4-Stufen-Modell (Web: Stufe 1-3, Stufe 4 Add-in-only) |
+| [Sicherheitsinfo](docs/Sicherheitsinfo.md) | Schutzmaßnahmen und technischer Überblick |
+| [Umsetzungsplan SecureSend Storage](docs/Umsetzungsplan-SecureSend-Storage.md) | Gehosteter Speicher, Umgebung, Betrieb |
+| [Coolify-Deployment](docs/Coolify-Deployment.md) | Deployment mit Coolify |
+| [Vergleich SecureSend vs. FTAPI SecuMails](docs/Vergleich-SecureSend-SecuMails.md) | Abgleich mit öffentlicher SecuMails-Produktseite (kein Rechtsrat) |

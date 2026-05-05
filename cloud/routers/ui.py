@@ -11,6 +11,7 @@ Routes:
   POST /ui/logout       → clear cookie, redirect to login
   GET  /ui/             → dashboard (protected)
   GET  /ui/send         → send page (protected, org users)
+  GET  /ui/receive      → Upload-Anfragen (protected, org users; Link für externe Datei-Uploads)
   GET  /ui/contacts     → contacts page (protected, org users)
   GET  /ui/history      → history page (protected, org users)
   GET  /ui/admin/org    → org admin page (org_admin+)
@@ -24,6 +25,8 @@ Routes:
   POST /ui/ctx/reset                  → exit current context (one level up)
 
   GET  /ui/api/history  → JSON history for the authenticated user (cookie auth)
+  GET  /ui/api/upload-requests → JSON Upload-Anfragen (cookie auth; gleicher Pfad wie UI für Proxys)
+  POST /ui/api/upload-requests → neue Upload-Anfrage (cookie auth)
 """
 
 from __future__ import annotations
@@ -33,7 +36,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -45,10 +48,22 @@ from sqlalchemy.orm import selectinload
 
 from config import settings
 from database import get_db
+from dependencies import org_user_required
+from versioning import get_ui_version_cached
 from models.organization import Organization
 from models.reseller import Reseller
 from models.shared import EmailVerification, History
 from models.user import User, UserRole
+from routers.requests_router import (
+    UploadRequestBody,
+    create_upload_request_impl,
+    list_upload_requests_data,
+)
+from services.security_levels import (
+    DEFAULT_SECURITY_LEVEL,
+    normalize_allowed_security_levels,
+    normalize_security_level,
+)
 
 router = APIRouter(prefix="/ui", tags=["ui"])
 limiter = Limiter(key_func=get_remote_address)
@@ -163,12 +178,15 @@ async def setup_submit(
         await db.flush()  # reseller.id verfügbar machen
 
         # 3. Organisation anlegen
+        from services.hosted_provider import merge_org_settings_with_storage_defaults
+
         org = Organization(
             id=str(uuid.uuid4()),
             reseller_id=reseller.id,
             name=org_name.strip(),
             slug=org_slug.strip().lower(),
             is_active=True,
+            settings_json=merge_org_settings_with_storage_defaults(None),
         )
         db.add(org)
         await db.flush()  # org.id verfügbar machen
@@ -176,6 +194,10 @@ async def setup_submit(
         # 4. Superadmin der ersten Organisation zuweisen
         #    (gleiche Person, eine E-Mail — hat Zugriff auf alles)
         admin.org_id = org.id
+        await db.flush()
+        from services.hosted_provider import ensure_hosted_cloud_provider
+
+        await ensure_hosted_cloud_provider(db, org.id)
         await db.commit()
     except Exception as exc:
         await db.rollback()
@@ -198,6 +220,7 @@ templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 templates.env.filters["role_label"] = lambda r: _ROLE_LABELS.get(
     getattr(r, "value", str(r)), str(r)
 )
+templates.env.globals["app_version"] = get_ui_version_cached()
 
 # ── Role ordering ─────────────────────────────────────────────────────────────
 
@@ -800,8 +823,18 @@ async def send_page(
     if user.organization and user.organization.settings_json:
         org_settings = user.organization.settings_json
 
-    allowed_levels = org_settings.get("allowed_security_levels", ["secure", "extended"])
-    default_level = org_settings.get("default_security_level", "secure")
+    from services.hosted_provider import merge_org_settings_with_storage_defaults
+
+    merged_os = merge_org_settings_with_storage_defaults(org_settings)
+    allowed_levels = normalize_allowed_security_levels(
+        merged_os.get("allowed_security_levels")
+    )
+    default_level = normalize_security_level(
+        merged_os.get("default_security_level"), default=DEFAULT_SECURITY_LEVEL
+    )
+    if default_level not in allowed_levels:
+        default_level = allowed_levels[0]
+    storage_preference = merged_os.get("storage_preference", "securesend_cloud")
 
     return templates.TemplateResponse(
         "send.html",
@@ -813,6 +846,7 @@ async def send_page(
             ctx_org_name=oname,
             allowed_security_levels=allowed_levels,
             default_security_level=default_level,
+            storage_preference=storage_preference,
         ),
     )
 
@@ -833,7 +867,7 @@ async def receive_page(
     ctx = _read_ctx(request)
     rname, oname = await _resolve_ctx_names(ctx, db)
     return templates.TemplateResponse(
-        "receive.html",
+        "upload_requests.html",
         _ctx(request, user, "receive", ctx_reseller_name=rname, ctx_org_name=oname),
     )
 
@@ -906,16 +940,33 @@ async def history_api(
         .offset(offset)
     )
     rows = result.scalars().all()
-    return JSONResponse(
-        [
+    now = datetime.now(timezone.utc)
+    out = []
+    for h in rows:
+        exp = h.expires_at
+        if exp is None and h.created_at:
+            exp = h.created_at + timedelta(days=h.expiry_days)
+        exp_naive = exp
+        if exp_naive and exp_naive.tzinfo is not None:
+            exp_naive = exp_naive.replace(tzinfo=None)
+        now_naive = now.replace(tzinfo=None)
+        seconds_remaining = None
+        if exp_naive and not h.is_revoked:
+            delta = (exp_naive - now_naive).total_seconds()
+            seconds_remaining = int(delta) if delta > 0 else 0
+        out.append(
             {
                 "id": h.id,
                 "to_email": h.to_email,
                 "to_phone": h.to_phone,
                 "filename": h.filename,
+                "subject": h.subject or "",
+                "message_preview": h.message_preview or "",
                 "share_url": h.share_url,
                 "provider": h.provider,
                 "expiry_days": h.expiry_days,
+                "expires_at": exp.isoformat() if exp else None,
+                "seconds_remaining": seconds_remaining,
                 "security_level": h.security_level,
                 "ip_address": h.ip_address,
                 "created_at": h.created_at.isoformat(),
@@ -923,6 +974,7 @@ async def history_api(
                 "link_clicked_at": h.link_clicked_at.isoformat()
                 if h.link_clicked_at
                 else None,
+                "read_at": h.read_at.isoformat() if h.read_at else None,
                 "download_count": h.download_count or 0,
                 "last_downloaded_at": h.last_downloaded_at.isoformat()
                 if h.last_downloaded_at
@@ -932,9 +984,29 @@ async def history_api(
                 "revoked_by": h.revoked_by,
                 "files_json": h.files_json or [],
             }
-            for h in rows
-        ]
-    )
+        )
+    return JSONResponse(out)
+
+
+@router.get("/api/upload-requests")
+async def upload_requests_list_api(
+    current_user: User = Depends(org_user_required()),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    """Upload-Anfragen als JSON (Cookie-Auth); Pfad unter /ui/ wie die Empfangen-Seite."""
+    data = await list_upload_requests_data(current_user, db)
+    return JSONResponse(content=data)
+
+
+@router.post("/api/upload-requests", status_code=status.HTTP_201_CREATED)
+async def upload_requests_create_api(
+    request: Request,
+    body: UploadRequestBody,
+    current_user: User = Depends(org_user_required()),
+    db: AsyncSession = Depends(get_db),
+) -> JSONResponse:
+    out = await create_upload_request_impl(request, body, current_user, db)
+    return JSONResponse(content=out, status_code=status.HTTP_201_CREATED)
 
 
 # ── Admin: Organisation ───────────────────────────────────────────────────────

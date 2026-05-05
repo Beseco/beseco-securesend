@@ -18,6 +18,7 @@
   <button onclick="showTab('providers')" id="tabProviders" style="padding:0.5rem 1.25rem;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;background:transparent;color:#64748b;transition:all 0.15s;">Anbieter</button>
   <button onclick="showTab('settings')" id="tabSettings" style="padding:0.5rem 1.25rem;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;background:transparent;color:#64748b;transition:all 0.15s;">Einstellungen</button>
   <button onclick="showTab('gateways')" id="tabGateways" style="padding:0.5rem 1.25rem;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;background:transparent;color:#64748b;transition:all 0.15s;">SMS-Gateway</button>
+  <button onclick="showTab('audit')" id="tabAudit" style="padding:0.5rem 1.25rem;border:none;border-radius:0.5rem;font-size:0.875rem;font-weight:600;cursor:pointer;background:transparent;color:#64748b;transition:all 0.15s;">Audit-Log</button>
 </div>
 
 <!-- ── Users Tab ───────────────────────────────────────────────────────────── -->
@@ -71,6 +72,14 @@
         <svg style="width:1rem;height:1rem;color:#1a56db" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
         SMTP-Konfiguration
       </h3>
+      <label style="display:flex;align-items:center;gap:0.625rem;margin-bottom:1rem;cursor:pointer;">
+        <input type="checkbox" id="useOwnSmtp" style="accent-color:#1a56db;width:1rem;height:1rem;" onchange="onOwnSmtpToggle()" />
+        <span style="font-size:0.875rem;font-weight:500;color:#374151;">Eigenen SMTP-Mailserver verwenden</span>
+      </label>
+      <div id="smtpFallbackHint" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:0.5rem;padding:0.75rem 0.875rem;font-size:0.8125rem;margin-bottom:1rem;">
+        Aktuell wird der <strong>Beseco SecureSend Mailserver</strong> verwendet. Aktivieren Sie den Schalter, um eigene SMTP-Zugangsdaten zu hinterlegen.
+      </div>
+      <div id="smtpConfigDetails">
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
         <div>
           <label class="form-label">SMTP-Host</label>
@@ -125,6 +134,7 @@
           Test senden
         </button>
         <div id="smtpTestResult" style="font-size:0.8125rem;display:none;"></div>
+      </div>
       </div>
     </div>
 
@@ -193,45 +203,31 @@
       
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(12rem,1fr));gap:0.75rem;margin-bottom:1.25rem;">
         <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.5rem;">
-          <input type="checkbox" id="secLevelNormal" style="accent-color:#1a56db;width:1rem;height:1rem;" />
+          <input type="checkbox" id="secLevel1" style="accent-color:#1a56db;width:1rem;height:1rem;" />
           <div>
-            <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">Basis</div>
-            <div style="font-size:0.75rem;color:#64748b;">Nur Link, kein Passwort</div>
+            <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">Stufe 1</div>
+            <div style="font-size:0.75rem;color:#64748b;">Sicherer Link</div>
           </div>
         </label>
         <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.5rem;">
-          <input type="checkbox" id="secLevelStandard" style="accent-color:#1a56db;width:1rem;height:1rem;" />
+          <input type="checkbox" id="secLevel2" style="accent-color:#1a56db;width:1rem;height:1rem;" />
           <div>
-            <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">Standard</div>
-            <div style="font-size:0.75rem;color:#64748b;">Manuelles Passwort</div>
-          </div>
-        </label>
-        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.5rem;">
-          <input type="checkbox" id="secLevelSecure" style="accent-color:#1a56db;width:1rem;height:1rem;" />
-          <div>
-            <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">Sicher</div>
-            <div style="font-size:0.75rem;color:#64748b;">SMS-Passwort</div>
-          </div>
-        </label>
-        <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;background:#f8fafc;border:1px solid #e2e8f0;border-radius:0.5rem;">
-          <input type="checkbox" id="secLevelExtended" style="accent-color:#1a56db;width:1rem;height:1rem;" />
-          <div>
-            <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">Erweitert</div>
-            <div style="font-size:0.75rem;color:#64748b;">Verschlüsseltes ZIP</div>
+            <div style="font-size:0.875rem;font-weight:600;color:#1e293b;">Stufe 2</div>
+            <div style="font-size:0.75rem;color:#64748b;">Sicherer Link + Gast-Login</div>
           </div>
         </label>
         <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;background:#fef3c7;border:1px solid #fde68a;border-radius:0.5rem;">
-          <input type="checkbox" id="secLevelAdvanced" style="accent-color:#1a56db;width:1rem;height:1rem;" />
+          <input type="checkbox" id="secLevel3" style="accent-color:#1a56db;width:1rem;height:1rem;" />
           <div>
-            <div style="font-size:0.875rem;font-weight:600;color:#92400e;">Fortgeschritten</div>
-            <div style="font-size:0.75rem;color:#92400e;">SecureSend Storage</div>
+            <div style="font-size:0.875rem;font-weight:600;color:#92400e;">Stufe 3</div>
+            <div style="font-size:0.75rem;color:#92400e;">E2E Dateien</div>
           </div>
         </label>
         <label style="display:flex;align-items:center;gap:0.5rem;cursor:pointer;padding:0.75rem;background:#fef3c7;border:1px solid #fde68a;border-radius:0.5rem;">
-          <input type="checkbox" id="secLevelMax" style="accent-color:#1a56db;width:1rem;height:1rem;" />
+          <input type="checkbox" id="secLevel4" style="accent-color:#1a56db;width:1rem;height:1rem;" />
           <div>
-            <div style="font-size:0.875rem;font-weight:600;color:#92400e;">Maximal</div>
-            <div style="font-size:0.75rem;color:#92400e;">E2E + Audit Trail</div>
+            <div style="font-size:0.875rem;font-weight:600;color:#92400e;">Stufe 4</div>
+            <div style="font-size:0.75rem;color:#92400e;">In Entwicklung: nur Outlook-Add-in</div>
           </div>
         </label>
       </div>
@@ -240,24 +236,22 @@
         <div>
           <label class="form-label">Standard-Sicherheitsstufe</label>
           <select id="defaultSecurityLevel" class="form-input">
-            <option value="normal">Basis</option>
-            <option value="standard">Standard</option>
-            <option value="secure" selected>Sicher</option>
-            <option value="extended">Erweitert</option>
-            <option value="advanced">Fortgeschritten</option>
-            <option value="maximal">Maximal</option>
+            <option value="level1">Stufe 1</option>
+            <option value="level2" selected>Stufe 2</option>
+            <option value="level3">Stufe 3</option>
+            <option value="level4">Stufe 4</option>
           </select>
         </div>
         <div>
           <label class="form-label">Speichereinstellung</label>
           <select id="storagePreference" class="form-input">
             <option value="customer_cloud">Immer Kunden-Cloud (Stufe 1-4)</option>
-            <option value="securesend_cloud">Immer SecureSend Cloud (Stufe 5-6)</option>
+            <option value="securesend_cloud">Immer SecureSend Cloud</option>
             <option value="user_choice">Benutzer kann wählen</option>
           </select>
         </div>
       </div>
-      <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.25rem;">Fortgeschritten und Maximal erfordern SecureSend Cloud Storage.</p>
+      <p style="font-size:0.75rem;color:#94a3b8;margin-top:0.25rem;">Stufe 4 ist in der Web-App nur als Vorschau sichtbar. Web-Versand mit Stufe 4 wird derzeit serverseitig als Stufe 3 verarbeitet; echte Stufe 4 ist für das Outlook-Add-in vorgesehen.</p>
     </div>
 
     <button onclick="saveSettings()" class="btn-primary" style="display:inline-flex;align-items:center;gap:0.5rem;" id="saveSettingsBtn">
@@ -278,6 +272,57 @@
   </div>
   <div id="gatewayCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(22rem,1fr));gap:1rem;">
     <div style="text-align:center;padding:2rem;color:#94a3b8;">Lade…</div>
+  </div>
+</div>
+
+<!-- ── Audit-Log Tab (Debug, DSGVO: keine Inhalte) ─────────────────────────── -->
+<div id="panelAudit" style="display:none;">
+  <div class="card" style="overflow:hidden;">
+    <div style="padding:1rem 1.25rem;border-bottom:1px solid #f1f5f9;">
+      <h3 style="font-size:0.9375rem;font-weight:700;color:#1e293b;margin-bottom:0.5rem;">Audit-Log</h3>
+      <p style="font-size:0.8125rem;color:#64748b;margin:0;">Technische Ereignisse für Debugging (keine Nachrichten- oder Dateiinhalte). Logins und Sendungen mit Organisationsbezug erscheinen hier.</p>
+    </div>
+    <div style="padding:1rem 1.25rem;display:flex;flex-wrap:wrap;gap:0.75rem;align-items:flex-end;border-bottom:1px solid #f1f5f9;">
+      <div>
+        <label class="form-label" style="margin-bottom:0.25rem;">Von (ISO-Datum)</label>
+        <input type="text" id="auditFrom" class="form-input" placeholder="2026-01-01" style="min-width:9rem;" />
+      </div>
+      <div>
+        <label class="form-label" style="margin-bottom:0.25rem;">Bis</label>
+        <input type="text" id="auditTo" class="form-input" placeholder="2026-12-31" style="min-width:9rem;" />
+      </div>
+      <div>
+        <label class="form-label" style="margin-bottom:0.25rem;">Event-Typ</label>
+        <input type="text" id="auditEventType" class="form-input" placeholder="z. B. send_success" style="min-width:12rem;" />
+      </div>
+      <div>
+        <label class="form-label" style="margin-bottom:0.25rem;">Status</label>
+        <select id="auditStatus" class="form-input" style="min-width:8rem;">
+          <option value="">alle</option>
+          <option value="success">success</option>
+          <option value="failure">failure</option>
+        </select>
+      </div>
+      <button type="button" onclick="loadAuditEvents()" class="btn-primary" style="font-size:0.8125rem;padding:0.45rem 1rem;">Aktualisieren</button>
+      <button type="button" onclick="exportAuditCsv()" class="btn-secondary" style="font-size:0.8125rem;padding:0.45rem 1rem;">CSV exportieren</button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;font-size:0.8125rem;">
+        <thead>
+          <tr class="table-header">
+            <th style="padding:0.5rem 1rem;text-align:left;color:#64748b;">Zeit</th>
+            <th style="padding:0.5rem 1rem;text-align:left;color:#64748b;">Event</th>
+            <th style="padding:0.5rem 1rem;text-align:left;color:#64748b;">Status</th>
+            <th style="padding:0.5rem 1rem;text-align:left;color:#64748b;">Akteur</th>
+            <th style="padding:0.5rem 1rem;text-align:left;color:#64748b;">Ziel</th>
+            <th style="padding:0.5rem 1rem;text-align:left;color:#64748b;">Fehler</th>
+          </tr>
+        </thead>
+        <tbody id="auditBody">
+          <tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">Tab öffnen und „Aktualisieren“ wählen</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -410,20 +455,25 @@
           <label class="form-label">Dienst</label>
           <select id="pService" class="form-input" onchange="updateProviderFields()">
             <option value="nextcloud">Nextcloud</option>
+            <option value="owncloud">ownCloud</option>
             <option value="onedrive">OneDrive (Microsoft 365)</option>
             <option value="dropbox">Dropbox</option>
             <option value="hidrive">HiDrive (Strato)</option>
             <option value="synology">Synology Drive</option>
             <option value="minio">MinIO (S3-kompatibel)</option>
+            <option value="securesend_hosted" id="pServiceHostedOption" hidden disabled>SecureSend Storage (serverseitig)</option>
           </select>
         </div>
       </div>
 
       <!-- Nextcloud fields -->
       <div id="nextcloudFields">
+        <div style="margin-bottom:0.75rem;font-size:0.8125rem;color:#64748b;line-height:1.4;">
+          Gilt für <strong>Nextcloud</strong> und <strong>ownCloud</strong> (WebDAV und OCS-Freigaben). Als <strong>Server-URL</strong> die Basis der Installation eintragen — bei ownCloud oft mit Unterpfad, z. B. <code>https://nas.example.com/owncloud</code> (nicht nur die Domain, wenn die Instanz in einem Unterordner liegt).
+        </div>
         <div style="margin-bottom:0.875rem;">
-          <label class="form-label">Nextcloud URL</label>
-          <input type="url" id="pNcUrl" class="form-input" placeholder="https://cloud.example.com" />
+          <label class="form-label">Server-URL</label>
+          <input type="url" id="pNcUrl" class="form-input" placeholder="https://cloud.example.com oder …/owncloud" />
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
           <div>
@@ -465,22 +515,22 @@
 
       <!-- Dropbox fields -->
       <div id="dropboxFields" style="display:none;">
-        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#1e40af;">
-          <strong>Hinweis:</strong> App-Key und App-Secret aus dem <a href="https://www.dropbox.com/developers/apps" target="_blank" style="color:#1a56db;">Dropbox App Console</a>. Refresh-Token via OAuth2-Flow generieren.
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#1e40af;line-height:1.45;">
+          <strong>Hinweis:</strong> <strong>App key</strong> und ggf. <strong>App secret</strong> aus der <a href="https://www.dropbox.com/developers/apps" target="_blank" style="color:#1a56db;">Dropbox App Console</a> (dieselbe App wie beim OAuth-Flow). <strong>PKCE-Apps</strong> haben oft kein Secret — Feld leer lassen. <strong>Refresh-Token:</strong> entweder nur den <code>refresh_token</code>-String oder die <strong>gesamte JSON-Antwort</strong> vom Token-Endpunkt (wird erkannt). Voraussetzung: Flow mit <code>token_access_type=offline</code>. Nicht der Code aus der Browser-URL, nicht nur <code>access_token</code>. Browser-Passwortmanager: Felder unten können falsche Daten eintragen — ggf. prüfen. <a href="https://developers.dropbox.com/oauth-guide" target="_blank" style="color:#1a56db;">OAuth Guide</a>.
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.875rem;margin-bottom:0.875rem;">
           <div>
             <label class="form-label">App-Key</label>
-            <input type="text" id="pDbAppKey" class="form-input" placeholder="xxxxxxxxxxxx" />
+            <input type="text" id="pDbAppKey" class="form-input" placeholder="xxxxxxxxxxxx" autocomplete="off" />
           </div>
           <div>
             <label class="form-label">App-Secret</label>
-            <input type="password" id="pDbAppSecret" class="form-input" />
+            <input type="password" id="pDbAppSecret" class="form-input" autocomplete="new-password" />
           </div>
         </div>
         <div style="margin-bottom:0.875rem;">
           <label class="form-label">Refresh-Token</label>
-          <input type="password" id="pDbRefreshToken" class="form-input" placeholder="sl.xxxxxx…" />
+          <input type="password" id="pDbRefreshToken" class="form-input" placeholder="Token oder komplette JSON-Antwort" autocomplete="new-password" />
         </div>
         <div style="margin-bottom:0.875rem;">
           <label class="form-label">Upload-Ordner</label>
@@ -511,8 +561,8 @@
 
       <!-- Synology Drive fields -->
       <div id="synologyFields" style="display:none;">
-        <div style="background:#fefce8;border:1px solid #fde68a;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#92400e;">
-          <strong>Synology Drive:</strong> URL Ihrer Synology-NAS (z.B. https://nas.example.com:5001). WebDAV und FileStation müssen aktiviert sein.
+        <div style="background:#fefce8;border:1px solid #fde68a;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#92400e;line-height:1.45;">
+          <strong>Synology:</strong> Als <strong>NAS-URL</strong> die Adresse von <strong>DSM</strong> eintragen (Web-API), z. B. <code>https://192.168.1.10:5001</code> oder <code>https://nas.example.com:5001</code> — keine reine QuickConnect-Weiterleitung ohne erreichbare <code>/webapi/</code>-Pfade. Paket <strong>File Station</strong> installieren; für Uploads <strong>WebDAV</strong> aktivieren. Hinter einem Reverse-Proxy muss <code>/webapi/auth.cgi</code> JSON liefern, keine HTML-Anmeldeseite.
         </div>
         <div style="margin-bottom:0.875rem;">
           <label class="form-label">NAS-URL</label>
@@ -587,6 +637,12 @@
         </div>
       </div>
 
+      <div id="hostedFields" style="display:none;">
+        <div style="background:#ecfdf5;border:1px solid #a7f3d0;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:0.875rem;font-size:0.8125rem;color:#065f46;line-height:1.45;">
+          <strong>SecureSend Storage</strong> ist der von SecureSend bereitgestellte Speicher für Ihre Sendungen: Dateien liegen in der SecureSend-Infrastruktur, Sie hinterlegen keine Zugangsdaten zu einem externen Cloud-Dienst. Abruf erfolgt nur über die Anwendung und die verschickten Links — nicht wie bei einer öffentlichen Ordnerfreigabe.
+        </div>
+      </div>
+
       <div style="display:flex;gap:1.5rem;margin-bottom:1.5rem;">
         <label style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem;font-weight:500;color:#374151;cursor:pointer;">
           <input type="checkbox" id="pDefault" style="accent-color:#1a56db;width:1rem;height:1rem;" />
@@ -634,7 +690,7 @@
 
   function showTab(tab) {
     activeTab = tab;
-    ['users','providers','settings','gateways'].forEach(t => {
+    ['users','providers','settings','gateways','audit'].forEach(t => {
       document.getElementById('panel' + t.charAt(0).toUpperCase() + t.slice(1)).style.display = t === tab ? 'block' : 'none';
       const btn = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
       btn.style.background = t === tab ? '#1a56db' : 'transparent';
@@ -644,9 +700,10 @@
     if (tab === 'providers' && !providersLoaded) loadProviders();
     if (tab === 'settings' && !settingsLoaded) loadSettings();
     if (tab === 'gateways' && !gatewaysLoaded) loadGateways();
+    if (tab === 'audit' && !auditLoaded) loadAuditEvents();
   }
 
-  let usersLoaded = false, providersLoaded = false, settingsLoaded = false, gatewaysLoaded = false;
+  let usersLoaded = false, providersLoaded = false, settingsLoaded = false, gatewaysLoaded = false, auditLoaded = false;
 
   function getOrgParam() {
     // If superadmin is in org context, use CTX_ORG_ID
@@ -656,8 +713,66 @@
   }
 
   function onOrgChange() {
-    usersLoaded = false; providersLoaded = false; settingsLoaded = false;
+    usersLoaded = false; providersLoaded = false; settingsLoaded = false; auditLoaded = false;
     showTab(activeTab);
+  }
+
+  function _auditFilterParams() {
+    const p = new URLSearchParams();
+    const from = document.getElementById('auditFrom')?.value?.trim();
+    const to = document.getElementById('auditTo')?.value?.trim();
+    const et = document.getElementById('auditEventType')?.value?.trim();
+    const st = document.getElementById('auditStatus')?.value?.trim();
+    if (from) p.set('from', from);
+    if (to) p.set('to', to);
+    if (et) p.set('event_type', et);
+    if (st) p.set('status', st);
+    return p;
+  }
+
+  function _auditUrl(path) {
+    const orgQ = getOrgParam();
+    const p = _auditFilterParams();
+    if (orgQ.startsWith('?')) {
+      new URLSearchParams(orgQ.slice(1)).forEach((v, k) => p.set(k, v));
+    }
+    return path + '?' + p.toString();
+  }
+
+  async function loadAuditEvents() {
+    const sel = document.getElementById('orgSelector');
+    if (sel && !CTX_ORG_ID && !sel.value) {
+      document.getElementById('auditBody').innerHTML = '<tr><td colspan="6" style="padding:2rem;text-align:center;color:#ca8a04;">Bitte zuerst eine Organisation wählen (Superadmin).</td></tr>';
+      return;
+    }
+    const res = await apiFetch(_auditUrl('/admin/org/audit-events'));
+    if (!res.ok) {
+      document.getElementById('auditBody').innerHTML = '<tr><td colspan="6" style="padding:2rem;text-align:center;color:#ef4444;">Fehler beim Laden</td></tr>';
+      return;
+    }
+    const rows = await res.json();
+    auditLoaded = true;
+    const tbody = document.getElementById('auditBody');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="padding:2rem;text-align:center;color:#94a3b8;">Keine Einträge</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => {
+      const t = r.created_at ? new Date(r.created_at).toLocaleString('de-DE') : '—';
+      const tgt = [r.target_type, r.target_id ? r.target_id.slice(0, 8) + '…' : ''].filter(Boolean).join(' ');
+      const actor = [r.actor_role || '', r.actor_user_id ? r.actor_user_id.slice(0, 8) + '…' : ''].filter(Boolean).join(' ');
+      const err = (r.error_code || '') + (r.error_message_redacted ? ': ' + esc(r.error_message_redacted).slice(0, 80) : '');
+      return `<tr style="border-top:1px solid #f1f5f9;"><td style="padding:0.5rem 1rem;white-space:nowrap;">${esc(t)}</td><td style="padding:0.5rem 1rem;">${esc(r.event_type)}</td><td style="padding:0.5rem 1rem;">${esc(r.status)}</td><td style="padding:0.5rem 1rem;">${esc(actor || '—')}</td><td style="padding:0.5rem 1rem;">${esc(tgt || '—')}</td><td style="padding:0.5rem 1rem;color:#991b1b;max-width:14rem;overflow:hidden;text-overflow:ellipsis;">${esc(err || '—')}</td></tr>`;
+    }).join('');
+  }
+
+  function exportAuditCsv() {
+    const sel = document.getElementById('orgSelector');
+    if (sel && !CTX_ORG_ID && !sel.value) {
+      showToast('Bitte Organisation wählen', 'error');
+      return;
+    }
+    window.open(_auditUrl('/admin/org/audit-events/export'), '_blank');
   }
 
   // ── Users ──────────────────────────────────────────────────────────────────
@@ -769,15 +884,17 @@
   }
 
   // Provider-Darstellungs-Hilfsfunktionen (ausgelagert um doppelte-Klammer-Konflikte zu vermeiden)
-  const _PROV_COLORS = {nextcloud:'#e0f2fe',onedrive:'#ede9fe',dropbox:'#dbeafe',hidrive:'#dcfce7',synology:'#fef3c7',minio:'#f0fdf4'};
-  const _PROV_LABELS = {nextcloud:'Nextcloud',onedrive:'OneDrive',dropbox:'Dropbox',hidrive:'HiDrive (Strato)',synology:'Synology Drive',minio:'MinIO (S3)'};
+  const _PROV_COLORS = {nextcloud:'#e0f2fe',owncloud:'#ffedd5',onedrive:'#ede9fe',dropbox:'#dbeafe',hidrive:'#dcfce7',synology:'#fef3c7',minio:'#f0fdf4',securesend_hosted:'#d1fae5'};
+  const _PROV_LABELS = {nextcloud:'Nextcloud',owncloud:'ownCloud',onedrive:'OneDrive',dropbox:'Dropbox',hidrive:'HiDrive (Strato)',synology:'Synology Drive',minio:'MinIO (S3)',securesend_hosted:'SecureSend Storage'};
   const _PROV_ICONS  = {
     nextcloud: '<svg style="width:1.25rem;height:1.25rem;color:#0369a1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
+    owncloud: '<svg style="width:1.25rem;height:1.25rem;color:#ea580c" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
     onedrive:  '<svg style="width:1.25rem;height:1.25rem;color:#7c3aed" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>',
     dropbox:   '<svg style="width:1.25rem;height:1.25rem;color:#2563eb" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>',
     hidrive:   '<svg style="width:1.25rem;height:1.25rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>',
     synology:  '<svg style="width:1.25rem;height:1.25rem;color:#d97706" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>',
     minio:     '<svg style="width:1.25rem;height:1.25rem;color:#16a34a" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>',
+    securesend_hosted: '<svg style="width:1.25rem;height:1.25rem;color:#047857" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7"/></svg>',
   };
   const _ICON_DEFAULT = '<svg style="width:1.25rem;height:1.25rem;color:#64748b" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>';
   function _provColor(svc) { return _PROV_COLORS[svc] || '#f1f5f9'; }
@@ -786,7 +903,7 @@
 
   function renderProviders(providers) {
     if (!providers.length) {
-      document.getElementById('providerCards').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:#94a3b8;"><p>Kein Cloud-Anbieter konfiguriert.</p><p style="font-size:0.8125rem;margin-top:0.25rem;">Fügen Sie Nextcloud, OneDrive, Dropbox, HiDrive oder Synology Drive hinzu.</p></div>';
+      document.getElementById('providerCards').innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:2rem;color:#94a3b8;"><p>Kein Cloud-Anbieter konfiguriert.</p><p style="font-size:0.8125rem;margin-top:0.25rem;">Fügen Sie Nextcloud, ownCloud, OneDrive, Dropbox, HiDrive, Synology Drive oder MinIO hinzu.</p></div>';
       return;
     }
     document.getElementById('providerCards').innerHTML = providers.map(p => `
@@ -807,19 +924,11 @@
           ${p.is_active ? '<span class="badge-active">Aktiv</span>' : '<span class="badge-inactive">Inaktiv</span>'}
           <div style="display:flex;gap:0.5rem;">
             <button onclick='editProvider(${JSON.stringify(p)})' class="btn-secondary btn-sm">Bearbeiten</button>
-            <button onclick='deleteProvider("${p.id}")' class="btn-danger btn-sm">Löschen</button>
+            ${p.service === 'securesend_hosted' ? '' : `<button onclick='deleteProvider("${p.id}")' class="btn-danger btn-sm">Löschen</button>`}
           </div>
         </div>
       </div>
     `).join('');
-  }
-
-  function _fmtBytes(bytes) {
-    if (bytes == null) return '—';
-    const gb = bytes / (1024 ** 3);
-    if (gb >= 1) return gb.toFixed(1) + ' GB';
-    const mb = bytes / (1024 ** 2);
-    return mb.toFixed(0) + ' MB';
   }
 
   function _fmtBytes(b) {
@@ -871,18 +980,43 @@
 
   function updateProviderFields() {
     const svc = document.getElementById('pService').value;
-    document.getElementById('nextcloudFields').style.display = svc === 'nextcloud' ? 'block' : 'none';
+    document.getElementById('nextcloudFields').style.display = (svc === 'nextcloud' || svc === 'owncloud') ? 'block' : 'none';
     document.getElementById('onedriveFields').style.display  = svc === 'onedrive'  ? 'block' : 'none';
     document.getElementById('dropboxFields').style.display   = svc === 'dropbox'   ? 'block' : 'none';
     document.getElementById('hidriveFields').style.display   = svc === 'hidrive'   ? 'block' : 'none';
     document.getElementById('synologyFields').style.display  = svc === 'synology'  ? 'block' : 'none';
     document.getElementById('minioFields').style.display    = svc === 'minio'    ? 'block' : 'none';
+    document.getElementById('hostedFields').style.display   = svc === 'securesend_hosted' ? 'block' : 'none';
   }
 
   function openProviderModal(provider = null) {
     document.getElementById('providerId').value = provider ? provider.id : '';
     document.getElementById('pName').value = provider ? provider.name : '';
-    document.getElementById('pService').value = provider ? provider.service : 'nextcloud';
+    const pService = document.getElementById('pService');
+    const hostedOpt = document.getElementById('pServiceHostedOption');
+    const pName = document.getElementById('pName');
+    if (provider && provider.service === 'securesend_hosted') {
+      hostedOpt.disabled = false;
+      hostedOpt.hidden = false;
+      pService.value = 'securesend_hosted';
+      pService.disabled = true;
+      pName.value = 'SecureSend Storage';
+      pName.readOnly = true;
+      pName.required = false;
+      pName.style.background = '#f1f5f9';
+      pName.style.cursor = 'default';
+      pName.title = 'Der Anzeigename ist fest und kann nicht geändert werden.';
+    } else {
+      hostedOpt.disabled = true;
+      hostedOpt.hidden = true;
+      pService.disabled = false;
+      pService.value = provider ? provider.service : 'nextcloud';
+      pName.readOnly = false;
+      pName.required = true;
+      pName.style.background = '';
+      pName.style.cursor = '';
+      pName.title = '';
+    }
     document.getElementById('pDefault').checked = provider ? provider.is_default : false;
     document.getElementById('pActive').checked = provider ? provider.is_active : true;
     const cfg = provider ? (provider.config_json || {}) : {};
@@ -897,8 +1031,8 @@
     document.getElementById('pOdTenantId').value = cfg.tenant_id || '';
     document.getElementById('pOdRefreshToken').value = cfg.refresh_token || '';
     // Dropbox
-    document.getElementById('pDbAppKey').value = cfg.app_key || '';
-    document.getElementById('pDbAppSecret').value = cfg.app_secret || '';
+    document.getElementById('pDbAppKey').value = cfg.app_key || cfg.client_id || '';
+    document.getElementById('pDbAppSecret').value = cfg.app_secret || cfg.client_secret || '';
     document.getElementById('pDbRefreshToken').value = cfg.refresh_token || '';
     document.getElementById('pDbFolder').value = cfg.folder || '/SecureSend';
     // HiDrive
@@ -932,7 +1066,7 @@
     const id = document.getElementById('providerId').value;
     const svc = document.getElementById('pService').value;
     let config = {};
-    if (svc === 'nextcloud') {
+    if (svc === 'nextcloud' || svc === 'owncloud') {
       config = { url: document.getElementById('pNcUrl').value, user: document.getElementById('pNcUser').value, password: document.getElementById('pNcPassword').value, folder: document.getElementById('pNcFolder').value };
     } else if (svc === 'onedrive') {
       config = { client_id: document.getElementById('pOdClientId').value, client_secret: document.getElementById('pOdClientSecret').value, tenant_id: document.getElementById('pOdTenantId').value, refresh_token: document.getElementById('pOdRefreshToken').value };
@@ -954,7 +1088,8 @@
         use_ssl: document.getElementById('pMinioSSL').checked,
       };
     }
-    const body = { name: document.getElementById('pName').value, service: svc, config_json: config, is_default: document.getElementById('pDefault').checked, is_active: document.getElementById('pActive').checked };
+    const provName = svc === 'securesend_hosted' ? 'SecureSend Storage' : document.getElementById('pName').value;
+    const body = { name: provName, service: svc, config_json: config, is_default: document.getElementById('pDefault').checked, is_active: document.getElementById('pActive').checked };
     const btn = document.getElementById('saveProviderBtn');
     btn.disabled = true; btn.textContent = 'Speichern…';
     try {
@@ -969,7 +1104,7 @@
 
   async function deleteProvider(id) {
     if (!confirm('Anbieter wirklich löschen?')) return;
-    const res = await apiFetch('/admin/org/providers/' + id, { method: 'DELETE' });
+    const res = await apiFetch('/admin/org/providers/' + id + getOrgParam(), { method: 'DELETE' });
     if (res.ok || res.status === 204) { showToast('Anbieter gelöscht', 'success'); providersLoaded = false; loadProviders(); }
     else showToast('Fehler beim Löschen', 'error');
   }
@@ -988,6 +1123,11 @@
     document.getElementById('smtpPassword').value = smtp.password || '';
     document.getElementById('smtpFromAddr').value = smtp.from_addr || '';
     document.getElementById('smtpFromName').value = smtp.from_name || '';
+    const useOwn = (typeof data.use_own_smtp === 'boolean')
+      ? data.use_own_smtp
+      : !!(smtp && smtp.host);
+    document.getElementById('useOwnSmtp').checked = useOwn;
+    onOwnSmtpToggle();
     document.getElementById('settExpiry').value = String(data.expiry_days || 7);
     document.getElementById('settSubject').value = data.default_subject || 'Ihr sicheres Dokument';
     document.getElementById('settSignature').value = data.signature || '';
@@ -1000,20 +1140,24 @@
     if (allowReg) _updateRegLink(data.org_slug);
     
     // Security levels settings
-    const allowedLevels = data.allowed_security_levels || ['secure', 'extended'];
-    document.getElementById('secLevelNormal').checked = allowedLevels.includes('normal');
-    document.getElementById('secLevelStandard').checked = allowedLevels.includes('standard');
-    document.getElementById('secLevelSecure').checked = allowedLevels.includes('secure');
-    document.getElementById('secLevelExtended').checked = allowedLevels.includes('extended');
-    document.getElementById('secLevelAdvanced').checked = allowedLevels.includes('advanced');
-    document.getElementById('secLevelMax').checked = allowedLevels.includes('maximal');
-    document.getElementById('defaultSecurityLevel').value = data.default_security_level || 'secure';
+    const allowedLevels = data.allowed_security_levels || ['level1', 'level2', 'level3', 'level4'];
+    document.getElementById('secLevel1').checked = allowedLevels.includes('level1');
+    document.getElementById('secLevel2').checked = allowedLevels.includes('level2');
+    document.getElementById('secLevel3').checked = allowedLevels.includes('level3');
+    document.getElementById('secLevel4').checked = allowedLevels.includes('level4');
+    document.getElementById('defaultSecurityLevel').value = data.default_security_level || 'level2';
     document.getElementById('storagePreference').value = data.storage_preference || 'customer_cloud';
   }
 
   function onRegToggle() {
     const on = document.getElementById('allowRegistration').checked;
     document.getElementById('regDetails').style.display = on ? 'block' : 'none';
+  }
+
+  function onOwnSmtpToggle() {
+    const own = document.getElementById('useOwnSmtp').checked;
+    document.getElementById('smtpConfigDetails').style.display = own ? 'block' : 'none';
+    document.getElementById('smtpFallbackHint').style.display = own ? 'none' : 'block';
   }
 
   function _updateRegLink(slug) {
@@ -1030,6 +1174,10 @@
   }
 
   async function testSmtp() {
+    if (!document.getElementById('useOwnSmtp').checked) {
+      showToast('Bitte zuerst "Eigenen SMTP-Mailserver verwenden" aktivieren', 'error');
+      return;
+    }
     const testEmail = document.getElementById('smtpTestEmail').value.trim();
     if (!testEmail) { showToast('Bitte Ziel-E-Mail-Adresse eingeben', 'error'); return; }
     const btn = document.getElementById('smtpTestBtn');
@@ -1047,7 +1195,7 @@
       from_name: document.getElementById('smtpFromName').value,
     };
     try {
-      const res = await apiFetch('/admin/org/smtp/test', { method: 'POST', body: JSON.stringify({ smtp, test_email: testEmail }) });
+      const res = await apiFetch('/admin/org/smtp/test' + getOrgParam(), { method: 'POST', body: JSON.stringify({ smtp, test_email: testEmail }) });
       const data = await res.json();
       if (data.ok) {
         result.style.display = 'inline';
@@ -1071,29 +1219,39 @@
   async function saveSettings() {
     // Collect security levels
     const allowedLevels = [];
-    if (document.getElementById('secLevelNormal').checked) allowedLevels.push('normal');
-    if (document.getElementById('secLevelStandard').checked) allowedLevels.push('standard');
-    if (document.getElementById('secLevelSecure').checked) allowedLevels.push('secure');
-    if (document.getElementById('secLevelExtended').checked) allowedLevels.push('extended');
-    if (document.getElementById('secLevelAdvanced').checked) allowedLevels.push('advanced');
-    if (document.getElementById('secLevelMax').checked) allowedLevels.push('maximal');
+    if (document.getElementById('secLevel1').checked) allowedLevels.push('level1');
+    if (document.getElementById('secLevel2').checked) allowedLevels.push('level2');
+    if (document.getElementById('secLevel3').checked) allowedLevels.push('level3');
+    if (document.getElementById('secLevel4').checked) allowedLevels.push('level4');
     
     // Ensure at least one level is selected
     if (allowedLevels.length === 0) {
       showToast('Bitte mindestens eine Sicherheitsstufe auswählen', 'error');
       return;
     }
+    const selectedDefaultLevel = document.getElementById('defaultSecurityLevel').value;
+    if (selectedDefaultLevel === 'level4') {
+      showToast('Hinweis: Stufe 4 ist aktuell nur über das Outlook-Add-in produktiv nutzbar. Web-Sendungen werden als Stufe 3 verarbeitet.', 'info');
+    }
     
+    const useOwnSmtp = document.getElementById('useOwnSmtp').checked;
+    const smtpHost = document.getElementById('smtpHost').value.trim();
+    if (useOwnSmtp && !smtpHost) {
+      showToast('Bitte SMTP-Host eintragen oder eigenen SMTP deaktivieren', 'error');
+      return;
+    }
+
     const body = {
-      smtp: {
-        host: document.getElementById('smtpHost').value,
+      smtp: useOwnSmtp ? {
+        host: smtpHost,
         port: parseInt(document.getElementById('smtpPort').value) || 587,
         mode: document.getElementById('smtpMode').value,
         user: document.getElementById('smtpUser').value,
         password: document.getElementById('smtpPassword').value,
         from_addr: document.getElementById('smtpFromAddr').value,
         from_name: document.getElementById('smtpFromName').value,
-      },
+      } : null,
+      use_own_smtp: useOwnSmtp,
       expiry_days: parseInt(document.getElementById('settExpiry').value),
       default_subject: document.getElementById('settSubject').value,
       signature: document.getElementById('settSignature').value,
@@ -1101,7 +1259,7 @@
       allowed_domains: document.getElementById('allowedDomains').value
         .split(',').map(s => s.trim().replace(/^@/, '')).filter(Boolean),
       allowed_security_levels: allowedLevels,
-      default_security_level: document.getElementById('defaultSecurityLevel').value,
+      default_security_level: selectedDefaultLevel,
       storage_preference: document.getElementById('storagePreference').value,
     };
     const btn = document.getElementById('saveSettingsBtn');

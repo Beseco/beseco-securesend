@@ -21,17 +21,37 @@ Org Settings:
 
 from __future__ import annotations
 
+import csv
+import io
+from datetime import datetime
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database import get_db
 from dependencies import hash_password, org_admin_required
+from hosted_cfg import merge_hosted_storage_cfg
 from models.organization import Organization
-from models.shared import CloudProvider, SmsGateway
+from models.shared import AuditEvent, CloudProvider, SmsGateway
 from models.user import User, UserRole
+from services.hosted_provider import (
+    ensure_hosted_cloud_provider,
+    merge_org_settings_with_storage_defaults,
+    resolve_storage_quota_bytes,
+)
+from core.smtp_config import get_env_smtp_cfg
+from services.audit import log_audit_event, mask_email, merge_actor_fields, redact_exception_message
+from services.security_levels import (
+    DEFAULT_SECURITY_LEVEL,
+    LEVEL_4,
+    normalize_allowed_security_levels,
+    normalize_security_level,
+)
+
+from core.hosted_storage import HOSTED_SERVICE_NAME
 from schemas.shared import (
     CloudProviderCreate, CloudProviderRead, CloudProviderUpdate,
     SmsGatewayCreate, SmsGatewayRead, SmsGatewayUpdate,
@@ -61,6 +81,37 @@ def _resolve_org_id(current_user: User, org_id: Optional[str] = None) -> str:
             detail="This endpoint requires an organisation context",
         )
     return current_user.org_id
+
+
+def _parse_audit_dt(raw: Optional[str]) -> Optional[datetime]:
+    if not raw or not str(raw).strip():
+        return None
+    s = str(raw).strip()
+    try:
+        if s.endswith("Z"):
+            s = s[:-1] + "+00:00"
+        return datetime.fromisoformat(s)
+    except ValueError:
+        return None
+
+
+def _audit_event_to_dict(ev: AuditEvent) -> dict[str, Any]:
+    return {
+        "id": ev.id,
+        "created_at": ev.created_at.isoformat() if ev.created_at else None,
+        "event_type": ev.event_type,
+        "severity": ev.severity,
+        "status": ev.status,
+        "actor_user_id": ev.actor_user_id,
+        "actor_role": ev.actor_role,
+        "org_id": ev.org_id,
+        "reseller_id": ev.reseller_id,
+        "target_type": ev.target_type,
+        "target_id": ev.target_id,
+        "error_code": ev.error_code,
+        "error_message_redacted": ev.error_message_redacted,
+        "meta_json": ev.meta_json,
+    }
 
 
 # ── Users ──────────────────────────────────────────────────────────────────────
@@ -133,6 +184,8 @@ async def create_org_user(
                 reseller = res.scalar_one_or_none()
                 if reseller and reseller.settings_json:
                     smtp_cfg = reseller.settings_json.get("smtp")
+            if not smtp_cfg:
+                smtp_cfg = get_env_smtp_cfg()
             if smtp_cfg:
                 display_name = ""
                 if body.first_name or body.last_name:
@@ -227,6 +280,8 @@ async def list_providers(
     db: AsyncSession = Depends(get_db),
 ) -> list[CloudProviderRead]:
     org_id = _resolve_org_id(current_user, org_id)
+    await ensure_hosted_cloud_provider(db, org_id)
+    await db.commit()
     result = await db.execute(
         select(CloudProvider)
         .where(CloudProvider.org_id == org_id)
@@ -244,6 +299,11 @@ async def create_provider(
     db: AsyncSession = Depends(get_db),
 ) -> CloudProviderRead:
     org_id = _resolve_org_id(current_user, org_id)
+    if body.service == HOSTED_SERVICE_NAME:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="SecureSend Storage wird automatisch angelegt und kann nicht manuell erstellt werden.",
+        )
 
     # If this is the new default, clear existing defaults first
     if body.is_default:
@@ -290,6 +350,19 @@ async def update_provider(
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
 
+    if provider.service == HOSTED_SERVICE_NAME:
+        patch = body.model_dump(exclude_none=True)
+        if patch.get("is_active") is False:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="SecureSend Storage kann nicht deaktiviert werden.",
+            )
+        if patch.get("service") and patch["service"] != HOSTED_SERVICE_NAME:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Der Diensttyp von SecureSend Storage kann nicht geändert werden.",
+            )
+
     if body.is_default is True:
         existing = await db.execute(
             select(CloudProvider).where(
@@ -301,7 +374,11 @@ async def update_provider(
         for p in existing.scalars().all():
             p.is_default = False
 
-    for field, value in body.model_dump(exclude_none=True).items():
+    update_data = body.model_dump(exclude_none=True)
+    if provider.service == HOSTED_SERVICE_NAME:
+        update_data.pop("name", None)
+
+    for field, value in update_data.items():
         setattr(provider, field, value)
 
     await db.commit()
@@ -326,6 +403,19 @@ async def provider_status(
         raise HTTPException(status_code=404, detail="Provider not found")
     cfg = dict(provider.config_json or {})
     cfg["service"] = provider.service
+    if provider.service == HOSTED_SERVICE_NAME:
+        org_ent = await db.execute(
+            select(Organization).where(Organization.id == org_id)
+        )
+        org_o = org_ent.scalar_one_or_none()
+        merged = merge_org_settings_with_storage_defaults(
+            org_o.settings_json if org_o else None
+        )
+        used = int(merged.get("storage_used_bytes", 0))
+        quota = await resolve_storage_quota_bytes(db, org_o) if org_o else 0
+        cfg = merge_hosted_storage_cfg(
+            cfg, org_id, quota_used=used, quota_total=quota
+        )
     import asyncio
     try:
         from core.storage import get_provider_status  # type: ignore[import]
@@ -352,6 +442,11 @@ async def delete_provider(
     provider = result.scalar_one_or_none()
     if not provider:
         raise HTTPException(status_code=404, detail="Provider not found")
+    if provider.service == HOSTED_SERVICE_NAME:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Der integrierte SecureSend Storage kann nicht gelöscht werden.",
+        )
     await db.delete(provider)
     await db.commit()
 
@@ -474,6 +569,110 @@ async def delete_gateway(
     await db.commit()
 
 
+# ── Audit-Log (Debug, ohne Inhalte) ────────────────────────────────────────────
+
+
+@router.get("/audit-events")
+async def list_org_audit_events(
+    org_id: Optional[str] = Query(None),
+    from_ts: Optional[str] = Query(None, alias="from"),
+    to_ts: Optional[str] = Query(None, alias="to"),
+    event_type: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+    status_q: Optional[str] = Query(None, alias="status"),
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    current_user: User = Depends(org_admin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> list[dict[str, Any]]:
+    oid = _resolve_org_id(current_user, org_id)
+    q = select(AuditEvent).where(AuditEvent.org_id == oid)
+    dt_from = _parse_audit_dt(from_ts)
+    dt_to = _parse_audit_dt(to_ts)
+    if dt_from:
+        q = q.where(AuditEvent.created_at >= dt_from)
+    if dt_to:
+        q = q.where(AuditEvent.created_at <= dt_to)
+    if event_type:
+        q = q.where(AuditEvent.event_type == event_type)
+    if severity:
+        q = q.where(AuditEvent.severity == severity)
+    if status_q:
+        q = q.where(AuditEvent.status == status_q)
+    q = q.order_by(AuditEvent.created_at.desc()).limit(limit).offset(offset)
+    result = await db.execute(q)
+    return [_audit_event_to_dict(ev) for ev in result.scalars().all()]
+
+
+@router.get("/audit-events/export")
+async def export_org_audit_events_csv(
+    org_id: Optional[str] = Query(None),
+    from_ts: Optional[str] = Query(None, alias="from"),
+    to_ts: Optional[str] = Query(None, alias="to"),
+    event_type: Optional[str] = Query(None),
+    severity: Optional[str] = Query(None),
+    status_q: Optional[str] = Query(None, alias="status"),
+    limit: int = Query(2000, ge=1, le=5000),
+    current_user: User = Depends(org_admin_required()),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    oid = _resolve_org_id(current_user, org_id)
+    q = select(AuditEvent).where(AuditEvent.org_id == oid)
+    dt_from = _parse_audit_dt(from_ts)
+    dt_to = _parse_audit_dt(to_ts)
+    if dt_from:
+        q = q.where(AuditEvent.created_at >= dt_from)
+    if dt_to:
+        q = q.where(AuditEvent.created_at <= dt_to)
+    if event_type:
+        q = q.where(AuditEvent.event_type == event_type)
+    if severity:
+        q = q.where(AuditEvent.severity == severity)
+    if status_q:
+        q = q.where(AuditEvent.status == status_q)
+    q = q.order_by(AuditEvent.created_at.desc()).limit(limit)
+    result = await db.execute(q)
+    rows = result.scalars().all()
+    buf = io.StringIO()
+    w = csv.writer(buf)
+    w.writerow(
+        [
+            "created_at",
+            "event_type",
+            "severity",
+            "status",
+            "actor_user_id",
+            "actor_role",
+            "target_type",
+            "target_id",
+            "error_code",
+            "error_message_redacted",
+        ]
+    )
+    for ev in rows:
+        w.writerow(
+            [
+                ev.created_at.isoformat() if ev.created_at else "",
+                ev.event_type,
+                ev.severity,
+                ev.status,
+                ev.actor_user_id or "",
+                ev.actor_role or "",
+                ev.target_type or "",
+                ev.target_id or "",
+                ev.error_code or "",
+                (ev.error_message_redacted or "").replace("\n", " ")[:500],
+            ]
+        )
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="audit_events.csv"',
+        },
+    )
+
+
 # ── Org Settings ───────────────────────────────────────────────────────────────
 
 @router.get("/settings")
@@ -488,6 +687,14 @@ async def get_org_settings(
     if not org:
         raise HTTPException(status_code=404, detail="Organisation not found")
     data = dict(org.settings_json or {})
+    data["allowed_security_levels"] = normalize_allowed_security_levels(
+        data.get("allowed_security_levels")
+    )
+    data["default_security_level"] = normalize_security_level(
+        data.get("default_security_level"), default=DEFAULT_SECURITY_LEVEL
+    )
+    if data["default_security_level"] not in data["allowed_security_levels"]:
+        data["default_security_level"] = data["allowed_security_levels"][0]
     data["org_slug"] = org.slug   # expose slug so the UI can build the registration link
     return data
 
@@ -495,6 +702,7 @@ async def get_org_settings(
 @router.post("/smtp/test")
 async def test_org_smtp(
     body: dict,
+    org_id: Optional[str] = Query(None),
     current_user: User = Depends(org_admin_required()),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -514,6 +722,7 @@ async def test_org_smtp(
     if not test_email or "@" not in test_email:
         raise HTTPException(status_code=400, detail="Ungültige Ziel-E-Mail-Adresse")
 
+    resolved_org = _resolve_org_id(current_user, org_id)
     try:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(
@@ -528,8 +737,42 @@ async def test_org_smtp(
   <p style="font-size:0.875rem;color:#64748b;">SecureSend Cloud – Sicheres Senden</p>
 </body></html>""",
         )
+        await log_audit_event(
+            event_type="smtp_test_success",
+            severity="info",
+            status="success",
+            meta_json={
+                "scope": "org",
+                "test_recipient_masked": mask_email(test_email),
+            },
+            **merge_actor_fields(
+                current_user,
+                org_id=resolved_org,
+                reseller_id=current_user.reseller_id,
+            ),
+            db=db,
+            commit=True,
+        )
         return {"ok": True}
     except Exception as exc:
+        await log_audit_event(
+            event_type="smtp_test_failed",
+            severity="warning",
+            status="failure",
+            error_code="smtp_test_exception",
+            error_message_redacted=redact_exception_message(exc),
+            meta_json={
+                "scope": "org",
+                "test_recipient_masked": mask_email(test_email),
+            },
+            **merge_actor_fields(
+                current_user,
+                org_id=resolved_org,
+                reseller_id=current_user.reseller_id,
+            ),
+            db=db,
+            commit=True,
+        )
         return {"ok": False, "error": str(exc)}
 
 
@@ -546,11 +789,48 @@ async def update_org_settings(
     if not org:
         raise HTTPException(status_code=404, detail="Organisation not found")
 
+    normalized_body = dict(body)
+    if "allowed_security_levels" in normalized_body:
+        normalized_body["allowed_security_levels"] = normalize_allowed_security_levels(
+            normalized_body.get("allowed_security_levels")
+        )
+    if "default_security_level" in normalized_body:
+        normalized_body["default_security_level"] = normalize_security_level(
+            normalized_body.get("default_security_level"),
+            default=DEFAULT_SECURITY_LEVEL,
+        )
+    if "allowed_security_levels" in normalized_body:
+        allowed_levels = normalized_body["allowed_security_levels"]
+        default_level = normalized_body.get("default_security_level")
+        if not default_level or default_level not in allowed_levels:
+            normalized_body["default_security_level"] = allowed_levels[0]
+
     # Merge (do not replace outright so callers can patch individual keys)
     current_settings = dict(org.settings_json or {})
-    current_settings.update(body)
+    current_settings.update(normalized_body)
     org.settings_json = current_settings
 
+    await log_audit_event(
+        event_type="org_settings_updated",
+        severity="info",
+        status="success",
+        target_type="organization",
+        target_id=org_id,
+        meta_json={
+            "updated_keys": sorted(normalized_body.keys()),
+            "smtp_touched": "smtp" in normalized_body or "use_own_smtp" in normalized_body,
+            "level4_allowed": LEVEL_4 in list(current_settings.get("allowed_security_levels") or []),
+            "level4_default": current_settings.get("default_security_level") == LEVEL_4,
+            "level4_web_status": "addin_only_web_downgrade_to_level3",
+        },
+        **merge_actor_fields(
+            current_user,
+            org_id=org_id,
+            reseller_id=current_user.reseller_id,
+        ),
+        db=db,
+        commit=False,
+    )
     await db.commit()
     await db.refresh(org)
     return org.settings_json or {}

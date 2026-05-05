@@ -1,6 +1,6 @@
 """
 core/storage.py — Cloud-Storage Upload & Share-Link
-Unterstützte Anbieter: Nextcloud, OneDrive, Dropbox, HiDrive, Synology Drive, MinIO
+Unterstützte Anbieter: Nextcloud, ownCloud, OneDrive, Dropbox, HiDrive, Synology Drive, MinIO
 
 Alle Funktionen erhalten die Konfiguration als `cfg: dict`.
 Keine Flask-Abhängigkeit, keine globalen Variablen.
@@ -12,7 +12,7 @@ import base64
 import json as _json
 import requests
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import quote
 
 try:
@@ -31,6 +31,122 @@ except ImportError:
 
 # Interner Cache: (nc_url, nc_user) → interne User-ID (z.B. UUID bei LDAP)
 _nc_user_id_cache: dict[tuple, str] = {}
+
+
+def _service_is_nextcloud_family(service: str) -> bool:
+    """Nextcloud und ownCloud (OCS + WebDAV unter /remote.php/dav/files/…)."""
+    return service in ("nextcloud", "owncloud")
+
+
+def _expect_json_response(
+    resp: requests.Response, step: str, *, hint: str = ""
+) -> Any:
+    """Parst JSON; bei leerer oder HTML-Antwort verständliche RuntimeError-Meldung."""
+    text = (resp.text or "").strip()
+    if not text:
+        raise RuntimeError(
+            f"{step}: Leere HTTP-Antwort ({resp.status_code}) von {resp.url}. {hint}".strip()
+        )
+    try:
+        return resp.json()
+    except ValueError:
+        preview = text[:350].replace("\n", " ")
+        raise RuntimeError(
+            f"{step}: Kein JSON ({resp.status_code}). {hint} "
+            f"Antwortbeginn: {preview!r}"
+        ) from None
+
+
+def _xml_local_tag(tag: str) -> str:
+    if not tag:
+        return ""
+    return tag.split("}", 1)[-1] if tag.startswith("{") else tag
+
+
+def _ocs_cloud_user_payload_from_xml(text: str) -> dict:
+    """Wandelt OCS-XML (cloud/user) in ein JSON-ähnliches { \"ocs\": { \"meta\", \"data\" } }."""
+    import xml.etree.ElementTree as ET
+
+    root = ET.fromstring(text.strip())
+    if _xml_local_tag(root.tag) != "ocs":
+        ocs_el = None
+        for el in root.iter():
+            if _xml_local_tag(el.tag) == "ocs":
+                ocs_el = el
+                break
+        if ocs_el is None:
+            raise ValueError("Kein <ocs>-Element")
+        root = ocs_el
+    meta: dict[str, str] = {}
+    data: dict[str, str] = {}
+    for child in root:
+        ln = _xml_local_tag(child.tag)
+        if ln == "meta":
+            for m in child:
+                meta[_xml_local_tag(m.tag)] = (m.text or "").strip()
+        elif ln == "data":
+            for d in child:
+                data[_xml_local_tag(d.tag)] = (d.text or "").strip()
+    return {"ocs": {"meta": meta, "data": data}}
+
+
+def _parse_ocs_cloud_user_response(
+    resp: requests.Response, step: str, *, hint: str = ""
+) -> dict:
+    """JSON oder OCS-XML von /ocs/v2.php/cloud/user."""
+    text = (resp.text or "").strip()
+    if not text:
+        raise RuntimeError(
+            f"{step}: Leere HTTP-Antwort ({resp.status_code}) von {resp.url}. {hint}".strip()
+        )
+    if text.startswith("<") or text.startswith("<?xml"):
+        try:
+            return _ocs_cloud_user_payload_from_xml(text)
+        except Exception as exc:
+            preview = text[:350].replace("\n", " ")
+            raise RuntimeError(
+                f"{step}: OCS-XML nicht lesbar ({resp.status_code}). {hint} "
+                f"Antwortbeginn: {preview!r} ({exc})"
+            ) from exc
+    try:
+        return resp.json()
+    except ValueError:
+        preview = text[:350].replace("\n", " ")
+        raise RuntimeError(
+            f"{step}: Weder JSON noch erkanntes XML ({resp.status_code}). {hint} "
+            f"Antwortbeginn: {preview!r}"
+        ) from None
+
+
+def _ocs_meta_failure_message(meta: dict) -> str | None:
+    """Liefert eine Nutzer-Meldung, wenn OCS meta einen Fehler meldet."""
+    if not meta:
+        return None
+    status = (meta.get("status") or "").strip().lower()
+    raw_code = meta.get("statuscode")
+    try:
+        code = int(raw_code) if raw_code not in (None, "") else None
+    except (TypeError, ValueError):
+        code = None
+    msg = (meta.get("message") or "").strip() or "Unbekannter OCS-Fehler"
+
+    if status == "failure":
+        extra = ""
+        if code == 997:
+            extra = (
+                " Üblich: falsches Passwort, oder es wird ein App-Passwort benötigt "
+                "(Kontoeinstellungen / Sicherheit), nicht das normale Web-Login-Passwort; "
+                "bei 2FA ohne App-Passwort schlägt die API fehl."
+            )
+        return f"{msg} (OCS {code or '—'}){extra}"
+
+    if status and status != "ok":
+        return f"{msg} (OCS status={status!r}, code={code or raw_code})"
+
+    if code is not None and code not in (100, 200):
+        return f"{msg} (OCS-Statuscode {code})"
+
+    return None
 
 
 # ── Nextcloud ────────────────────────────────────────────────────────────────
@@ -184,9 +300,9 @@ def upload_to_onedrive(
 
 
 def create_onedrive_share_link(
-    cfg: dict, token: str, item_id: str, password: str, days: int
+    cfg: dict, token: str, item_id: str, password: Optional[str], days: int
 ) -> str:
-    """Erstellt passwortgeschützten Freigabe-Link."""
+    """Erstellt Freigabe-Link; optional mit Passwortschutz."""
     expiry = (datetime.now(timezone.utc) + timedelta(days=days)).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
@@ -194,12 +310,13 @@ def create_onedrive_share_link(
         f"https://graph.microsoft.com/v1.0/users/{cfg['user']}"
         f"/drive/items/{item_id}/createLink"
     )
-    payload = {
+    payload: dict = {
         "type": "view",
         "scope": "anonymous",
-        "password": password,
         "expirationDateTime": expiry,
     }
+    if password:
+        payload["password"] = password
     resp = requests.post(
         url,
         headers={
@@ -216,26 +333,114 @@ def create_onedrive_share_link(
 # ── Dropbox ──────────────────────────────────────────────────────────────────
 
 
-def _dropbox_token(cfg: dict) -> str:
-    """Holt ein frisches Dropbox Access-Token via Refresh-Token."""
-    app_key = cfg.get("app_key", "")
-    app_secret = cfg.get("app_secret", "")
-    refresh = cfg.get("refresh_token", "")
+def _dropbox_oauth_error_message(resp: requests.Response) -> str:
+    """Liest Dropbox-Fehler aus der OAuth-Antwort (meist JSON mit error / error_description)."""
+    try:
+        data = resp.json()
+        err = data.get("error")
+        desc = data.get("error_description") or data.get("user_message")
+        if err and desc:
+            return f"{err}: {desc}"
+        if err:
+            return str(err)
+        if desc:
+            return str(desc)
+    except Exception:
+        pass
+    text = (resp.text or "").strip()
+    if text:
+        return text[:500]
+    return resp.reason or f"HTTP {resp.status_code}"
 
-    if refresh and app_key and app_secret:
+
+def _dropbox_normalize_refresh_token(raw: str) -> str:
+    """Entfernt BOM, äußere und eingebettete Whitespace-Zeichen (häufig bei Copy-Paste)."""
+    s = (raw or "").strip()
+    if s.startswith("\ufeff"):
+        s = s.lstrip("\ufeff").strip()
+    return "".join(s.split())
+
+
+def _dropbox_parse_refresh_token_input(raw: str) -> str:
+    """Refresh-Token aus Freitext: reiner Token, komplette JSON-Token-Antwort oder curl-Zeile."""
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    if s.startswith("\ufeff"):
+        s = s.lstrip("\ufeff").strip()
+    low = s.lstrip().lower()
+    if low.startswith("refresh_token="):
+        s = s.split("=", 1)[1].strip()
+    if s.startswith("{") and "refresh_token" in s:
+        try:
+            data = _json.loads(s)
+            if isinstance(data, dict) and data.get("refresh_token") is not None:
+                s = str(data["refresh_token"])
+        except (ValueError, TypeError):
+            pass
+    s = s.strip()
+    if len(s) >= 2 and s[0] == s[-1] and s[0] in "\"'":
+        s = s[1:-1].strip()
+    return _dropbox_normalize_refresh_token(s)
+
+
+def _dropbox_invalid_grant_hint(msg: str) -> str:
+    m = msg.lower()
+    if "malformed" not in m and "invalid_grant" not in m:
+        return ""
+    return (
+        " Häufig: falscher Wert (Authorization-Code, kurzlebiger access_token, "
+        "„Generated access token“ aus der Konsole) oder App-Key gehört nicht zur App, "
+        "die den Refresh-Token ausgestellt hat. Neu mit token_access_type=offline "
+        "laut Dropbox-OAuth-Guide."
+    )
+
+
+def _dropbox_token(cfg: dict) -> str:
+    """Holt ein frisches Dropbox Access-Token via Refresh-Token.
+
+    Erwartet in cfg: app_key (oder client_id), optional app_secret (oder client_secret),
+    refresh_token — alles zur selben Dropbox-App. Ohne Secret: PKCE-App (nur client_id).
+    refresh_token: OAuth-Refresh-Token (offline); alternativ die komplette JSON-Antwort
+    vom Token-Endpunkt (wird erkannt).
+    """
+    app_key = (cfg.get("app_key") or cfg.get("client_id") or "").strip()
+    app_secret = (cfg.get("app_secret") or cfg.get("client_secret") or "").strip()
+    refresh = _dropbox_parse_refresh_token_input(cfg.get("refresh_token") or "")
+
+    if refresh and app_key:
+        # Dropbox akzeptiert client_id/client_secret im Form-Body (statt Basic-Auth).
+        form: dict[str, str] = {
+            "grant_type": "refresh_token",
+            "refresh_token": refresh,
+            "client_id": app_key,
+        }
+        if app_secret:
+            form["client_secret"] = app_secret
         resp = requests.post(
             "https://api.dropbox.com/oauth2/token",
-            data={"grant_type": "refresh_token", "refresh_token": refresh},
-            auth=(app_key, app_secret),
+            data=form,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
             timeout=15,
         )
-        resp.raise_for_status()
-        return resp.json()["access_token"]
+        if not resp.ok:
+            detail = _dropbox_oauth_error_message(resp)
+            raise RuntimeError(
+                f"Dropbox OAuth ({resp.status_code}): {detail}"
+                f"{_dropbox_invalid_grant_hint(detail)}"
+            )
+        try:
+            return resp.json()["access_token"]
+        except (KeyError, TypeError, ValueError) as exc:
+            raise RuntimeError(f"Dropbox OAuth: unerwartete Antwort: {resp.text!r}") from exc
 
-    # Fallback: direkt gespeicherter (long-lived) Access-Token
-    token = cfg.get("access_token", "")
+    # Fallback: direkt gespeicherter Access-Token (z. B. kurzlebig aus der Konsole)
+    token = (cfg.get("access_token") or "").strip()
     if not token:
-        raise RuntimeError("Dropbox: kein access_token oder refresh_token konfiguriert")
+        raise RuntimeError(
+            "Dropbox: Bitte App-Key (client_id) und Refresh-Token ausfüllen; "
+            "bei App mit Secret auch App-Secret — oder access_token als Fallback."
+        )
     return token
 
 
@@ -384,31 +589,57 @@ def create_hidrive_share_link(
 # ── Synology Drive ────────────────────────────────────────────────────────────
 
 
+def _synology_parse_json(resp: requests.Response, step: str) -> dict:
+    """Parst Synology-WebAPI-Antwort; bei HTML oder leerer Antwort klare Fehlermeldung."""
+    text = (resp.text or "").strip()
+    if not text:
+        raise RuntimeError(
+            f"Synology ({step}): Leere HTTP-Antwort ({resp.status_code}) von {resp.url}. "
+            "Prüfen Sie die NAS-URL (üblich: https://…:5001 für DSM HTTPS)."
+        )
+    try:
+        return resp.json()
+    except ValueError:
+        preview = text[:350].replace("\n", " ")
+        raise RuntimeError(
+            f"Synology ({step}): Kein JSON ({resp.status_code}) — oft falsche URL, "
+            "Reverse-Proxy oder Anmeldeseite statt Web-API. "
+            f"Antwort beginnt mit: {preview!r}"
+        ) from None
+
+
 def _syno_login(cfg: dict) -> str:
     """Meldet sich bei Synology an und gibt die Session-ID (sid) zurück."""
-    base = cfg["url"].rstrip("/")
+    base = (cfg.get("url") or "").strip().rstrip("/")
+    if not base:
+        raise RuntimeError("Synology: url fehlt")
     resp = requests.get(
         f"{base}/webapi/auth.cgi",
         params={
             "api": "SYNO.API.Auth",
             "method": "login",
             "version": "3",
-            "account": cfg.get("username") or cfg.get("user", ""),
-            "passwd": cfg.get("password", ""),
+            "account": (cfg.get("username") or cfg.get("user") or "").strip(),
+            "passwd": (cfg.get("password") or "").strip(),
             "format": "sid",
         },
         verify=cfg.get("verify_ssl", True),
         timeout=15,
     )
     resp.raise_for_status()
-    data = resp.json()
+    data = _synology_parse_json(resp, "Login")
     if not data.get("success"):
         raise RuntimeError(f"Synology Login fehlgeschlagen: {data.get('error', {})}")
-    return data["data"]["sid"]
+    sid = (data.get("data") or {}).get("sid")
+    if not sid:
+        raise RuntimeError(f"Synology Login: keine sid in Antwort: {data!r}")
+    return sid
 
 
 def _syno_webdav_url(cfg: dict, path: str) -> str:
-    base = cfg["url"].rstrip("/")
+    base = (cfg.get("url") or "").strip().rstrip("/")
+    if not base:
+        raise RuntimeError("Synology: url fehlt")
     return f"{base}/webdav/{path.lstrip('/')}"
 
 
@@ -460,7 +691,9 @@ def create_synology_share_link(
     cfg: dict, sid: str, file_path: str, password: Optional[str], days: int
 ) -> str:
     """Erstellt einen Synology FileStation Freigabe-Link."""
-    base = cfg["url"].rstrip("/")
+    base = (cfg.get("url") or "").strip().rstrip("/")
+    if not base:
+        raise RuntimeError("Synology: url fehlt")
     # Absoluter Pfad für FileStation (/homes/{user}/... oder /home/...)
     folder_base = cfg.get("folder", "SecureSend")
     abs_path = f"/{folder_base}/{file_path.lstrip('/')}"
@@ -484,7 +717,7 @@ def create_synology_share_link(
         timeout=30,
     )
     resp.raise_for_status()
-    data = resp.json()
+    data = _synology_parse_json(resp, "Freigabe erstellen")
     if not data.get("success"):
         raise RuntimeError(f"Synology Share fehlgeschlagen: {data.get('error', {})}")
     links = data.get("data", {}).get("links", [])
@@ -635,13 +868,13 @@ def upload_and_share(
     """Lädt Datei hoch und gibt passwortgeschützten Link zurück.
 
     cfg muss enthalten:
-      - service: "nextcloud" | "onedrive"
-      - Nextcloud: url, user, password, folder
+      - service: "nextcloud" | "owncloud" | "onedrive"
+      - Nextcloud/ownCloud: url, user, password, folder
       - OneDrive:  client_id, client_secret, tenant_id, user, folder
     """
     service = cfg.get("service", "nextcloud")
 
-    if service == "nextcloud":
+    if _service_is_nextcloud_family(service):
         file_path = upload_to_nextcloud(
             cfg, filename, content, content_type=content_type, subfolder=subfolder
         )
@@ -685,6 +918,16 @@ def upload_and_share(
         )
         return create_minio_share_link(cfg, file_path, password, days)
 
+    elif service == "securesend_hosted":
+        from core.hosted_storage import HOSTED_SHARE_PLACEHOLDER, hosted_upload_single
+
+        base_folder = cfg.get("folder", "SecureSend")
+        rel_sub = (
+            f"{base_folder}/{subfolder}".strip("/") if subfolder else base_folder
+        )
+        hosted_upload_single(cfg, filename, content, content_type, rel_sub)
+        return HOSTED_SHARE_PLACEHOLDER
+
     else:
         raise ValueError(f"Unbekannter Storage-Service: {service!r}")
 
@@ -710,7 +953,7 @@ def upload_files_and_share_folder(
     """
     service = cfg.get("service", "nextcloud")
 
-    if service == "nextcloud":
+    if _service_is_nextcloud_family(service):
         nc_ensure_folder(cfg, folder_path)
         for filename, content, content_type in files:
             url = _nc_webdav_url(cfg, f"{folder_path}/{filename}")
@@ -767,8 +1010,96 @@ def upload_files_and_share_folder(
         sid = _syno_login(cfg)
         return create_synology_share_link(cfg, sid, folder_path, password, days)
 
+    elif service == "securesend_hosted":
+        from core.hosted_storage import HOSTED_SHARE_PLACEHOLDER, hosted_upload_folder
+
+        hosted_upload_folder(cfg, files, folder_path)
+        return HOSTED_SHARE_PLACEHOLDER
+
     else:
         raise ValueError(f"Unbekannter Storage-Service: {service!r}")
+
+
+def download_cloud_file(cfg: dict, folder_path: str, filename: str) -> bytes:
+    """Lädt eine Datei aus einem Ordner, den z. B. upload_files_and_share_folder angelegt hat.
+
+    folder_path: Relativer Pfad wie bei Upload (z. B. ``SecureSend/<user_id>/<timestamp>``).
+    filename:    Dateiname innerhalb dieses Ordners.
+
+    Unterstützte Dienste: nextcloud, owncloud, onedrive, dropbox, hidrive, synology — analog zu
+    ``upload_files_and_share_folder``.
+    """
+    service = cfg.get("service", "nextcloud")
+    fp = folder_path.strip().strip("/")
+    rel = f"{fp}/{filename}" if fp else filename
+
+    if service == "securesend_hosted":
+        from core.hosted_storage import hosted_download
+
+        return hosted_download(cfg, folder_path, filename)
+
+    if _service_is_nextcloud_family(service):
+        url = _nc_webdav_url(cfg, rel)
+        resp = requests.get(
+            url, auth=(cfg["user"], cfg["password"]), timeout=120
+        )
+        resp.raise_for_status()
+        return resp.content
+
+    if service == "onedrive":
+        token = get_graph_token(cfg)
+        graph_path = f"/users/{cfg['user']}/drive/root:/{rel}:/content"
+        url = f"https://graph.microsoft.com/v1.0{graph_path}"
+        resp = requests.get(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=120,
+        )
+        resp.raise_for_status()
+        return resp.content
+
+    if service == "dropbox":
+        token = _dropbox_token(cfg)
+        base = cfg.get("folder", "/SecureSend").rstrip("/")
+        dbx_path = f"{base}/{rel}" if fp else f"{base}/{filename}"
+        resp = requests.post(
+            "https://content.dropboxapi.com/2/files/download",
+            headers={
+                **_dropbox_headers(token),
+                "Dropbox-API-Arg": _json.dumps({"path": dbx_path}),
+            },
+            timeout=120,
+        )
+        resp.raise_for_status()
+        return resp.content
+
+    if service == "hidrive":
+        base = cfg.get("folder", "SecureSend")
+        inner = f"{base}/{fp}" if fp else base
+        full_path = f"{inner}/{filename}"
+        url = _hidrive_webdav_url(cfg, full_path)
+        resp = requests.get(url, auth=_hidrive_auth(cfg), timeout=120)
+        resp.raise_for_status()
+        return resp.content
+
+    if service == "synology":
+        base = cfg.get("folder", "SecureSend")
+        inner = f"{base}/{fp}" if fp else base
+        full_path = f"{inner}/{filename}"
+        url = _syno_webdav_url(cfg, full_path)
+        resp = requests.get(
+            url,
+            auth=_syno_auth(cfg),
+            verify=cfg.get("verify_ssl", True),
+            timeout=120,
+        )
+        resp.raise_for_status()
+        return resp.content
+
+    raise ValueError(
+        f"Download aus dem Speicher {service!r} wird für E2E-Versand nicht unterstützt "
+        f"(kein Ordner-Upload in upload_files_and_share_folder)."
+    )
 
 
 # ── Status & Quota ────────────────────────────────────────────────────────────
@@ -795,10 +1126,20 @@ def get_provider_status(cfg: dict) -> dict:
         "error": None,
     }
 
-    if service == "nextcloud":
+    if _service_is_nextcloud_family(service):
+        nc_hint = (
+            "URL muss die Basis der Installation sein (inkl. ggf. /owncloud oder /nextcloud). "
+            "OCS-Endpunkt /ocs/v2.php/cloud/user muss erreichbar sein — kein Proxy mit HTML-Login davor."
+        )
         try:
-            base = cfg["url"].rstrip("/")
-            auth = (cfg.get("user", ""), cfg.get("password", ""))
+            base = (cfg.get("url") or "").strip().rstrip("/")
+            if not base:
+                result["error"] = "Server-URL fehlt"
+                return result
+            auth = (
+                (cfg.get("user") or "").strip(),
+                (cfg.get("password") or "").strip(),
+            )
 
             # Verbindung + User-Info via OCS
             r = requests.get(
@@ -811,7 +1152,29 @@ def get_provider_status(cfg: dict) -> dict:
                 result["error"] = "Ungültige Zugangsdaten (401)"
                 return result
             r.raise_for_status()
-            data = r.json()["ocs"]["data"]
+            payload = _parse_ocs_cloud_user_response(
+                r,
+                "Nextcloud/ownCloud (OCS cloud/user)",
+                hint=nc_hint,
+            )
+            ocs = payload.get("ocs")
+            if not isinstance(ocs, dict):
+                result["error"] = (
+                    f"Nextcloud/ownCloud: unerwartete Antwort (kein OCS). {nc_hint}"
+                )
+                return result
+            meta = ocs.get("meta") if isinstance(ocs.get("meta"), dict) else {}
+            fail_msg = _ocs_meta_failure_message(meta)
+            if fail_msg:
+                result["error"] = f"Nextcloud/ownCloud: {fail_msg}"
+                return result
+            data = ocs.get("data")
+            if not isinstance(data, dict):
+                prev = repr(payload)[:400]
+                result["error"] = (
+                    f"Nextcloud/ownCloud OCS: keine Nutzerdaten in der Antwort: {prev}"
+                )
+                return result
             result["display_name"] = (
                 data.get("display-name") or data.get("displayname") or data.get("id")
             )
@@ -836,29 +1199,37 @@ def get_provider_status(cfg: dict) -> dict:
             if rq.ok:
                 import xml.etree.ElementTree as ET
 
-                root = ET.fromstring(rq.text)
-                ns = {"d": "DAV:"}
-                avail = root.findtext(".//d:quota-available-bytes", namespaces=ns)
-                used = root.findtext(".//d:quota-used-bytes", namespaces=ns)
-                avail_i = int(avail) if avail and avail.lstrip("-").isdigit() else None
-                used_i = int(used) if used and used.lstrip("-").isdigit() else None
-                if used_i is not None:
-                    total = (
-                        (used_i + avail_i)
-                        if (avail_i is not None and avail_i >= 0)
-                        else None
+                try:
+                    root = ET.fromstring(rq.text or "")
+                except ET.ParseError:
+                    pass
+                else:
+                    ns = {"d": "DAV:"}
+                    avail = root.findtext(".//d:quota-available-bytes", namespaces=ns)
+                    used = root.findtext(".//d:quota-used-bytes", namespaces=ns)
+                    avail_i = (
+                        int(avail) if avail and avail.lstrip("-").isdigit() else None
                     )
-                    result["quota"] = {
-                        "used": used_i,
-                        "available": avail_i
-                        if avail_i is not None and avail_i >= 0
-                        else None,
-                        "total": total,
-                    }
+                    used_i = int(used) if used and used.lstrip("-").isdigit() else None
+                    if used_i is not None:
+                        total = (
+                            (used_i + avail_i)
+                            if (avail_i is not None and avail_i >= 0)
+                            else None
+                        )
+                        result["quota"] = {
+                            "used": used_i,
+                            "available": avail_i
+                            if avail_i is not None and avail_i >= 0
+                            else None,
+                            "total": total,
+                        }
             result["ok"] = True
 
         except requests.RequestException as e:
             result["error"] = f"Verbindungsfehler: {e}"
+        except RuntimeError as e:
+            result["error"] = str(e)
 
     elif service == "onedrive":
         try:
@@ -960,7 +1331,7 @@ def get_provider_status(cfg: dict) -> dict:
     elif service == "synology":
         try:
             sid = _syno_login(cfg)
-            base = cfg["url"].rstrip("/")
+            base = (cfg.get("url") or "").strip().rstrip("/")
             r = requests.get(
                 f"{base}/webapi/entry.cgi",
                 params={
@@ -973,12 +1344,38 @@ def get_provider_status(cfg: dict) -> dict:
                 timeout=10,
             )
             r.raise_for_status()
-            d = r.json()
+            d = _synology_parse_json(r, "FileStation.Info")
             if d.get("success"):
                 info = d.get("data", {})
                 result["display_name"] = info.get("hostname") or cfg.get("url")
                 # Quota via SYNO.Core.System.Utilization oder WebDAV PROPFIND
                 result["quota"] = None  # Optional: via weiterer API-Aufruf
+            else:
+                err = d.get("error", {})
+                result["error"] = f"Synology API: {err}"
+                return result
+            result["ok"] = True
+        except Exception as e:
+            result["error"] = str(e)
+
+    elif service == "securesend_hosted":
+        from core.hosted_storage import hosted_check_connectivity
+
+        result["display_name"] = "SecureSend Storage"
+        used = cfg.get("_hosted_quota_used")
+        total = cfg.get("_hosted_quota_total")
+        if used is not None and total is not None:
+            try:
+                u, t = int(used), int(total)
+                result["quota"] = {
+                    "used": u,
+                    "total": t,
+                    "available": max(0, t - u),
+                }
+            except (TypeError, ValueError):
+                pass
+        try:
+            hosted_check_connectivity(cfg)
             result["ok"] = True
         except Exception as e:
             result["error"] = str(e)

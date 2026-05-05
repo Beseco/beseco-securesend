@@ -15,7 +15,7 @@ from pydantic import BaseModel
 
 class CloudProviderCreate(BaseModel):
     name: str
-    service: str                        # "nextcloud" | "onedrive"
+    service: str                        # "nextcloud" | "owncloud" | "onedrive" | …
     config_json: Optional[dict[str, Any]] = None
     is_default: bool = False
     is_active: bool = True
@@ -40,6 +40,18 @@ class CloudProviderRead(BaseModel):
     is_default: bool
     is_active: bool
     created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class CloudProviderSendOption(BaseModel):
+    """Minimal provider info for the send UI (no secrets in config_json)."""
+
+    id: str
+    name: str
+    service: str
+    is_default: bool
+    is_active: bool
 
     model_config = {"from_attributes": True}
 
@@ -184,7 +196,7 @@ class SendRequest(BaseModel):
     subject: str = "Ihr sicheres Dokument"
     message: str
     expiry_days: int = 7
-    security_level: str = "standard"
+    security_level: str = "level2"
     send_sms: bool = False
     send_email: bool = True
     provider_id: Optional[str] = None      # override default org provider
@@ -196,3 +208,7 @@ class SendResponse(BaseModel):
     provider: str
     expiry_days: int
     history_id: str
+    recipient_has_guest_account: bool = False
+    requested_security_level: Optional[str] = None
+    effective_security_level: Optional[str] = None
+    level_downgrade_notice: Optional[str] = None

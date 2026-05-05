@@ -108,46 +108,19 @@ Dateien: [Datei auswählen]    oder    Dateien hierher ziehen
 
 ## 5. Sicherheitsstufen
 
-Beim Senden können Sie zwischen **6 Stufen** wählen:
+Beim Senden gibt es aktuell ein **4-Stufen-Modell**:
 
-| Stufe | Icon | Beschreibung | Passwort |
-|-------|------|------------|--------|
-| **Normal** | 📧 | Kein Passwort | — |
-| **Standard** | 🔑 | Selbst gewählt | Manuell |
-| **Secure** | 🔒 | SMS + Passwort | Per SMS (Standard) |
-| **Extended** | 🛡️ | SMS + 2FA | Per SMS |
-| **Advanced** | ⚡ | Client-Verschlüsselung | Per SMS |
-| **Maximal** | 🔐 | Maximal | Per SMS |
+| Stufe | Icon | Beschreibung | Status in Web-App |
+|---|---|---|---|
+| **Stufe 1** | 📧 | Sicherer Link | ✅ produktiv |
+| **Stufe 2** | 🔑 | Link + Gast-Login | ✅ produktiv |
+| **Stufe 3** | 🔐 | E2E-Dateien + Gast-Login | ✅ produktiv |
+| **Stufe 4** | 🏢 | E2E-Dateien + Text + Gast-Login | ⚠️ Add-in-only, Web verarbeitet als Stufe 3 |
 
-### Stufen-Erklärung
+### Praktischer Hinweis
 
-#### 📧 Normal
-- Kein Passwort erforderlich
-- Für: interne Abstimmungen
-- → Empfänger sieht Nachricht direkt
-
-#### 🔑 Standard
-- Sie vergeben ein Passwort
-- Für: einfache Freigaben
-- → Empfänger braucht Passwort
-
-#### 🔒 Secure (EMPFOHLEN)
-- Automatisches Passwort per SMS
-- Für: Standard-Geschäftskommunikation
-- → Sicher & komfortabel
-
-#### 🛡️ Extended
-- SMS + 2FA
-- Für: vertrauliche Daten
-
-#### ⚡ Advanced
-- Dateien werden im Browser verschlüsselt
-- Server sieht keine Inhalte
-- Für: streng vertraulich
-
-#### 🔐 Maximal
-- Zusätzliche Verifikation
-- Für: höchste Sicherheitsanforderungen
+- Wenn Sie in der Web-App **Stufe 4** wählen, zeigt das System einen Hinweis und verarbeitet den Versand derzeit als **Stufe 3**.
+- Die produktive Stufe-4-Umsetzung ist für das Outlook-Add-in vorgesehen.
 
 ---
 

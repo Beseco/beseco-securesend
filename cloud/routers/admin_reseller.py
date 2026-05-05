@@ -33,6 +33,7 @@ from models.reseller import Reseller
 from models.user import User, UserRole
 from schemas.organization import OrgCreate, OrgRead, OrgUpdate
 from schemas.reseller import ResellerCreate, ResellerRead, ResellerUpdate
+from services.audit import log_audit_event, mask_email, merge_actor_fields, redact_exception_message
 
 router = APIRouter(tags=["admin-reseller"])
 
@@ -87,14 +88,22 @@ async def create_reseller_org(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=409, detail="Slug already in use")
 
+    from services.hosted_provider import (
+        ensure_hosted_cloud_provider,
+        merge_org_settings_with_storage_defaults,
+    )
+
+    merged_settings = merge_org_settings_with_storage_defaults(body.settings_json)
     org = Organization(
         reseller_id=reseller_id,
         name=body.name,
         slug=body.slug,
         is_active=body.is_active,
-        settings_json=body.settings_json,
+        settings_json=merged_settings,
     )
     db.add(org)
+    await db.flush()
+    await ensure_hosted_cloud_provider(db, org.id)
     await db.commit()
     await db.refresh(org)
     return OrgRead.model_validate(org)
@@ -195,6 +204,20 @@ async def update_reseller_settings(
     current = dict(reseller.settings_json or {})
     current.update(body)
     reseller.settings_json = current
+    await log_audit_event(
+        event_type="reseller_settings_updated",
+        severity="info",
+        status="success",
+        target_type="reseller",
+        target_id=rid,
+        meta_json={
+            "updated_keys": sorted(body.keys()),
+            "smtp_touched": "smtp" in body,
+        },
+        **merge_actor_fields(current_user, org_id=None, reseller_id=rid),
+        db=db,
+        commit=False,
+    )
     await db.commit()
     return reseller.settings_json or {}
 
@@ -204,7 +227,9 @@ async def update_reseller_settings(
 @router.post("/admin/reseller/smtp/test")
 async def test_reseller_smtp(
     body: dict,
+    reseller_id: Optional[str] = None,
     current_user: User = Depends(reseller_admin_required()),
+    db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Send a test e-mail using the supplied SMTP config.
 
@@ -216,6 +241,7 @@ async def test_reseller_smtp(
 
     smtp_cfg: dict = body.get("smtp") or {}
     test_email: str = (body.get("test_email") or "").strip()
+    rid = _resolve_reseller_id(current_user, reseller_id)
 
     if not smtp_cfg.get("host"):
         raise HTTPException(status_code=400, detail="SMTP-Host fehlt")
@@ -236,8 +262,34 @@ async def test_reseller_smtp(
   <p style="font-size:0.875rem;color:#64748b;">SecureSend Cloud – Sicheres Senden</p>
 </body></html>""",
         )
+        await log_audit_event(
+            event_type="smtp_test_success",
+            severity="info",
+            status="success",
+            meta_json={
+                "scope": "reseller",
+                "test_recipient_masked": mask_email(test_email),
+            },
+            **merge_actor_fields(current_user, org_id=None, reseller_id=rid),
+            db=db,
+            commit=True,
+        )
         return {"ok": True}
     except Exception as exc:
+        await log_audit_event(
+            event_type="smtp_test_failed",
+            severity="warning",
+            status="failure",
+            error_code="smtp_test_exception",
+            error_message_redacted=redact_exception_message(exc),
+            meta_json={
+                "scope": "reseller",
+                "test_recipient_masked": mask_email(test_email),
+            },
+            **merge_actor_fields(current_user, org_id=None, reseller_id=rid),
+            db=db,
+            commit=True,
+        )
         return {"ok": False, "error": str(exc)}
 
 

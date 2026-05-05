@@ -17,3 +17,4 @@ pyzipper
 pyotp>=2.9
 slowapi>=0.1.9
 clamd>=1.0.2
+boto3>=1.34,<2

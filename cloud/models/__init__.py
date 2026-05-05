@@ -6,6 +6,7 @@ from models.reseller import Reseller
 from models.organization import Organization
 from models.user import User, UserRole
 from models.shared import (
+    AuditEvent,
     CloudProvider,
     SmsGateway,
     Contact,
@@ -23,6 +24,7 @@ __all__ = [
     "Organization",
     "User",
     "UserRole",
+    "AuditEvent",
     "CloudProvider",
     "SmsGateway",
     "Contact",

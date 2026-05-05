@@ -22,6 +22,7 @@ from config import settings
 from database import get_db
 
 logger = logging.getLogger(__name__)
+from core.smtp_config import get_env_smtp_cfg
 from dependencies import hash_password
 from models.organization import Organization
 from models.reseller import Reseller
@@ -64,8 +65,10 @@ async def _smtp_cfg(org: Organization, db: AsyncSession) -> dict | None:
     res = await db.execute(select(Reseller).where(Reseller.id == org.reseller_id))
     reseller = res.scalar_one_or_none()
     if reseller and reseller.settings_json:
-        return reseller.settings_json.get("smtp")
-    return None
+        cfg = reseller.settings_json.get("smtp")
+        if cfg:
+            return cfg
+    return get_env_smtp_cfg()
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────

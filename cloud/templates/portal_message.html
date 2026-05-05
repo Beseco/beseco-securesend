@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ subject }} – Gast-Portal</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f1f5f9; margin: 0; min-height: 100vh; }
+    header { background: #1e293b; color: #f1f5f9; padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; }
+    header a { color: #93c5fd; text-decoration: none; font-size: 0.875rem; }
+    main { max-width: 42rem; margin: 0 auto; padding: 1.25rem; }
+    .card { background: #fff; border-radius: 0.75rem; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    h1 { font-size: 1.25rem; margin: 0 0 0.5rem; color: #0f172a; }
+    .banner { background: #fff7ed; color: #9a3412; padding: 0.75rem 1rem; border-radius: 0.5rem; font-size: 0.875rem; margin-bottom: 1rem; }
+    .msg { color: #334155; font-size: 0.9375rem; line-height: 1.5; white-space: pre-wrap; margin: 1rem 0; }
+    .files { margin-top: 1.25rem; }
+    .files h3 { font-size: 0.875rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin: 0 0 0.5rem; }
+    .file a { display: block; padding: 0.625rem 0.75rem; background: #f8fafc; border-radius: 0.5rem; margin-bottom: 0.375rem; color: #1a56db; text-decoration: none; font-size: 0.875rem; }
+    .file a:hover { background: #eff6ff; }
+    .meta { font-size: 0.8125rem; color: #64748b; }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/portal/">← Posteingang</a>
+    <form method="post" action="/portal/logout" style="margin:0;"><button type="submit" style="background:none;border:none;color:#93c5fd;cursor:pointer;font-size:0.875rem;padding:0;">Abmelden</button></form>
+  </header>
+  <main>
+    <div class="card">
+      {% if expired %}
+      <div class="banner">Dieser Inhalt ist nicht mehr verfügbar oder wurde zurückgerufen.</div>
+      {% endif %}
+      <h1>{{ subject }}</h1>
+      <div class="meta">Von {{ sender_name }}{% if org_name %} · {{ org_name }}{% endif %}</div>
+      {% if message %}<div class="msg">{{ message }}</div>{% endif %}
+      {% if file_rows %}
+      <div class="files">
+        <h3>Dateien</h3>
+        {% for f in file_rows %}
+        <div class="file">
+          {% if not expired %}
+          <a href="{{ f.href }}">{{ f.display }}</a>
+          {% else %}
+          <span style="color:#94a3b8;">{{ f.display }}</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+      {% if expires_at %}
+      <p class="meta" style="margin-top:1.25rem;">Gültig bis {{ expires_at.strftime('%d.%m.%Y %H:%M') }} (Serverzeit)</p>
+      {% endif %}
+    </div>
+  </main>
+</body>
+</html>

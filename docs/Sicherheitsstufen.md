@@ -1,192 +1,55 @@
 # SecureSend Cloud – Sicherheitsstufen
 
-Diese Dokumentation erklärt die 6 Sicherheitsstufen von SecureSend Cloud.
+Diese Dokumentation beschreibt den **aktuellen Produktstatus** von SecureSend Cloud.
 
----
+## Aktueller Stand (Web-App)
 
-## Übersicht
+Die Web-App unterstützt produktiv:
+- **Stufe 1**
+- **Stufe 2**
+- **Stufe 3**
 
-| Stufe | Icon | Verschlüsselung | Passwort | SMS | 2FA | Client-Verschlüsselung |
-|------|------|---------------|----------|-----|-----|---------------------|
-| Normal | 📧 | TLS | ❌ | ❌ | ❌ | ❌ |
-| Standard | 🔑 | TLS | ✓ (selbst) | ❌ | ❌ | ❌ |
-| Secure | 🔒 | TLS | ✓ | ✓ | ❌ | ❌ |
-| Extended | 🛡️ | TLS | ✓ | ✓ | ✓ | ❌ |
-| Advanced | ⚡ | TLS + E2E | ✓ | ✓ | ✓ | ✓ |
-| Maximal | 🔐 | TLS + E2E | ✓ | ✓ | ✓ | ✓ + Video |
+**Stufe 4** ist derzeit als Option sichtbar, aber in der Web-App noch nicht produktiv.
+Wenn Stufe 4 in der Web-App ausgewählt wird, verarbeitet das Backend den Versand als **Stufe 3** und protokolliert dies im Audit.
 
----
+## Matrix: Web heute vs. Add-in später
 
-## Detailierte Erklärung
+| Stufe | Zweck | Web-App heute | Outlook-Add-in (Roadmap) |
+|---|---|---|---|
+| Stufe 1 | Sicherer Link | ✅ produktiv | ✅ |
+| Stufe 2 | Link + Gastkonto | ✅ produktiv | ✅ |
+| Stufe 3 | E2E Dateien + Gastkonto | ✅ produktiv | ✅ |
+| Stufe 4 | E2E Dateien + Nachrichtentext + Gastkonto | ⚠️ sichtbar, wird als Stufe 3 verarbeitet | 🚧 geplant (produktive Zielumsetzung) |
 
-### 🔵 Stufe 1: Normal 📧
+## Details je Stufe
 
-**Einsatzbereich:**
-- Interne Abstimmungen
-- Unkritische Dokumente
-- Informationen, die keinen Schutz benötigen
+### Stufe 1
+- Sicherer Link ohne Pflicht-Login
+- Optionales Passwort über separaten Kanal (z. B. SMS/Telefon)
 
-**Technische Details:**
-- Transport-Verschlüsselung: TLS
-- Keine Authentifizierung erforderlich
-- Keine Protokollierung des Empfängers
+### Stufe 2
+- Sicherer Link mit Gastkonto
+- Optionales Passwort über separaten Kanal
 
-**Vorteile:**
-- 🚀 Schnellster Zugang
-- 👥 Kein Aufwand für Empfänger
+### Stufe 3
+- Ende-zu-Ende-Verschlüsselung für Dateien
+- Gastkonto erforderlich
+- Entschlüsselung im Empfänger-Browser
 
-**Nachteile:**
-- ⚠️ Kein Nachweis über Empfang
-- ⚠️ Kein Schutz bei Weiterleitung
+### Stufe 4
+- Zielbild: E2E für Dateien und Nachrichtentext
+- Aktuell produktiv nur für den Add-in-Weg vorgesehen
+- In der Web-App derzeit Add-in-Hinweis + Downgrade auf Stufe 3
 
----
+## Konfiguration (Administratoren)
 
-### 🟢 Stufe 2: Standard 🔑
+- `allowed_security_levels` kann Stufe 4 enthalten, damit die Option sichtbar bleibt.
+- `default_security_level` kann auf Stufe 4 stehen.
+- Für Web-Sendungen gilt trotzdem: **effektive Verarbeitung als Stufe 3**, bis der Add-in-Flow freigegeben ist.
 
-**Einsatzbereich:**
-- Einfache Freigaben
-- Interne Dokumente mit Zugriffskontrolle
-- Wenn kein Handy verfügbar
+## Hinweise zur älteren Dokumentation
 
-**Technische Details:**
-- Transport-Verschlüsselung: TLS
-- Passwort: Manuell vereinbart (nicht automatisch)
-- Keine SMS
-
-**Vorteile:**
-- 🔒 Einfache Zugriffskontrolle
-- 📞 Kein Handy nötig
-
-**Nachteile:**
-- ⚠️ Passwort muss separat übermittelt werden
-- ⚠️ Kein SMS-Beleg
-
----
-
-### 🟡 Stufe 3: Secure 🔒 (EMPFOHLEN)
-
-**Einsatzbereich:**
-- Standard-Geschäftskommunikation
-- Verträge und Vereinbarungen
-- Kunden- und Partnernachrichten
-
-**Technische Details:**
-- Transport-Verschlüsselung: TLS
-- Passwort: Automatisch generiert + per SMS
-- Einmal-Passwort (One-Time-Password)
-
-**Vorteile:**
-- 📱 Sicherer Nachweis (SMS an Handy)
-- 🔐 Automatische Generierung
-- 📊 Protokollierung
-
-**Empfehlung:**
-> Für die meisten Geschäftsfälle ist **Secure** die beste Wahl.
-
----
-
-### 🟠 Stufe 4: Extended 🛡️
-
-**Einsatzbereich:**
-- Vertrauliche Daten
-- Personalakten, Gehaltsdaten
-- Strategische Informationen
-
-**Technische Details:**
-- Transport-Verschlüsselung: TLS
-- Passwort: Per SMS
-- Zusätzlicher 2FA (E-Mail oder App)
-
-**Vorteile:**
-- 🛡️ Doppelte Absicherung
-- 📧 2FA für hohe Sicherheit
-
-**Anwendung:**
-- Wenn Unternehmen 2FA vorschreibt
-- Bei besonders sensiblen Daten
-
----
-
-### 🔴 Stufe 5: Advanced ⚡
-
-**Einsatzbereich:**
-- Streng vertrauliche Informationen
-- Geistiges Eigentum
-- Fusionen & Übernahmen
-
-**Technische Details:**
-- Transport-Verschlüsselung: TLS
-- **End-to-End-Verschlüsselung** (im Browser)
-- Dateien werden **auf dem Client verschlüsselt**
-- Erst Entschlüsselung im Browser des Empfängers
-
-**Vorteile:**
-- 🔐 Selbst bei Cloud-Kompromittierung sicher
-- 🖥️ Server sieht keine Dateiinhalte
-- 📱 Mobile-fähig
-
-**Technische Implementation:**
-```
-[Sender-Browser] → AES-256-GCM verschlüsselt → [Cloud] → [Empfänger-Browser] → entschlüsselt
-        ↑                              ↑
-    Client-seitig              Client-seitig
-```
-
----
-
-### ⚫ Stufe 6: Maximal 🔐
-
-**Einsatzbereich:**
-- Höchste Sicherheitsanforderungen
-- Regulatorisch geschützte Daten
-- Behördliche Anforderungen
-
-**Technische Details:**
-- Alles aus Advanced
-- Zusätzliche Verifikation (z.B. Video-Call)
-- Audit-Protokollierung
-- Zeitlich begrenzter Zugriff
-
-**Zusätzliche Funktionen:**
-- 📹 Video-Verifikation möglich
-- ⏰ Zeitlich begrenzte Links
-- 📋 Vollständiges Audit-Trail
-
----
-
-## Vergleichstabelle
-
-| Feature | Normal | Standard | Secure | Extended | Advanced | Maximal |
-|---------|--------|----------|--------|----------|----------|--------|
-| TLS | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Passwort | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| SMS-Code | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
-| 2FA | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
-| Client-Verschl. | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| Video-Verify | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| Audit Trail | Basis | Basis | Basis | Vollst. | Vollst. | Vollst. + |
-| Zeitbegrenzung | ❌ | ❌ | ❌ | Optional | Optional | ✅ |
-
----
-
-## Für wen welche Stufe?
-
-### Privatpersonen
-- **Normal** oder **Standard**: Für private Fotos, einfache Dokumente
-
-### Kleinunternehmen
-- **Standard**: Für alltägliche Kommunikation
-- **Secure**: Für Kundenanfragen
-
-### Mittelstand
-- **Secure** (Standard): Für die meiste Kommunikation
-- **Extended**: Für vertrauliche Daten
-- **Advanced**: Für Verträge, Angebote
-
-### Großunternehmen / Behörden
-- **Secure** oder **Extended**: Standard
-- **Advanced**: Streng vertraulich
-- **Maximal**: Regulatorisch geschützt
+Frühere Beschreibungen mit einem 6-Stufen-Modell (`Normal`, `Standard`, `Secure`, `Extended`, `Advanced`, `Maximal`) sind veraltet und wurden durch das aktuelle 4-Stufen-Modell ersetzt.
 
 ---
 
@@ -253,7 +116,7 @@ In der Admin-Oberfläche können Sie:
 
 1. **Erlaubte Stufen** festlegen
 2. **Standard-Stufe** definieren
-3. **Speicherort** wählen (Nextcloud/OneDrive/SecureSend)
+3. **Speicherort** wählen: Kunden-Cloud (z. B. Nextcloud/OneDrive) oder **SecureSend Storage** (gehostet, `securesend_hosted`), gesteuert über die Einstellung **Speicherpräferenz** (`securesend_cloud` / `customer_cloud` / `user_choice`). Details und Betrieb: [Umsetzungsplan-SecureSend-Storage.md](Umsetzungsplan-SecureSend-Storage.md).
 
 ```
  организации → Einstellungen → Sicherheitsstufen

@@ -14,6 +14,7 @@ from sqlalchemy import Boolean, DateTime, ForeignKey, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from database import Base
+from services.security_levels import DEFAULT_SECURITY_LEVEL
 
 
 class CloudProvider(Base):
@@ -40,7 +41,7 @@ class CloudProvider(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     service: Mapped[str] = mapped_column(
         String(50), nullable=False
-    )  # "nextcloud" | "onedrive"
+    )  # z. B. "nextcloud" | "owncloud" | "onedrive"
     config_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -143,11 +144,19 @@ class History(Base):
     to_email: Mapped[str] = mapped_column(String(320), nullable=False, default="")
     to_phone: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     filename: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    subject: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    message_preview: Mapped[Optional[str]] = mapped_column(String(600), nullable=True)
     share_url: Mapped[str] = mapped_column(String(2048), nullable=False, default="")
     provider: Mapped[str] = mapped_column(String(50), nullable=False, default="")
     expiry_days: Mapped[int] = mapped_column(nullable=False, default=7)
+    # Absolutes Ablaufdatum (für Anzeige, Verlängerung, Cleanup)
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    purged_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    read_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True
+    )  # Lesebestätigung (Gast-Portal)
     security_level: Mapped[str] = mapped_column(
-        String(50), nullable=False, default="standard"
+        String(50), nullable=False, default=DEFAULT_SECURITY_LEVEL
     )
     ip_address: Mapped[str] = mapped_column(String(45), nullable=False, default="")
     # For client-side encrypted files (advanced/maximal)
@@ -187,6 +196,16 @@ class History(Base):
     max_access_count: Mapped[Optional[int]] = mapped_column(nullable=True)
     password_changed_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True
+    )
+    # Für serverseitiges Löschen (Hosted/MinIO); optional Einzeldatei
+    storage_folder_path: Mapped[Optional[str]] = mapped_column(
+        String(512), nullable=True
+    )
+    storage_delete_filename: Mapped[Optional[str]] = mapped_column(
+        String(500), nullable=True
+    )
+    cloud_provider_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True, index=True
     )
 
     user: Mapped["User"] = relationship("User", back_populates="history")  # noqa: F821
@@ -445,6 +464,11 @@ class Guest(Base):
     email_code_expires: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True
     )
+    sms_code: Mapped[Optional[str]] = mapped_column(String(8), nullable=True)
+    sms_code_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    phone_verified_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # True bis zweite Registrierungsstufe (2FA-Wahl) abgeschlossen; bestehende Konten: False
+    twofa_pending: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     is_active: Mapped[bool] = mapped_column(nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
@@ -466,3 +490,37 @@ class Guest(Base):
 
     def __repr__(self) -> str:
         return f"<Guest id={self.id!r} email={self.email!r}>"
+
+
+class AuditEvent(Base):
+    """Admin-/Debug-Audit (ohne Nachrichten- oder Dateiinhalte)."""
+
+    __tablename__ = "audit_events"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False, index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False, default="info")
+    actor_user_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True, index=True
+    )
+    actor_role: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    org_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True, index=True)
+    reseller_id: Mapped[Optional[str]] = mapped_column(
+        String(36), nullable=True, index=True
+    )
+    target_type: Mapped[Optional[str]] = mapped_column(String(60), nullable=True)
+    target_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="success")
+    error_code: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    error_message_redacted: Mapped[Optional[str]] = mapped_column(
+        String(500), nullable=True
+    )
+    meta_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
+    def __repr__(self) -> str:
+        return f"<AuditEvent id={self.id!r} type={self.event_type!r}>"

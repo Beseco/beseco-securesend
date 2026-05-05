@@ -8,6 +8,7 @@ from datetime import datetime
 from typing import Any, Optional
 
 from pydantic import BaseModel
+from services.security_levels import DEFAULT_SECURITY_LEVEL, SECURITY_LEVELS
 
 
 class OrgCreate(BaseModel):
@@ -58,9 +59,10 @@ class OrgSettings(BaseModel):
     default_subject: str = "Ihr sicheres Dokument"
 
     # Security levels configuration
-    allowed_security_levels: list[str] = [
-        "secure",
-        "extended",
-    ]  # default: only secure and extended
-    default_security_level: str = "secure"
-    storage_preference: str = "customer_cloud"  # "customer_cloud" or "securesend_cloud"
+    allowed_security_levels: list[str] = list(SECURITY_LEVELS)
+    default_security_level: str = DEFAULT_SECURITY_LEVEL
+    # customer_cloud | securesend_cloud | user_choice
+    storage_preference: str = "securesend_cloud"
+    storage_quota_bytes: Optional[int] = None  # None → Reseller-Tier / Default 5GB
+    storage_used_bytes: int = 0
+    storage_tier_id: Optional[str] = None  # Verweis auf reseller.settings_json.storage_tiers

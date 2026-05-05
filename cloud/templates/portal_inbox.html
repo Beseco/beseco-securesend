@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Posteingang – Gast-Portal</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f1f5f9; margin: 0; min-height: 100vh; }
+    header { background: #1e293b; color: #f1f5f9; padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.75rem; }
+    header a { color: #93c5fd; text-decoration: none; font-size: 0.875rem; }
+    main { max-width: 48rem; margin: 0 auto; padding: 1.25rem; }
+    .claim { background: #fff; border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1.25rem; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .claim h2 { font-size: 1rem; margin: 0 0 0.75rem; color: #0f172a; }
+    .claim input { width: 100%; box-sizing: border-box; padding: 0.5rem 0.75rem; border: 1px solid #e2e8f0; border-radius: 0.5rem; margin-bottom: 0.5rem; }
+    .claim button { padding: 0.5rem 1rem; background: #1a56db; color: #fff; border: none; border-radius: 0.5rem; font-weight: 600; cursor: pointer; }
+    .err { color: #b91c1c; font-size: 0.875rem; margin-bottom: 0.5rem; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li { background: #fff; border-radius: 0.5rem; margin-bottom: 0.5rem; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    li a { display: block; padding: 1rem 1.25rem; text-decoration: none; color: #0f172a; }
+    li a:hover { background: #f8fafc; }
+    li.expired a { color: #94a3b8; }
+    .sub { font-weight: 600; font-size: 0.9375rem; }
+    .meta { font-size: 0.75rem; color: #64748b; margin-top: 0.25rem; }
+    .empty { text-align: center; color: #94a3b8; padding: 2rem; }
+  </style>
+</head>
+<body>
+  <header>
+    <span style="font-weight:700;">{{ guest_email }}</span>
+    <div style="display:flex;gap:1rem;">
+      <a href="/portal/">Posteingang</a>
+      <form method="post" action="/portal/logout" style="margin:0;"><button type="submit" style="background:none;border:none;color:#93c5fd;cursor:pointer;font-size:0.875rem;padding:0;">Abmelden</button></form>
+    </div>
+  </header>
+  <main>
+    <div class="claim">
+      <h2>Nachricht aus E-Mail hinzufügen</h2>
+      <p style="font-size:0.8125rem;color:#64748b;margin:0 0 0.75rem;">Fügen Sie den vollständigen Link oder nur den Token aus der Einladungsmail ein.</p>
+      {% if claim_error %}<div class="err">{{ claim_error }}</div>{% endif %}
+      <form method="post" action="/portal/claim">
+        <input type="text" name="link_or_token" placeholder="https://…/track/l/… oder Token" />
+        <button type="submit">Hinzufügen</button>
+      </form>
+    </div>
+    {% if items %}
+    <ul>
+      {% for row in items %}
+      <li class="{{ 'expired' if row.expired else '' }}">
+        <a href="/portal/m/{{ row.id }}">
+          <div class="sub">{{ row.subject }}</div>
+          <div class="meta">
+            {{ row.created_at.strftime('%d.%m.%Y %H:%M') if row.created_at else '' }}
+            {% if row.read_at %}· Gelesen {{ row.read_at.strftime('%d.%m.%Y %H:%M') }}{% endif %}
+            {% if row.is_revoked %}· Zurückgerufen{% elif row.expired %}· Abgelaufen{% endif %}
+          </div>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty">Noch keine Nachrichten. Registrieren Sie sich über einen sicheren Link oder fügen Sie einen Link oben ein.</div>
+    {% endif %}
+  </main>
+</body>
+</html>

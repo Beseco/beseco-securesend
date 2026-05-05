@@ -1,5 +1,15 @@
 # Coolify Deployment Anleitung
 
+## Inhaltsverzeichnis
+
+1. [Option 1: Git-Repository (Empfohlen)](#option-1-git-repository-empfohlen)
+2. [Option 2: Docker Image (Manuel)](#option-2-docker-image-manuel)
+3. [Empfohlene Coolify Settings](#empfohlene-coolify-settings)
+4. [Datenbank](#datenbank)
+5. [Domain](#domain)
+6. [Troubleshooting](#troubleshooting)
+7. [Schnellstart (GitHub → Coolify)](#schnellstart-github--coolify)
+
 ## Option 1: Git-Repository (Empfohlen)
 
 ### Schritt 1: Git-Repository vorbereiten
